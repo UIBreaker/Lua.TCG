@@ -823,7 +823,6 @@ function love.update(dt)
                     -- Old card degradation is removed per user request:
                     -- Cards do NOT lose rank on play. Played cards are simply discarded.
                     anim.playedCards = {}
-                    end
 
                     -- Check if player has run out of all cards
                     if #game.hand == 0 and #game.deck == 0 and #game.discardPile == 0 then
