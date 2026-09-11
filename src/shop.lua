@@ -110,9 +110,21 @@ function Shop.refresh(shop, gameState)
         icon = "🃏",
     })
     
-    -- Limit total shop items to 5 max
-    while #shop.items > 5 do
-        table.remove(shop.items, 1)
+    -- 5. Offer a Healing Potion (Bình Máu Thánh)
+    table.insert(shop.items, {
+        category = "heal",
+        name = "Bình Máu Thánh",
+        subtitle = "DƯỢC LIỆU HỒI MÁU",
+        desc = "Uống lập tức hồi phục +25 HP sinh lực cho nhân vật!",
+        cost = 4,
+        color = { 0.25, 0.85, 0.45, 1 },
+        icon = "🧪",
+        healAmt = 25,
+    })
+
+    -- Limit total shop items to 6 max (remove excess from the end)
+    while #shop.items > 6 do
+        table.remove(shop.items)
     end
 end
 
@@ -146,6 +158,12 @@ function Shop.buyItem(shop, itemIndex, gameState)
         end
         Sound.play("round_win")
         return true, "Đã kích hoạt Phù Chú Tiếp Lực (+1 Lượt Đánh & +1 Lượt Đổi)!"
+
+    elseif item.category == "heal" then
+        local healVal = item.healAmt or 25
+        gameState.playerHp = math.min(gameState.maxPlayerHp or 100, (gameState.playerHp or 100) + healVal)
+        Sound.play("round_win")
+        return true, "Đã hồi phục +" .. healVal .. " HP sinh lực!"
     end
 
     return false, "Vật phẩm không hợp lệ"

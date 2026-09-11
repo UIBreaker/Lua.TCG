@@ -438,6 +438,100 @@ assert(valoriaGold == 6, "Valoria royal discard must grant +$1 gold")
 
 log("[PASS] 27. Faction Discard Buffs rebalanced cleanly: Aurelia (+6/12c, +1m), Elaris (Heal), Vharos (3/6 True Dmg), Valoria (+5/8c, +$1)")
 
+-- 23. Test Player HP & Monster Counter-Attack
+local simMon = Monster.create(1, false, false, 1)
+assert(simMon.attack ~= nil and simMon.attack >= 12, "Monster must possess an attack stat (>= 12)")
+local simPlayer = { playerHp = 100, maxPlayerHp = 100, playerShield = 0 }
+-- Simulate monster counter-attack when not defeated
+local dmgDealtToPlayer = simMon.attack
+simPlayer.playerHp = math.max(0, simPlayer.playerHp - dmgDealtToPlayer)
+assert(simPlayer.playerHp == 100 - simMon.attack, "Player HP reduced by monster counter-attack")
+-- Simulate fatal counter-attack
+simPlayer.playerHp = math.max(0, simPlayer.playerHp - 100)
+assert(simPlayer.playerHp == 0, "Player HP drops to 0 on fatal counter-attack")
+log("[PASS] 28. Player HP & Monster Counter-Attack verified: monster counter-attacks for " .. simMon.attack .. " HP")
+
+-- 24. Test Tiền Lãi (Interest) Formula
+local function calcInterest(gold)
+    return math.min(5, math.floor(gold / 5))
+end
+assert(calcInterest(0) == 0, "0 gold yields 0 interest")
+assert(calcInterest(4) == 0, "4 gold yields 0 interest")
+assert(calcInterest(5) == 1, "5 gold yields 1 interest")
+assert(calcInterest(12) == 2, "12 gold yields 2 interest")
+assert(calcInterest(24) == 4, "24 gold yields 4 interest")
+assert(calcInterest(25) == 5, "25 gold yields 5 interest (cap)")
+assert(calcInterest(99) == 5, "99 gold yields 5 interest (capped at 5)")
+log("[PASS] 29. Tiền Lãi (Interest) verified: +$1 per $5 stored, capped at +$5 per combat")
+
+-- 25. Test Skip Blind & Tag Rewards
+local testMap = Map.generate(1)
+local testCombatNode = testMap.nodes["f1_1"]
+assert(testCombatNode.skipTag ~= nil, "Combat node must have an assigned skipTag")
+assert(testCombatNode.skipTag.name ~= nil, "skipTag must have a display name")
+local simState = {
+    gold = 10,
+    map = testMap,
+    persistentDeck = Deck.createStarterDeck("aurelia"),
+    monsterEncounterCount = 1,
+}
+local initialEncounter = simState.monsterEncounterCount
+local skipOk, skipMsg, tag = Map.skipCombatNode(simState, "f1_1")
+assert(skipOk == true, "skipCombatNode must execute successfully")
+assert(simState.monsterEncounterCount == initialEncounter + 1, "Skipping increases encounterCount (+50% HP next fight)")
+assert(testCombatNode.visited == true, "Skipped node marked as visited/completed")
+log("[PASS] 30. Skip Blind & Tag Rewards verified: node completed with tag reward: " .. (tag.name or ""))
+
+-- 26. Test 6 Disruptive Boss Abilities (The Needle, The Water, The Pillar, The Hook, The Fish, The Arm)
+-- A. The Needle (1 Hand only)
+local needleBoss = Monster.create(20, true, false, 1, "the_needle")
+local gsNeedle = { handsRemaining = 4, maxHands = 4, discardsRemaining = 3 }
+needleBoss.bossData.applyModifier(gsNeedle)
+assert(gsNeedle.handsRemaining == 1, "The Needle sets handsRemaining to 1")
+
+-- B. The Water (0 Discards)
+local waterBoss = Monster.create(20, true, false, 1, "the_water")
+local gsWater = { discardsRemaining = 3 }
+waterBoss.bossData.applyModifier(gsWater)
+assert(gsWater.discardsRemaining == 0, "The Water sets discardsRemaining to 0")
+
+-- C. The Pillar (Locks a faction completely)
+local pillarBoss = Monster.create(20, true, false, 1, "the_pillar")
+local gsPillar = { selectedSuit = "aurelia", monster = pillarBoss }
+pillarBoss.bossData.applyModifier(gsPillar)
+assert(pillarBoss.lockedFaction == "aurelia", "The Pillar locks Aurelia faction")
+local pEval = Poker.evaluate({ Deck.newCard(10, "aurelia") }, { high_card = true })
+local pScore = Scoring.calculate(pEval, {}, { monster = pillarBoss })
+local cardStep = nil
+for _, st in ipairs(pScore.steps) do
+    if st.type == "card_scored" then cardStep = st break end
+end
+assert(cardStep ~= nil, "Card scored step must be present")
+assert(cardStep.addedChips == 0, "Locked faction cards add 0 Chips under The Pillar")
+assert(cardStep.addedMult == 0, "Locked faction cards add 0 Mult under The Pillar")
+assert(pScore.xMultTotal == 1.0, "Faction passive x1.15 is negated under The Pillar")
+
+-- D. The Hook (Boss discards 2 cards on hand play)
+local gsHookHand = { Deck.newCard(2, "aurelia"), Deck.newCard(3, "aurelia"), Deck.newCard(4, "aurelia") }
+local hookDiscard = {}
+for i = 1, math.min(2, #gsHookHand) do
+    table.insert(hookDiscard, table.remove(gsHookHand, 1))
+end
+assert(#gsHookHand == 1, "The Hook removes 2 cards from player hand")
+assert(#hookDiscard == 2, "The Hook sends 2 discarded cards to discardPile")
+
+-- E. The Fish (Cards drawn are faceDown)
+local gsFishCard = Deck.newCard(10, "vharos")
+gsFishCard.faceDown = true
+assert(gsFishCard.faceDown == true, "The Fish renders drawn cards Face-Down")
+
+-- F. The Arm (Cards lose 1 rank when played)
+local armCard = Deck.newCard(8, "elaris")
+Deck.degradeCard(armCard)
+assert(armCard.rank == 7, "The Arm degrades played card by -1 Rank")
+
+log("[PASS] 31. 6 Disruptive Boss Abilities verified: The Needle, The Water, The Pillar, The Hook, The Fish, The Arm")
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then

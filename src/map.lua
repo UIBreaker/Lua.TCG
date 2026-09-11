@@ -59,6 +59,88 @@ Map.NODE_TYPES = {
     },
 }
 
+Map.SKIP_TAGS = {
+    {
+        id = "gold_pack",
+        name = "Túi Vàng Cực Lớn",
+        desc = "Nhận ngay +$15 Vàng vào túi!",
+        color = { 0.95, 0.85, 0.25, 1 },
+        icon = "💰",
+        apply = function(gameState)
+            gameState.gold = (gameState.gold or 0) + 15
+            return "+$15 Vàng!"
+        end,
+    },
+    {
+        id = "free_upgrade",
+        name = "Thẻ Rèn Thần Tốc",
+        desc = "Nâng cấp vĩnh viễn 2 lá bài (+1 Rank)!",
+        color = { 0.35, 0.85, 0.45, 1 },
+        icon = "⚒️",
+        apply = function(gameState)
+            local upgraded = 0
+            if gameState.persistentDeck and #gameState.persistentDeck > 0 then
+                local Deck = require("src.deck")
+                for i = 1, math.min(2, #gameState.persistentDeck) do
+                    local idx = (love and love.math and love.math.random(#gameState.persistentDeck)) or i
+                    local c = gameState.persistentDeck[idx]
+                    if c then
+                        Deck.upgradeCard(c)
+                        upgraded = upgraded + 1
+                    end
+                end
+            end
+            return "Đã nâng cấp " .. upgraded .. " lá bài (+1 Rank)!"
+        end,
+    },
+    {
+        id = "gear_pack",
+        name = "Gói Trang Bị Quý",
+        desc = "Nhận ngay 1 Trang Bị Quý Tộc khảm vào bài!",
+        color = { 0.85, 0.45, 0.95, 1 },
+        icon = "💎",
+        apply = function(gameState)
+            local Equipment = require("src.equipment")
+            local items = { Equipment.ITEMS.gem_fire, Equipment.ITEMS.gem_lightning, Equipment.ITEMS.holy_relic, Equipment.ITEMS.dark_blade }
+            local chosenEq = items[(love and love.math and love.math.random(#items)) or 1]
+            if gameState.persistentDeck and #gameState.persistentDeck > 0 then
+                local c = gameState.persistentDeck[1]
+                Equipment.attach(c, chosenEq)
+                return "Khảm thành công: " .. chosenEq.name .. " vào " .. (c.rankName or "bài") .. "!"
+            end
+            return "Đã nhận trang bị: " .. chosenEq.name
+        end,
+    },
+    {
+        id = "rare_deity",
+        name = "Thần Hộ Mệnh Hiếm",
+        desc = "Tuyển chọn ngay 1 Thần Bài giáng lâm trợ chiến!",
+        color = { 0.95, 0.4, 0.25, 1 },
+        icon = "👑",
+        apply = function(gameState)
+            local Deities = require("src.deities")
+            local pool = Deities.getBossDraftPool(gameState.deities or {}, 1)
+            if pool and pool[1] then
+                Deities.addDeity(gameState, pool[1])
+                return "Thần Bài giáng lâm: " .. pool[1].name .. "!"
+            end
+            return "Đã nhận phúc lành Thần Bài!"
+        end,
+    },
+}
+
+function Map.skipCombatNode(gameState, nodeId)
+    local node = gameState.map and gameState.map.nodes and gameState.map.nodes[nodeId]
+    if not node or not node.skipTag then return false, "Không thể bỏ qua ải này" end
+
+    local rewardMsg = node.skipTag.apply(gameState)
+    -- Advance encounter count so subsequent monsters are stronger
+    gameState.monsterEncounterCount = (gameState.monsterEncounterCount or 1) + 1
+    -- Complete node on map
+    Map.onNodeCompleted(gameState.map, nodeId)
+    return true, rewardMsg, node.skipTag
+end
+
 function Map.generate(act)
     act = act or 1
     local totalFloors = 20
@@ -96,12 +178,19 @@ function Map.generate(act)
         local bpList = floorBlueprints[f] or { { type = "monster", title = "Quái Tầng " .. f } }
         for col, bp in ipairs(bpList) do
             local id = "f" .. f .. "_" .. col
+            local skipTag = nil
+            if bp.type == "monster" or bp.type == "elite" then
+                local tagIdx = ((f * 3 + col) % #Map.SKIP_TAGS) + 1
+                skipTag = Map.SKIP_TAGS[tagIdx]
+            end
+
             local node = {
                 id = id,
                 floor = f,
                 col = col,
                 type = bp.type,
                 title = bp.title,
+                skipTag = skipTag,
                 connectedTo = {},
                 visited = false,
                 available = (f == 1),

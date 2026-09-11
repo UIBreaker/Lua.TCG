@@ -111,22 +111,40 @@ function Scoring.calculate(handInfo, deities, context)
     local hasAureliaCard = false
 
     for idx, card in ipairs(handInfo.scoringCards) do
-        local cardChips = card.baseChips
-        bonusChips = bonusChips + cardChips
-
-        local cardEvent = {
-            type = "card_scored",
-            card = card,
-            cardIndex = idx,
-            addedChips = cardChips,
-            addedMult = 0,
-            message = (card.roleIcon or "") .. " " .. card.rankName .. card.suitSymbol .. " +" .. cardChips .. " Chips"
-        }
-
-        -- Faction Passives per card
-        if card.suit == "aurelia" or (context and context.selectedSuit == "aurelia") then
-            hasAureliaCard = true
+        -- Check The Pillar Boss: completely disables locked faction
+        local isPillarLocked = false
+        if context and context.monster and context.monster.bossData and context.monster.bossData.debuffId == "the_pillar" then
+            if context.monster.lockedFaction and (card.suit == context.monster.lockedFaction) then
+                isPillarLocked = true
+            end
         end
+
+        if isPillarLocked then
+            table.insert(steps, {
+                type = "card_scored",
+                card = card,
+                cardIndex = idx,
+                addedChips = 0,
+                addedMult = 0,
+                message = "🚫 THE PILLAR: " .. card.rankName .. card.suitSymbol .. " bị khóa phái (0 Chips / 0 Mult)!"
+            })
+        else
+            local cardChips = card.baseChips
+            bonusChips = bonusChips + cardChips
+
+            local cardEvent = {
+                type = "card_scored",
+                card = card,
+                cardIndex = idx,
+                addedChips = cardChips,
+                addedMult = 0,
+                message = (card.roleIcon or "") .. " " .. card.rankName .. card.suitSymbol .. " +" .. cardChips .. " Chips"
+            }
+
+            -- Faction Passives per card
+            if card.suit == "aurelia" or (context and context.selectedSuit == "aurelia") then
+                hasAureliaCard = true
+            end
 
         if card.suit == "vharos" then
             bonusChips = bonusChips + 40
@@ -227,6 +245,7 @@ function Scoring.calculate(handInfo, deities, context)
         end
         cardEvent.deityTriggers = deityTriggers
         table.insert(steps, cardEvent)
+        end
     end
 
     -- Aurelia Faction Passive: Hào Quang Thánh Thiện (x1.15 XMult if hand contains Aurelia card)

@@ -254,6 +254,27 @@ function UI.drawCard(card, x, y, w, h)
     end
     UI.drawRoundedRect("line", 0, 0, w, h, 8)
 
+    -- Face-down Card Drawing (The Fish boss ability)
+    if card.faceDown then
+        love.graphics.setColor(0.14, 0.18, 0.24, 1)
+        UI.drawRoundedRect("fill", 2, 2, w - 4, h - 4, 6)
+
+        love.graphics.setColor(0.35, 0.45, 0.6, 0.8)
+        love.graphics.setLineWidth(1.5)
+        UI.drawRoundedRect("line", 5, 5, w - 10, h - 10, 5)
+
+        love.graphics.setFont(UI.fonts.large)
+        love.graphics.setColor(0.65, 0.78, 0.95, 0.9)
+        love.graphics.printf("?", 0, h / 2 - 18, w, "center")
+
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(0.5, 0.6, 0.75, 0.8)
+        love.graphics.printf("ÚP MẶT", 0, h / 2 + 14, w, "center")
+
+        love.graphics.pop()
+        return
+    end
+
     -- Gilded inner frame for equipped cards (subtle, elegant golden foil inlay)
     local eqCount = (card.equipments and #card.equipments) or 0
     if eqCount > 0 then
@@ -413,6 +434,45 @@ function UI.drawMonsterHpBar(x, y, w, h, currentHp, maxHp, damageLagHp)
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(1, 1, 1, 1)
     local hpText = currentHp .. " / " .. maxHp .. " HP"
+    local tw = UI.fonts.small:getWidth(hpText)
+    love.graphics.print(hpText, x + (w - tw) / 2, y + (h - 16) / 2)
+end
+
+function UI.drawPlayerHpBar(x, y, w, h, currentHp, maxHp, shield)
+    currentHp = math.max(0, currentHp or 100)
+    maxHp = maxHp or 100
+    shield = shield or 0
+
+    -- Background
+    love.graphics.setColor(0.1, 0.13, 0.16, 0.95)
+    UI.drawRoundedRect("fill", x, y, w, h, 6)
+
+    -- Fill bar
+    local pct = math.min(1.0, math.max(0.0, currentHp / maxHp))
+    local fillW = math.floor((w - 4) * pct)
+    if fillW > 0 then
+        if pct > 0.5 then
+            love.graphics.setColor(0.2, 0.8, 0.4, 0.95)
+        elseif pct > 0.25 then
+            love.graphics.setColor(0.95, 0.8, 0.2, 0.95)
+        else
+            love.graphics.setColor(0.85, 0.2, 0.2, 0.95)
+        end
+        UI.drawRoundedRect("fill", x + 2, y + 2, fillW, h - 4, 4)
+    end
+
+    -- Border
+    love.graphics.setColor(0.3, 0.4, 0.48, 1)
+    love.graphics.setLineWidth(1.5)
+    UI.drawRoundedRect("line", x, y, w, h, 6)
+
+    -- Text
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(1, 1, 1, 1)
+    local hpText = "MÁU: " .. currentHp .. " / " .. maxHp .. " HP"
+    if shield > 0 then
+        hpText = hpText .. " (GIÁP: +" .. shield .. ")"
+    end
     local tw = UI.fonts.small:getWidth(hpText)
     love.graphics.print(hpText, x + (w - tw) / 2, y + (h - 16) / 2)
 end
