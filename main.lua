@@ -56,6 +56,7 @@ local game = {
     hand = {},
     selectedIndices = {},
     sortMode = "rank",
+    discardBuffs = { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 },
 }
 
 local shopData = nil
@@ -258,6 +259,7 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
     end
     game.discardPile = {}
     game.hand = {}
+    game.discardBuffs = { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 }
     Deck.shuffle(game.deck)
     clearAllSelections()
 
@@ -295,6 +297,7 @@ local function startNewGame(chosenFaction)
     game.deities = {} -- Mới vào game không có vị thần nào hết!
     game.hand = {}
     game.discardPile = {}
+    game.discardBuffs = { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 }
 
     inspectCardModal = nil
     isShopTransferOpen = false
@@ -399,17 +402,76 @@ local function discardSelected()
     clearAllSelections()
 
     -- Process Faction Passives on Discard
-    local isVharos = (game.selectedFaction == "vharos" or game.selectedSuit == "vharos")
-    local isElaris = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris")
+    game.discardBuffs = game.discardBuffs or { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 }
+
+    local isVharosFaction = (game.selectedFaction == "vharos" or game.selectedSuit == "vharos")
+    local isElarisFaction = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris")
+    local isAureliaFaction = (game.selectedFaction == "aurelia" or game.selectedSuit == "aurelia")
+    local isValoriaFaction = (game.selectedFaction == "valoria" or game.selectedSuit == "valoria")
 
     for _, card in ipairs(discardedCards) do
-        -- Vharos: Huyết Tế Bóng Đêm (Soldier cards 2-10 sacrificed deal direct true damage equal to rank)
-        if (card.suit == "vharos" or isVharos) and card.rank >= 2 and card.rank <= 10 then
-            local trueDmg = card.rank
+        local suit = card.suit or game.selectedFaction or "aurelia"
+        local isAurelia = (suit == "aurelia" or isAureliaFaction)
+        local isElaris = (suit == "elaris" or isElarisFaction)
+        local isVharos = (suit == "vharos" or isVharosFaction)
+        local isValoria = (suit == "valoria" or isValoriaFaction)
+
+        -- 1. ☀️ AURELIA: Thánh Quang Tích Lũy (+6 Chips for Soldier, +12 Chips & +1 Mult for Royal, recycles to deck)
+        if isAurelia then
+            local isRoyal = (card.rank >= 11)
+            local addC = isRoyal and 12 or 6
+            local addM = isRoyal and 1 or 0
+
+            game.discardBuffs.chips = (game.discardBuffs.chips or 0) + addC
+            game.discardBuffs.mult = (game.discardBuffs.mult or 0) + addM
+
+            -- Blessed card returns to draw deck
+            table.insert(game.deck, 1, card)
+
+            local txt = isRoyal and ("☀️ Thánh Quang (" .. card.rankName .. "): +" .. addC .. "c, +" .. addM .. "m!") or ("☀️ Thánh Quang (" .. card.rankName .. "): +" .. addC .. "c!")
+            table.insert(anim.floatingTexts, {
+                text = txt,
+                color = UI.COLORS.goldYellow,
+                x = 640,
+                y = 440,
+                alpha = 2.0,
+            })
+            Sound.play("chip_tick")
+
+        -- 2. 🌲 ELARIS: Nảy Mầm Tái Sinh (Heal degraded rank by 1 up to baseRank, or +4 Chips if full, recycles to deck)
+        elseif isElaris then
+            local healed = false
+            if card.rank < card.baseRank then
+                card.rank = math.min(card.baseRank, card.rank + 1)
+                card.rankName = Deck.getRankName(card.rank)
+                card.baseChips = Deck.getBaseChips(card.rank)
+                card.durability = math.min(1.0, (card.durability or 1.0) + 0.3)
+                healed = true
+            else
+                game.discardBuffs.chips = (game.discardBuffs.chips or 0) + 4
+            end
+            table.insert(game.deck, 1, card)
+
+            local txt = healed and ("🌲 Phục Hồi: Lá " .. card.rankName .. " khôi phục +1 Rank!") or ("🌲 Nảy Mầm (" .. card.rankName .. "): +4 Chips!")
+            table.insert(anim.floatingTexts, {
+                text = txt,
+                color = { 0.2, 0.85, 0.4, 1 },
+                x = 640,
+                y = 440,
+                alpha = 2.0,
+            })
+            Sound.play("card_deal")
+
+        -- 3. 🔥 VHAROS: Huyết Tế Bùng Nổ (Sacrifice card to discardPile for 3/6 flat True Damage chip)
+        elseif isVharos then
+            table.insert(game.discardPile, card)
+            local isRoyal = (card.rank >= 11)
+            local trueDmg = isRoyal and 6 or 3
+
             if game.monster and game.monster.hp > 0 then
                 local actualDmg, defeated = Monster.takeDamage(game.monster, trueDmg)
                 table.insert(anim.floatingTexts, {
-                    text = "🔥 Huyết Tế Bóng Đêm (Lá " .. card.rankName .. "): -" .. actualDmg .. " Sát Thương Chuẩn!",
+                    text = "🔥 Huyết Tế (" .. card.rankName .. "): -" .. actualDmg .. " Sát Thương Chuẩn!",
                     color = { 0.95, 0.25, 0.35, 1 },
                     x = 640,
                     y = 440,
@@ -422,18 +484,29 @@ local function discardSelected()
                     Sound.play("round_win")
                 end
             end
-        end
 
-        -- Elaris: Sức Sống Rừng Già (Recycle Soldier cards 2-10 to the bottom of the draw deck)
-        if (card.suit == "elaris" or isElaris) and card.rank >= 2 and card.rank <= 10 then
-            table.insert(game.deck, 1, card) -- recycled to draw deck
+        -- 4. ⚔️ VALORIA: Hậu Cần Quân Nhu & Mài Kiếm (+5 Chips for Soldier, +8 Chips & +$1 Gold for Royal, recycles to deck)
+        elseif isValoria then
+            local isRoyal = (card.rank >= 11)
+            local addC = isRoyal and 8 or 5
+            game.discardBuffs.chips = (game.discardBuffs.chips or 0) + addC
+
+            local goldAmt = isRoyal and 1 or 0
+            if goldAmt > 0 then
+                game.gold = game.gold + goldAmt
+            end
+
+            table.insert(game.deck, 1, card)
+
+            local txt = isRoyal and ("⚔️ Quân Nhu (" .. card.rankName .. "): +$1 Vàng & +" .. addC .. " Chips!") or ("⚔️ Mài Kiếm (" .. card.rankName .. "): +" .. addC .. " Chips!")
             table.insert(anim.floatingTexts, {
-                text = "🌲 Tái Chế Chiến Binh (" .. card.rankName .. ") về Cọc Rút!",
-                color = { 0.2, 0.85, 0.4, 1 },
+                text = txt,
+                color = { 0.35, 0.70, 0.98, 1 },
                 x = 640,
-                y = 480,
-                alpha = 1.5,
+                y = 440,
+                alpha = 2.0,
             })
+            Sound.play("card_deal")
         else
             table.insert(game.discardPile, card)
         end
@@ -510,8 +583,12 @@ local function playSelectedHand()
         discardsRemaining = game.discardsRemaining,
         round = game.round,
         monster = game.monster,
+        discardBuffs = game.discardBuffs,
+        selectedSuit = game.selectedSuit,
     }
     local scoreResult = Scoring.calculate(evalResult, game.deities, context)
+    -- Reset consumed discard buffs
+    game.discardBuffs = { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 }
 
     -- Setup scoring animation
     anim.active = true
@@ -1117,7 +1194,13 @@ local function drawPlayingState()
     -- Check selected hand
     local selectedCards = getSelectedCards()
     local eval = (#selectedCards > 0) and Poker.evaluate(selectedCards, game.unlockedHands) or nil
-    local scPreview = eval and Scoring.calculate(eval, game.deities, { handsRemaining = game.handsRemaining, round = game.round, monster = game.monster }) or nil
+    local scPreview = eval and Scoring.calculate(eval, game.deities, {
+        handsRemaining = game.handsRemaining,
+        round = game.round,
+        monster = game.monster,
+        discardBuffs = game.discardBuffs,
+        selectedSuit = game.selectedSuit,
+    }) or nil
 
     if eval and scPreview then
         love.graphics.setFont(UI.fonts.small)
@@ -1164,7 +1247,7 @@ local function drawPlayingState()
         -- Damage projection
         love.graphics.setFont(UI.fonts.small)
         love.graphics.setColor(UI.COLORS.hpRed)
-        love.graphics.printf("Dự kiến: " .. scPreview.finalScore .. " HP", sbX, sbY + 114, sbW, "center")
+        love.graphics.printf("Dự kiến: " .. scPreview.finalScore .. " HP", sbX, sbY + 108, sbW, "center")
     else
         love.graphics.setFont(UI.fonts.tiny)
         love.graphics.setColor(UI.COLORS.textMuted)
@@ -1209,7 +1292,21 @@ local function drawPlayingState()
 
         love.graphics.setFont(UI.fonts.small)
         love.graphics.setColor(UI.COLORS.textMuted)
-        love.graphics.printf("Dự kiến: 0 HP", sbX, sbY + 114, sbW, "center")
+        love.graphics.printf("Dự kiến: 0 HP", sbX, sbY + 108, sbW, "center")
+    end
+
+    -- Discard Buff Indicator Pill in Score Box
+    local db = game.discardBuffs
+    if db and (db.chips > 0 or db.mult > 0 or (db.xMult and db.xMult > 1.0) or (db.bonusDamagePct and db.bonusDamagePct > 0)) then
+        local parts = {}
+        if db.chips > 0 then table.insert(parts, "+" .. db.chips .. "c") end
+        if db.mult > 0 then table.insert(parts, "+" .. db.mult .. "m") end
+        if db.xMult and db.xMult > 1.0 then table.insert(parts, "x" .. string.format("%.2f", db.xMult)) end
+        if db.bonusDamagePct and db.bonusDamagePct > 0 then table.insert(parts, "+" .. math.floor(db.bonusDamagePct * 100) .. "%") end
+
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(UI.COLORS.goldYellow)
+        love.graphics.printf("⚡ Buff Bỏ Bài: " .. table.concat(parts, " | "), sbX, sbY + 126, sbW, "center")
     end
 
     -- C. Sidebar Action Buttons

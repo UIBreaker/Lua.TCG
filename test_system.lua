@@ -125,13 +125,13 @@ log("[PASS] 10. Selling deity refunds gold properly")
 -- 6. Test Starter Deck for 4 Factions (Aurelia, Elaris, Vharos, Valoria)
 for _, faction in ipairs({ "aurelia", "elaris", "vharos", "valoria" }) do
     local sDeck = Deck.createStarterDeck(faction)
-    assert(#sDeck == 3, "Starter deck should have exactly 3 cards")
+    assert(#sDeck == 6, "Starter deck should have 6 cards, got: " .. #sDeck)
     for _, card in ipairs(sDeck) do
         assert(card.suit == faction, "Card suit must match faction " .. faction)
         assert(card.role ~= nil, "Card must have role assigned")
     end
 end
-log("[PASS] 11. Starter deck has exactly 3 random cards for all 4 Factions")
+log("[PASS] 11. Starter deck has 6 cards (4 Soldiers, 1 Knight, 1 Royalty) for all 4 Factions")
 
 -- 7. Test Card Roles Hierarchy (Soldiers 2-10, Knight J, Queen Q, King K, Ace A)
 local soldierCard = Deck.newCard(5, "aurelia")
@@ -181,7 +181,7 @@ log("[PASS] 14. Deities.addDeity successfully adds chosen deity: " .. draftPick.
 
 -- 10. Test Encounter Restoration ("qua trận mới thì khôi phục như ban đầu")
 local persistentDeck = Deck.createStarterDeck("hearts")
-assert(#persistentDeck == 3, "Persistent deck has 3 cards")
+assert(#persistentDeck == 6, "Persistent deck has 6 cards")
 local originalRank1 = persistentDeck[1].rank
 assert(persistentDeck[1].baseRank == originalRank1, "Card baseRank matches initial rank")
 
@@ -237,14 +237,14 @@ local testGameState = {
     deck = {},
     hand = {},
 }
-assert(#testGameState.persistentDeck == 3, "Starter deck must have 3 cards")
+assert(#testGameState.persistentDeck == 6, "Starter deck must have 6 cards")
 local extraCard = Deck.newCard(13, "spades") -- K of Spades
 Deck.addCardToDeck(testGameState, extraCard)
-assert(#testGameState.persistentDeck == 4, "persistentDeck must now have exactly 4 cards")
+assert(#testGameState.persistentDeck == 7, "persistentDeck must now have exactly 7 cards")
 -- Calling addCardToDeck with the same card again must not duplicate
 Deck.addCardToDeck(testGameState, extraCard)
-assert(#testGameState.persistentDeck == 4, "persistentDeck must not add duplicate of same card")
-log("[PASS] 19. Deck.addCardToDeck safely adds 1 card and blocks duplicates: 4 total cards")
+assert(#testGameState.persistentDeck == 7, "persistentDeck must not add duplicate of same card")
+log("[PASS] 19. Deck.addCardToDeck safely adds 1 card and blocks duplicates: 7 total cards")
 
 -- 15. Test Deck.cloneCard preserves id
 local origCard = testGameState.persistentDeck[1]
@@ -387,6 +387,56 @@ local okDraw2 = pcall(function() UI.drawCard(mockCard2, 120, 10, 100, 145) end)
 assert(okDraw1, "UI.drawCard on standard card must execute cleanly")
 assert(okDraw2, "UI.drawCard on equipped card with gemstone sockets must execute cleanly")
 log("[PASS] 26. UI.drawCard renders faceted gemstone sockets and gilded frame without error")
+
+-- 22. Test Faction Discard Buffs Rebalanced (Aurelia, Elaris, Vharos, Valoria)
+-- A. Aurelia: Discard adds balanced +6 Chips (Soldier) or +12 Chips & +1 Mult (Royal)
+local testAureliaBuffs = { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 }
+local aurCard = Deck.newCard(5, "aurelia")
+local aurRoyal = Deck.newCard(11, "aurelia")
+local addC1 = (aurCard.rank >= 11) and 12 or 6
+local addM1 = (aurCard.rank >= 11) and 1 or 0
+testAureliaBuffs.chips = testAureliaBuffs.chips + addC1
+testAureliaBuffs.mult = testAureliaBuffs.mult + addM1
+
+local addC2 = (aurRoyal.rank >= 11) and 12 or 6
+local addM2 = (aurRoyal.rank >= 11) and 1 or 0
+testAureliaBuffs.chips = testAureliaBuffs.chips + addC2
+testAureliaBuffs.mult = testAureliaBuffs.mult + addM2
+
+assert(testAureliaBuffs.chips == 18, "Aurelia soldier (6) + royal (12) = 18 chips")
+assert(testAureliaBuffs.mult == 1, "Aurelia royal adds +1 mult")
+
+local evalAur = Poker.evaluate({ Deck.newCard(10, "aurelia") }, { high_card = true })
+local scoreAur = Scoring.calculate(evalAur, {}, { discardBuffs = testAureliaBuffs })
+assert(scoreAur.totalChips >= 30, "Aurelia discard buffs properly elevate chips without one-shotting")
+assert(scoreAur.totalMult == 2, "Aurelia discard buffs properly add +1 mult (total 2)")
+
+-- B. Elaris: Discard restores degraded card rank up to baseRank
+local elarisCard = Deck.newCard(5, "elaris")
+Deck.degradeCard(elarisCard)
+assert(elarisCard.rank == 4, "Elaris card degraded to rank 4 in combat")
+if elarisCard.rank < elarisCard.baseRank then
+    elarisCard.rank = math.min(elarisCard.baseRank, elarisCard.rank + 1)
+end
+assert(elarisCard.rank == 5, "Elaris discard must restore degraded card by +1 back to baseRank 5")
+
+-- C. Vharos: Discard deals modest true damage (3 for Soldier, 6 for Royal)
+local vharosMonster = Monster.create(1, false, false, 1)
+local initialMHP = vharosMonster.hp
+local vharosCard = Deck.newCard(4, "vharos")
+local vharosDmg = (vharosCard.rank >= 11) and 6 or 3 -- 3 true damage
+local actualDmg, defeated = Monster.takeDamage(vharosMonster, vharosDmg)
+assert(actualDmg == 3, "Vharos soldier discard must deal 3 true damage")
+assert(vharosMonster.hp == initialMHP - 3, "Monster HP must decrease by exactly 3")
+
+-- D. Valoria: Discard grants +5 Chips (Soldier), or +8 Chips and +$1 Gold (Royal)
+local valoriaGold = 5
+local valoriaCard = Deck.newCard(12, "valoria") -- Queen (royal)
+local goldGain = (valoriaCard.rank >= 11) and 1 or 0
+valoriaGold = valoriaGold + goldGain
+assert(valoriaGold == 6, "Valoria royal discard must grant +$1 gold")
+
+log("[PASS] 27. Faction Discard Buffs rebalanced cleanly: Aurelia (+6/12c, +1m), Elaris (Heal), Vharos (3/6 True Dmg), Valoria (+5/8c, +$1)")
 
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end

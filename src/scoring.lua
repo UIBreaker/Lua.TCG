@@ -29,6 +29,36 @@ function Scoring.calculate(handInfo, deities, context)
         message = handType.vnName .. " (" .. baseChips .. " Chips × " .. baseMult .. " Mult)"
     })
 
+    -- Step 1b: Tactical Discard Buffs
+    if context and context.discardBuffs then
+        local db = context.discardBuffs
+        local addedC = db.chips or 0
+        local addedM = db.mult or 0
+        local addedX = db.xMult or 1.0
+        local addedDmgPct = db.bonusDamagePct or 0
+
+        bonusChips = bonusChips + addedC
+        bonusMult = bonusMult + addedM
+        xMultTotal = xMultTotal * addedX
+        totalExtraDamagePct = totalExtraDamagePct + addedDmgPct
+
+        if addedC > 0 or addedM > 0 or addedX > 1.0 or addedDmgPct > 0 then
+            local msgParts = {}
+            if addedC > 0 then table.insert(msgParts, "+" .. addedC .. " Chips") end
+            if addedM > 0 then table.insert(msgParts, "+" .. addedM .. " Mult") end
+            if addedX > 1.0 then table.insert(msgParts, "x" .. string.format("%.2f", addedX) .. " XMult") end
+            if addedDmgPct > 0 then table.insert(msgParts, "+" .. math.floor(addedDmgPct * 100) .. "% Sát Thương") end
+
+            table.insert(steps, {
+                type = "discard_buff_trigger",
+                addedChips = addedC,
+                addedMult = addedM,
+                xMult = addedX,
+                message = "⚡ CHIẾN THUẬT BỎ BÀI: " .. table.concat(msgParts, ", "),
+            })
+        end
+    end
+
     -- Check pre-hand equipment buffs (adjacent mirror, same suit storm eye)
     local cardExternalBuffs = {} -- cardIndex -> { chips, mult }
     for i, card in ipairs(handInfo.scoringCards) do

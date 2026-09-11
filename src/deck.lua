@@ -164,17 +164,24 @@ function Deck.newCard(rank, suit)
     return card
 end
 
--- Create starter deck of exactly 3 RANDOM cards of the chosen faction
+-- Create starter deck of 6 cards of the chosen faction: 4 Soldiers (2-10) + 1 Knight (J) + 1 Royalty (Q/K)
 function Deck.createStarterDeck(suit)
     local cards = {}
-    local pool = { 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 }
-    for i = #pool, 2, -1 do
+    local soldierPool = { 2, 3, 4, 5, 6, 7, 8, 9, 10 }
+    for i = #soldierPool, 2, -1 do
         local j = love.math and love.math.random(i) or math.random(i)
-        pool[i], pool[j] = pool[j], pool[i]
+        soldierPool[i], soldierPool[j] = soldierPool[j], soldierPool[i]
     end
-    for i = 1, 3 do
-        table.insert(cards, Deck.newCard(pool[i], suit))
+    -- 4 Soldiers
+    for i = 1, 4 do
+        table.insert(cards, Deck.newCard(soldierPool[i], suit))
     end
+    -- 1 Knight (J = 11)
+    table.insert(cards, Deck.newCard(11, suit))
+    -- 1 Royalty (Q = 12 or K = 13)
+    local royalRank = (love.math and love.math.random(2) or math.random(2)) == 1 and 12 or 13
+    table.insert(cards, Deck.newCard(royalRank, suit))
+
     return cards
 end
 
