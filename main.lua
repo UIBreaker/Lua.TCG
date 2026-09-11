@@ -451,25 +451,21 @@ local function discardSelected()
         game.discardsRemaining = game.discardsRemaining - 1
     end
 
-    -- Refill hand to maxHandSize (9 for Elaris, 8 for others)
+    -- Refill hand to maxHandSize (9 for Elaris, 8 for others) while deck has cards
     local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and 9 or 8
-    while #game.hand < maxHandSize do
-        if #game.deck == 0 then
-            if #game.discardPile == 0 then break end
-            for _, c in ipairs(game.discardPile) do
-                c.selected = false
-                table.insert(game.deck, c)
-            end
-            game.discardPile = {}
-            Deck.shuffle(game.deck)
-        end
+    while #game.hand < maxHandSize and #game.deck > 0 do
         local drawn = table.remove(game.deck)
         if drawn then
             drawn.selected = false
             table.insert(game.hand, drawn)
-        else
-            break
         end
+    end
+
+    -- Defeat check if cards are exhausted without defeating monster
+    if #game.hand == 0 and #game.deck == 0 and game.monster and game.monster.hp > 0 then
+        state = "gameover"
+        Sound.play("game_over")
+        return
     end
 
     if game.sortMode == "rank" then
@@ -866,25 +862,23 @@ function love.update(dt)
                         end
                     elseif game.handsRemaining <= 0 then
                         state = "gameover"
+                        Sound.play("game_over")
                     else
-                        -- Refill hand to 8 cards and guarantee no selections remain
-                        while #game.hand < 8 do
-                            if #game.deck == 0 then
-                                if #game.discardPile == 0 then break end
-                                for _, c in ipairs(game.discardPile) do
-                                    c.selected = false
-                                    table.insert(game.deck, c)
-                                end
-                                game.discardPile = {}
-                                Deck.shuffle(game.deck)
-                            end
+                        -- Refill hand while deck has cards (played cards stay in discard pile!)
+                        local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and 9 or 8
+                        while #game.hand < maxHandSize and #game.deck > 0 do
                             local drawn = table.remove(game.deck)
                             if drawn then
                                 drawn.selected = false
                                 table.insert(game.hand, drawn)
-                            else
-                                break
                             end
+                        end
+
+                        -- Deck exhaustion check: all cards played and monster not defeated = Defeat
+                        if #game.hand == 0 and #game.deck == 0 and game.monster and game.monster.hp > 0 then
+                            state = "gameover"
+                            Sound.play("game_over")
+                            return
                         end
 
                         if game.sortMode == "rank" then
@@ -1006,6 +1000,19 @@ local function drawMenu()
     love.graphics.printf("Khởi đầu với 3 lá ngẫu nhiên thuộc phe đã chọn. Đánh bại BOSS để thỉnh Thần Bài Ban Ơn!", 0, V_HEIGHT - 32, V_WIDTH, "center")
 end
 
+local function getHandCardPosition(index, totalCards)
+    local cardW = 100
+    local cardH = 145
+    local cardGap = 14
+    local handAreaX = 295
+    local handAreaW = 820
+    local totalHandW = totalCards * cardW + math.max(0, totalCards - 1) * cardGap
+    local handStartX = handAreaX + (handAreaW - totalHandW) / 2
+    local handStartY = 465
+    local cx = handStartX + (index - 1) * (cardW + cardGap)
+    return cx, handStartY, cardW, cardH
+end
+
 local function drawPlayingState()
     syncCardSelections()
     local winW, winH = love.graphics.getDimensions()
@@ -1015,30 +1022,318 @@ local function drawPlayingState()
     local mx, my = toVirtual(love.mouse.getPosition())
     hoveredDeityTooltip = nil
     hoveredCardTooltip = nil
+    buttons = {}
+
+    local m = game.monster
+    local isBoss = m and m.isBoss
+    local isElite = m and m.isElite
 
     ----------------------------------------------------------------------------
-    -- 1. TOP BAR: DEITIES SLOTS
+    -- 1. LEFT SIDEBAR (Balatro Layout: Width 265, Height 690)
     ----------------------------------------------------------------------------
+    local panelX = 15
+    local panelY = 15
+    local panelW = 265
+    local panelH = 690
+
     love.graphics.setColor(UI.COLORS.panelBg)
-    UI.drawRoundedRect("fill", 20, 12, V_WIDTH - 40, 85, 8)
+    UI.drawRoundedRect("fill", panelX, panelY, panelW, panelH, 8)
     love.graphics.setColor(UI.COLORS.panelBorder)
-    UI.drawRoundedRect("line", 20, 12, V_WIDTH - 40, 85, 8)
+    UI.drawRoundedRect("line", panelX, panelY, panelW, panelH, 8)
 
+    -- A. Monster / Blind Box (Top)
+    local mbX = panelX + 10
+    local mbY = panelY + 10
+    local mbW = panelW - 20
+    local mbH = 175
+
+    love.graphics.setColor(0.10, 0.13, 0.16, 0.95)
+    UI.drawRoundedRect("fill", mbX, mbY, mbW, mbH, 6)
+    love.graphics.setColor(0.24, 0.32, 0.40, 1)
+    UI.drawRoundedRect("line", mbX, mbY, mbW, mbH, 6)
+
+    -- Monster Banner Header
+    local bannerColor = isBoss and { 0.85, 0.22, 0.25, 1 } or (isElite and { 0.88, 0.55, 0.15, 1 } or { 0.90, 0.45, 0.15, 1 })
+    local bannerText = isBoss and "BOSS BLIND" or (isElite and "ELITE BLIND" or "SMALL BLIND")
+    love.graphics.setColor(bannerColor)
+    UI.drawRoundedRect("fill", mbX, mbY, mbW, 30, 6)
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf(bannerText .. ": " .. (m and m.name or "Quái"), mbX, mbY + 6, mbW, "center")
+
+    -- Monster Emblem / Badge
+    local emblemCX = mbX + 36
+    local emblemCY = mbY + 66
+    local emblemR = 22
+    love.graphics.setColor(0.16, 0.20, 0.25, 1)
+    love.graphics.circle("fill", emblemCX, emblemCY, emblemR)
+    love.graphics.setColor(bannerColor)
+    love.graphics.circle("line", emblemCX, emblemCY, emblemR)
+    UI.drawSuitSymbol(game.selectedSuit, emblemCX, emblemCY, 24, bannerColor)
+
+    -- Target HP info right of emblem
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(UI.COLORS.textMuted)
+    love.graphics.print("Đạt ít nhất:", mbX + 68, mbY + 44)
+
+    love.graphics.setFont(UI.fonts.large)
+    love.graphics.setColor(isBoss and UI.COLORS.hpRed or UI.COLORS.goldYellow)
+    love.graphics.print(m and (m.hp .. " HP") or "0 HP", mbX + 68, mbY + 58)
+
+    -- Reward text
+    local baseReward = (m and m.isBoss) and 15 or ((m and m.isElite) and 10 or 4)
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    local rewStr = "Thưởng: " .. string.rep("$", math.min(5, baseReward)) .. " ($" .. baseReward .. ")"
+    love.graphics.printf(rewStr, mbX, mbY + 102, mbW, "center")
+
+    -- HP Bar
+    if m then
+        UI.drawMonsterHpBar(mbX + 10, mbY + 124, mbW - 20, 20, m.hp, m.maxHp, m.damageLagHp)
+    end
+
+    -- Trait / Desc line
+    if m and m.desc and m.desc ~= "" then
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(UI.COLORS.textMuted)
+        love.graphics.printf(m.desc, mbX + 6, mbY + 148, mbW - 12, "center")
+    end
+
+    -- B. Score Box ("Điểm Ván" / Round Score)
+    local sbX = panelX + 10
+    local sbY = panelY + 195
+    local sbW = panelW - 20
+    local sbH = 145
+
+    love.graphics.setColor(0.10, 0.13, 0.16, 0.95)
+    UI.drawRoundedRect("fill", sbX, sbY, sbW, sbH, 6)
+    love.graphics.setColor(0.24, 0.32, 0.40, 1)
+    UI.drawRoundedRect("line", sbX, sbY, sbW, sbH, 6)
+
+    love.graphics.setFont(UI.fonts.regular)
+    love.graphics.setColor(UI.COLORS.textLight)
+    love.graphics.printf("Điểm Ván", sbX, sbY + 8, sbW, "center")
+
+    -- Check selected hand
+    local selectedCards = getSelectedCards()
+    local eval = (#selectedCards > 0) and Poker.evaluate(selectedCards, game.unlockedHands) or nil
+    local scPreview = eval and Scoring.calculate(eval, game.deities, { handsRemaining = game.handsRemaining, round = game.round, monster = game.monster }) or nil
+
+    if eval and scPreview then
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(UI.COLORS.goldYellow)
+        love.graphics.printf(eval.type.vnName, sbX, sbY + 30, sbW, "center")
+
+        -- Chips box (Blue)
+        local cbX = sbX + 12
+        local cbY = sbY + 54
+        local cbW = 96
+        local cbH = 50
+        love.graphics.setColor(0.12, 0.32, 0.65, 0.95)
+        UI.drawRoundedRect("fill", cbX, cbY, cbW, cbH, 6)
+        love.graphics.setColor(UI.COLORS.chipsBlue)
+        UI.drawRoundedRect("line", cbX, cbY, cbW, cbH, 6)
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(1, 1, 1, 0.8)
+        love.graphics.printf("Chips", cbX, cbY + 4, cbW, "center")
+        love.graphics.setFont(UI.fonts.large)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf(tostring(scPreview.totalChips), cbX, cbY + 16, cbW, "center")
+
+        -- Multiplication X
+        love.graphics.setFont(UI.fonts.large)
+        love.graphics.setColor(UI.COLORS.multRed)
+        love.graphics.printf("X", sbX + 108, cbY + 12, 28, "center")
+
+        -- Mult box (Red)
+        local mbX2 = sbX + 137
+        local mbY2 = cbY
+        local mbW2 = 96
+        local mbH2 = 50
+        love.graphics.setColor(0.65, 0.18, 0.22, 0.95)
+        UI.drawRoundedRect("fill", mbX2, mbY2, mbW2, mbH2, 6)
+        love.graphics.setColor(UI.COLORS.multRed)
+        UI.drawRoundedRect("line", mbX2, mbY2, mbW2, mbH2, 6)
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(1, 1, 1, 0.8)
+        love.graphics.printf("Mult", mbX2, mbY2 + 4, mbW2, "center")
+        love.graphics.setFont(UI.fonts.large)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf(tostring(scPreview.totalMult), mbX2, mbY2 + 16, mbW2, "center")
+
+        -- Damage projection
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(UI.COLORS.hpRed)
+        love.graphics.printf("Dự kiến: " .. scPreview.finalScore .. " HP", sbX, sbY + 114, sbW, "center")
+    else
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(UI.COLORS.textMuted)
+        love.graphics.printf("Chọn bài để tính điểm", sbX, sbY + 30, sbW, "center")
+
+        -- Chips box 0
+        local cbX = sbX + 12
+        local cbY = sbY + 54
+        local cbW = 96
+        local cbH = 50
+        love.graphics.setColor(0.12, 0.22, 0.35, 0.6)
+        UI.drawRoundedRect("fill", cbX, cbY, cbW, cbH, 6)
+        love.graphics.setColor(UI.COLORS.chipsBlue[1], UI.COLORS.chipsBlue[2], UI.COLORS.chipsBlue[3], 0.4)
+        UI.drawRoundedRect("line", cbX, cbY, cbW, cbH, 6)
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(UI.COLORS.textMuted)
+        love.graphics.printf("Chips", cbX, cbY + 4, cbW, "center")
+        love.graphics.setFont(UI.fonts.large)
+        love.graphics.setColor(UI.COLORS.textMuted)
+        love.graphics.printf("0", cbX, cbY + 16, cbW, "center")
+
+        -- X
+        love.graphics.setFont(UI.fonts.large)
+        love.graphics.setColor(0.5, 0.5, 0.5, 0.6)
+        love.graphics.printf("X", sbX + 108, cbY + 12, 28, "center")
+
+        -- Mult box 0
+        local mbX2 = sbX + 137
+        local mbY2 = cbY
+        local mbW2 = 96
+        local mbH2 = 50
+        love.graphics.setColor(0.28, 0.14, 0.16, 0.6)
+        UI.drawRoundedRect("fill", mbX2, mbY2, mbW2, mbH2, 6)
+        love.graphics.setColor(UI.COLORS.multRed[1], UI.COLORS.multRed[2], UI.COLORS.multRed[3], 0.4)
+        UI.drawRoundedRect("line", mbX2, mbY2, mbW2, mbH2, 6)
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(UI.COLORS.textMuted)
+        love.graphics.printf("Mult", mbX2, mbY2 + 4, mbW2, "center")
+        love.graphics.setFont(UI.fonts.large)
+        love.graphics.setColor(UI.COLORS.textMuted)
+        love.graphics.printf("0", mbX2, mbY2 + 16, mbW2, "center")
+
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(UI.COLORS.textMuted)
+        love.graphics.printf("Dự kiến: 0 HP", sbX, sbY + 114, sbW, "center")
+    end
+
+    -- C. Sidebar Action Buttons
+    local btnHandbookPlay = {
+        id = "open_handbook",
+        text = "T.tin Trận Này [H]",
+        x = panelX + 10,
+        y = panelY + 350,
+        w = panelW - 20,
+        h = 42,
+        color = { 0.82, 0.26, 0.24, 1 },
+        font = UI.fonts.small,
+    }
+    table.insert(buttons, btnHandbookPlay)
+    UI.drawButton(btnHandbookPlay, mx >= btnHandbookPlay.x and mx <= btnHandbookPlay.x + btnHandbookPlay.w and my >= btnHandbookPlay.y and my <= btnHandbookPlay.y + btnHandbookPlay.h)
+
+    local btnDeckPlay = {
+        id = "open_deck_viewer",
+        text = "Tuỳ Chọn [Tab]",
+        x = panelX + 10,
+        y = panelY + 400,
+        w = panelW - 20,
+        h = 42,
+        color = { 0.88, 0.52, 0.18, 1 },
+        font = UI.fonts.small,
+    }
+    table.insert(buttons, btnDeckPlay)
+    UI.drawButton(btnDeckPlay, mx >= btnDeckPlay.x and mx <= btnDeckPlay.x + btnDeckPlay.w and my >= btnDeckPlay.y and my <= btnDeckPlay.y + btnDeckPlay.h)
+
+    -- D. Stats Matrix (Bottom)
+    local matrixY = panelY + 452
+
+    -- Hands Remaining (Blue Box)
+    local handBoxW = 118
+    local handBoxH = 65
+    love.graphics.setColor(0.12, 0.28, 0.55, 0.95)
+    UI.drawRoundedRect("fill", panelX + 10, matrixY, handBoxW, handBoxH, 6)
+    love.graphics.setColor(UI.COLORS.chipsBlue)
+    UI.drawRoundedRect("line", panelX + 10, matrixY, handBoxW, handBoxH, 6)
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(0.85, 0.92, 1.0, 1)
+    love.graphics.printf("Tay Bài", panelX + 10, matrixY + 6, handBoxW, "center")
+    love.graphics.setFont(UI.fonts.large)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf(tostring(game.handsRemaining), panelX + 10, matrixY + 22, handBoxW, "center")
+
+    -- Discards Remaining (Red Box)
+    local discBoxY = matrixY + 73
+    love.graphics.setColor(0.55, 0.18, 0.20, 0.95)
+    UI.drawRoundedRect("fill", panelX + 10, discBoxY, handBoxW, handBoxH, 6)
+    love.graphics.setColor(UI.COLORS.multRed)
+    UI.drawRoundedRect("line", panelX + 10, discBoxY, handBoxW, handBoxH, 6)
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(1.0, 0.85, 0.85, 1)
+    love.graphics.printf("Lượt Bỏ", panelX + 10, discBoxY + 6, handBoxW, "center")
+    love.graphics.setFont(UI.fonts.large)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf(tostring(game.discardsRemaining), panelX + 10, discBoxY + 22, handBoxW, "center")
+
+    -- Gold Cash Box (Right Box)
+    local goldBoxX = panelX + 136
+    local goldBoxW = panelW - 146
+    local goldBoxH = 138
+    love.graphics.setColor(0.12, 0.15, 0.18, 0.95)
+    UI.drawRoundedRect("fill", goldBoxX, matrixY, goldBoxW, goldBoxH, 6)
+    love.graphics.setColor(UI.COLORS.goldYellow[1], UI.COLORS.goldYellow[2], UI.COLORS.goldYellow[3], 0.8)
+    UI.drawRoundedRect("line", goldBoxX, matrixY, goldBoxW, goldBoxH, 6)
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(UI.COLORS.goldYellow)
-    love.graphics.print("THẦN BÀI (DEITIES - Tối đa 5 ô) [F11: Fullscreen]:", 34, 18)
+    love.graphics.printf("Tiền Vàng", goldBoxX, matrixY + 12, goldBoxW, "center")
+    love.graphics.setFont(UI.fonts.huge)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.printf("$" .. game.gold, goldBoxX, matrixY + 48, goldBoxW, "center")
 
-    local deitySlotW = 190
-    local deitySlotH = 50
-    local deityStartX = 34
-    local deityStartY = 38
+    -- Ante & Round Info (Footer)
+    local footerY = matrixY + 146
+    local footerH = 82
+    love.graphics.setColor(0.10, 0.13, 0.16, 0.95)
+    UI.drawRoundedRect("fill", panelX + 10, footerY, panelW - 20, footerH, 6)
+    love.graphics.setColor(0.24, 0.32, 0.40, 1)
+    UI.drawRoundedRect("line", panelX + 10, footerY, panelW - 20, footerH, 6)
+
+    -- Divider
+    love.graphics.line(panelX + 10 + (panelW - 20) / 2, footerY + 6, panelX + 10 + (panelW - 20) / 2, footerY + footerH - 6)
+
+    -- Left: Ante
+    local halfW = (panelW - 20) / 2
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.textMuted)
+    love.graphics.printf("Ante", panelX + 10, footerY + 12, halfW, "center")
+    love.graphics.setFont(UI.fonts.medium)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf((game.map and game.map.currentFloor or 1) .. "/20", panelX + 10, footerY + 38, halfW, "center")
+
+    -- Right: Round (Ván)
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.textMuted)
+    love.graphics.printf("Ván", panelX + 10 + halfW, footerY + 12, halfW, "center")
+    love.graphics.setFont(UI.fonts.medium)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf(tostring(game.round), panelX + 10 + halfW, footerY + 38, halfW, "center")
+
+    ----------------------------------------------------------------------------
+    -- 2. TOP BAR: DEITIES (0/5) & CONSUMABLES (0/2)
+    ----------------------------------------------------------------------------
+    local topStartX = 295
+    local topStartY = 15
+
+    -- Deities Section
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.print("THẦN HỘ MỆNH (" .. #game.deities .. "/5)", topStartX + 4, topStartY)
+
+    local deitySlotW = 112
+    local deitySlotH = 88
+    local deityGap = 12
+    local deityY = topStartY + 22
 
     for i = 1, 5 do
-        local dx = deityStartX + (i - 1) * (deitySlotW + 16)
+        local dx = topStartX + (i - 1) * (deitySlotW + deityGap)
         local d = game.deities[i]
 
         if d then
-            local isHovered = (mx >= dx and mx <= dx + deitySlotW and my >= deityStartY and my <= deityStartY + deitySlotH)
+            local isHovered = (mx >= dx and mx <= dx + deitySlotW and my >= deityY and my <= deityY + deitySlotH)
             if isHovered then hoveredDeityTooltip = d end
 
             local borderCol = { 0.35, 0.45, 0.55, 1 }
@@ -1048,219 +1343,79 @@ local function drawPlayingState()
             end
 
             love.graphics.setColor(0.18, 0.22, 0.26, 1)
-            UI.drawRoundedRect("fill", dx, deityStartY, deitySlotW, deitySlotH, 6)
+            UI.drawRoundedRect("fill", dx, deityY, deitySlotW, deitySlotH, 6)
             love.graphics.setLineWidth(1.5)
             love.graphics.setColor(borderCol)
-            UI.drawRoundedRect("line", dx, deityStartY, deitySlotW, deitySlotH, 6)
+            UI.drawRoundedRect("line", dx, deityY, deitySlotW, deitySlotH, 6)
 
             love.graphics.setFont(UI.fonts.small)
             love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.print(d.name, dx + 8, deityStartY + 6)
+            love.graphics.printf(d.name, dx + 4, deityY + 8, deitySlotW - 8, "center")
 
             love.graphics.setFont(UI.fonts.tiny)
             love.graphics.setColor(UI.COLORS.textMuted)
-            love.graphics.printf(d.desc, dx + 8, deityStartY + 24, deitySlotW - 14, "left")
+            love.graphics.printf(d.desc, dx + 6, deityY + 34, deitySlotW - 12, "center")
         else
-            love.graphics.setColor(0.12, 0.15, 0.17, 0.6)
-            UI.drawRoundedRect("fill", dx, deityStartY, deitySlotW, deitySlotH, 6)
+            love.graphics.setColor(0.12, 0.15, 0.18, 0.6)
+            UI.drawRoundedRect("fill", dx, deityY, deitySlotW, deitySlotH, 6)
             love.graphics.setLineWidth(1)
-            love.graphics.setColor(0.25, 0.30, 0.35, 0.5)
-            UI.drawRoundedRect("line", dx, deityStartY, deitySlotW, deitySlotH, 6)
-            love.graphics.setFont(UI.fonts.small)
-            love.graphics.setColor(0.4, 0.45, 0.5, 0.7)
-            love.graphics.printf("Ô Trống " .. i, dx, deityStartY + 16, deitySlotW, "center")
+            love.graphics.setColor(0.28, 0.34, 0.40, 0.6)
+            UI.drawRoundedRect("line", dx, deityY, deitySlotW, deitySlotH, 6)
+            love.graphics.setFont(UI.fonts.large)
+            love.graphics.setColor(0.35, 0.42, 0.48, 0.6)
+            love.graphics.printf("+", dx, deityY + 24, deitySlotW, "center")
         end
     end
 
-    ----------------------------------------------------------------------------
-    -- 2. LEFT PANEL: MONSTER & ROUND INFO
-    ----------------------------------------------------------------------------
-    local panelW = 280
-    local panelH = 590
-    local panelX = 20
-    local panelY = 110
+    -- Consumables Section (0/2)
+    local conStartX = topStartX + 5 * (deitySlotW + deityGap) + 20
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.textMuted)
+    love.graphics.print("TIÊU HAO (0/2)", conStartX + 4, topStartY)
 
-    love.graphics.setColor(UI.COLORS.panelBg)
-    UI.drawRoundedRect("fill", panelX, panelY, panelW, panelH, 10)
-
-    local m = game.monster
-    local isBoss = m and m.isBoss
-
-    love.graphics.setLineWidth(isBoss and 2.5 or 1.5)
-    love.graphics.setColor(isBoss and UI.COLORS.hpRed or UI.COLORS.panelBorder)
-    UI.drawRoundedRect("line", panelX, panelY, panelW, panelH, 10)
-
-    -- Header: Round & Boss Banner
-    love.graphics.setFont(UI.fonts.medium)
-    if isBoss then
-        love.graphics.setColor(UI.COLORS.hpRed)
-        love.graphics.printf("💀 MÀN BOSS: ROUND " .. game.round, panelX, panelY + 12, panelW, "center")
-    else
-        love.graphics.setColor(UI.COLORS.goldYellow)
-        love.graphics.printf("MÀN THƯỜNG: ROUND " .. game.round, panelX, panelY + 12, panelW, "center")
+    local conSlotW = 86
+    local conSlotH = 88
+    local conGap = 12
+    for j = 1, 2 do
+        local cx = conStartX + (j - 1) * (conSlotW + conGap)
+        love.graphics.setColor(0.12, 0.15, 0.18, 0.6)
+        UI.drawRoundedRect("fill", cx, deityY, conSlotW, conSlotH, 6)
+        love.graphics.setLineWidth(1)
+        love.graphics.setColor(0.28, 0.34, 0.40, 0.5)
+        UI.drawRoundedRect("line", cx, deityY, conSlotW, conSlotH, 6)
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(0.35, 0.42, 0.48, 0.5)
+        love.graphics.printf("Trống", cx, deityY + 34, conSlotW, "center")
     end
 
-    -- Monster Name & Title
-    love.graphics.setFont(UI.fonts.medium)
-    love.graphics.setColor(isBoss and UI.COLORS.hpRed or { 0.95, 0.85, 0.3, 1 })
-    love.graphics.printf(m.name, panelX + 8, panelY + 36, panelW - 16, "center")
+    ----------------------------------------------------------------------------
+    -- 3. CENTER FELT TABLE: PLAYED / SELECTED HINTS
+    ----------------------------------------------------------------------------
+    if eval and scPreview then
+        -- Subtle highlight banner above player cards
+        local hbW = 540
+        local hbH = 34
+        local hbX = 295 + (820 - hbW) / 2
+        local hbY = 412
+        love.graphics.setColor(0.10, 0.14, 0.18, 0.85)
+        UI.drawRoundedRect("fill", hbX, hbY, hbW, hbH, 6)
+        love.graphics.setColor(UI.COLORS.goldYellow[1], UI.COLORS.goldYellow[2], UI.COLORS.goldYellow[3], 0.7)
+        UI.drawRoundedRect("line", hbX, hbY, hbW, hbH, 6)
 
-    love.graphics.setFont(UI.fonts.tiny)
-    love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.printf(m.title, panelX, panelY + 80, panelW, "center")
-
-    -- Monster HP Bar
-    UI.drawMonsterHpBar(panelX + 20, panelY + 100, panelW - 40, 24, m.hp, m.maxHp, m.damageLagHp)
-
-    -- Boss / Monster Trait Box
-    if m.desc and m.desc ~= "" then
-        love.graphics.setColor(isBoss and { 0.4, 0.1, 0.1, 0.5 } or { 0.15, 0.2, 0.25, 0.5 })
-        UI.drawRoundedRect("fill", panelX + 20, panelY + 132, panelW - 40, 42, 6)
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(UI.COLORS.goldYellow)
+        love.graphics.printf(eval.type.vnName .. ": " .. scPreview.totalChips .. " Chips × " .. scPreview.totalMult .. " Mult = " .. scPreview.finalScore .. " Sát Thương!", hbX, hbY + 8, hbW, "center")
+    else
         love.graphics.setFont(UI.fonts.tiny)
-        love.graphics.setColor(isBoss and { 1.0, 0.6, 0.6, 1 } or UI.COLORS.textLight)
-        love.graphics.printf(m.desc, panelX + 24, panelY + 138, panelW - 48, "center")
-    end
-
-    -- Hands & Discards Badges
-    local statY = panelY + 185
-
-    -- Hands
-    love.graphics.setColor(UI.COLORS.chipsBlue[1], UI.COLORS.chipsBlue[2], UI.COLORS.chipsBlue[3], 0.25)
-    UI.drawRoundedRect("fill", panelX + 24, statY, panelW - 48, 48, 8)
-    love.graphics.setColor(UI.COLORS.chipsBlue)
-    love.graphics.setFont(UI.fonts.regular)
-    love.graphics.print("Lượt Đánh (Hands)", panelX + 36, statY + 8)
-    love.graphics.setFont(UI.fonts.medium)
-    love.graphics.printf(game.handsRemaining .. " / " .. game.maxHands, panelX + 24, statY + 22, panelW - 48, "right")
-
-    -- Discards
-    statY = statY + 58
-    love.graphics.setColor(UI.COLORS.multRed[1], UI.COLORS.multRed[2], UI.COLORS.multRed[3], 0.25)
-    UI.drawRoundedRect("fill", panelX + 24, statY, panelW - 48, 48, 8)
-    love.graphics.setColor(UI.COLORS.multRed)
-    love.graphics.setFont(UI.fonts.regular)
-    love.graphics.print("Lượt Đổi (Discards)", panelX + 36, statY + 8)
-    love.graphics.setFont(UI.fonts.medium)
-    love.graphics.printf(game.discardsRemaining .. " / " .. game.maxDiscards, panelX + 24, statY + 22, panelW - 48, "right")
-
-    -- Gold
-    statY = statY + 58
-    love.graphics.setColor(UI.COLORS.goldYellow[1], UI.COLORS.goldYellow[2], UI.COLORS.goldYellow[3], 0.2)
-    UI.drawRoundedRect("fill", panelX + 24, statY, panelW - 48, 48, 8)
-    love.graphics.setColor(UI.COLORS.goldYellow)
-    love.graphics.setFont(UI.fonts.regular)
-    love.graphics.print("Tiền Vàng (Gold)", panelX + 36, statY + 8)
-    love.graphics.setFont(UI.fonts.medium)
-    love.graphics.printf("$" .. game.gold, panelX + 24, statY + 22, panelW - 48, "right")
-
-    -- Deck Remaining
-    statY = statY + 62
-    love.graphics.setFont(UI.fonts.small)
-    love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.printf("Cọc rút: " .. #game.deck .. " | Bỏ: " .. #game.discardPile .. " (Tổng: " .. (#game.deck + #game.discardPile + #game.hand) .. " lá)", panelX, statY, panelW, "center")
-
-    -- Suit Affiliated
-    statY = statY + 24
-    local suitInfo = Deck.SUITS[game.selectedSuit] or Deck.SUITS.hearts
-    love.graphics.setColor(suitInfo.color)
-    love.graphics.setFont(UI.fonts.small)
-    local suitLabel = "Hệ khởi đầu: " .. suitInfo.name .. " "
-    local labelW = UI.fonts.small:getWidth(suitLabel)
-    local startSuitX = panelX + (panelW - (labelW + 20)) / 2
-    love.graphics.print(suitLabel, startSuitX, statY)
-    UI.drawSuitSymbol(game.selectedSuit, startSuitX + labelW + 10, statY + 8, 16, suitInfo.color)
-
-    -- Stage Progress Reminder
-    statY = statY + 28
-    love.graphics.setFont(UI.fonts.tiny)
-    love.graphics.setColor(UI.COLORS.textMuted)
-    if isBoss then
-        love.graphics.setColor(UI.COLORS.hpRed)
-        love.graphics.printf("Đang đấu TRÙM TỐI CAO!", panelX, statY, panelW, "center")
-    elseif game.monster and game.monster.isElite then
-        love.graphics.setColor(UI.COLORS.goldYellow)
-        love.graphics.printf("Đang đấu QUÁI TINH ANH!", panelX, statY, panelW, "center")
-    else
-        love.graphics.printf("Tầng " .. (game.map and game.map.currentFloor or 1) .. "/20 (Boss tại Tầng 20)", panelX, statY, panelW, "center")
+        love.graphics.setColor(0.85, 0.90, 0.95, 0.75)
+        love.graphics.printf("[Chuột trái]: Chọn 1-5 lá bài | [Chuột phải]: Xem chi tiết & độ bền | [F11]: Toàn màn hình", 295, 420, 820, "center")
     end
 
     ----------------------------------------------------------------------------
-    -- 3. CENTER AREA: HAND PREVIEW
+    -- 4. PLAYER HAND CARDS
     ----------------------------------------------------------------------------
-    local previewBoxX = 325
-    local previewBoxY = 110
-    local previewBoxW = 935
-    local previewBoxH = 80
-
-    love.graphics.setColor(UI.COLORS.panelBg)
-    UI.drawRoundedRect("fill", previewBoxX, previewBoxY, previewBoxW, previewBoxH, 8)
-    love.graphics.setColor(UI.COLORS.panelBorder)
-    UI.drawRoundedRect("line", previewBoxX, previewBoxY, previewBoxW, previewBoxH, 8)
-
-    local selectedCards = getSelectedCards()
-    if #selectedCards > 0 then
-        local eval = Poker.evaluate(selectedCards, game.unlockedHands)
-        if eval then
-            local ctx = { handsRemaining = game.handsRemaining, round = game.round, monster = game.monster }
-            local scPreview = Scoring.calculate(eval, game.deities, ctx)
-
-            love.graphics.setFont(UI.fonts.medium)
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.print(eval.type.vnName .. " (" .. eval.type.name .. ")", previewBoxX + 20, previewBoxY + 12)
-
-            love.graphics.setFont(UI.fonts.regular)
-            love.graphics.setColor(UI.COLORS.chipsBlue)
-            love.graphics.print(scPreview.totalChips .. " Chips", previewBoxX + 20, previewBoxY + 44)
-
-            love.graphics.setColor(1, 1, 1, 0.6)
-            love.graphics.print(" × ", previewBoxX + 135, previewBoxY + 44)
-
-            love.graphics.setColor(UI.COLORS.multRed)
-            love.graphics.print(scPreview.totalMult .. " Mult", previewBoxX + 165, previewBoxY + 44)
-
-            if scPreview.xMultTotal > 1.0 then
-                love.graphics.setColor(1, 1, 1, 0.6)
-                love.graphics.print(" × ", previewBoxX + 265, previewBoxY + 44)
-                love.graphics.setColor(UI.COLORS.xmultGold)
-                love.graphics.print(scPreview.xMultTotal .. " XMult", previewBoxX + 295, previewBoxY + 44)
-            end
-
-            -- Show downgrade warning if natural hand was locked
-            if eval.lockedHandAttempted then
-                love.graphics.setFont(UI.fonts.tiny)
-                love.graphics.setColor(UI.COLORS.multRed)
-                love.graphics.printf("⚠ Chưa mở khóa " .. eval.lockedHandAttempted .. " -> Hạ về " .. eval.type.vnName, previewBoxX + 380, previewBoxY + 46, 320, "left")
-            end
-
-            love.graphics.setFont(UI.fonts.medium)
-            love.graphics.setColor(UI.COLORS.hpRed)
-            love.graphics.printf("Sát thương dự kiến: " .. scPreview.finalScore .. " HP", previewBoxX, previewBoxY + 26, previewBoxW - 25, "right")
-        end
-    else
-        love.graphics.setFont(UI.fonts.regular)
-        love.graphics.setColor(UI.COLORS.textMuted)
-        love.graphics.printf("Chọn 1-5 lá bài để đánh. Điểm số sẽ gây sát thương trừ vào Máu Quái Vật!", previewBoxX, previewBoxY + 28, previewBoxW, "center")
-    end
-
-    ----------------------------------------------------------------------------
-    -- 4. PLAYER HAND (UP TO 8 CARDS)
-    ----------------------------------------------------------------------------
-    local cardW = 100
-    local cardH = 145
-    local cardGap = 16
-    local areaX = 300
-    local areaW = V_WIDTH - areaX
-    local totalHandW = #game.hand * cardW + math.max(0, #game.hand - 1) * cardGap
-    local handStartX = areaX + (areaW - totalHandW) / 2
-    local handStartY = 450
-
-    love.graphics.setFont(UI.fonts.tiny)
-    love.graphics.setColor(UI.COLORS.goldYellow)
-    love.graphics.printf("[Chuột phải vào lá bài]: Mở bảng Chi Tiết Trang Bị & Độ Bền! (Mỗi lần đánh -1 Rank, Rank A mất bài)", areaX, 424, areaW, "center")
-
     for i, c in ipairs(game.hand) do
-        local cx = handStartX + (i - 1) * (cardW + cardGap)
-        local cy = handStartY
+        local cx, cy, cardW, cardH = getHandCardPosition(i, #game.hand)
         if c.selected then cy = cy - 26 end
 
         local isHovered = (mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH)
@@ -1272,101 +1427,149 @@ local function drawPlayingState()
         UI.drawCard(c, cx, cy, cardW, cardH)
     end
 
-    ----------------------------------------------------------------------------
-    -- 5. ACTION BUTTONS
-    ----------------------------------------------------------------------------
-    buttons = {}
-    local btnY = 625
-    local hasSelection = (#selectedCards >= 1 and #selectedCards <= 5)
+    -- Hand count badge (e.g. 8/8) above action buttons
+    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and 9 or 8
+    local handCountText = #game.hand .. "/" .. maxHandSize
+    local hcW = 60
+    local hcH = 22
+    local hcX = 705 - hcW / 2
+    local hcY = 608
+    love.graphics.setColor(0.12, 0.16, 0.20, 0.9)
+    UI.drawRoundedRect("fill", hcX, hcY, hcW, hcH, 4)
+    love.graphics.setColor(0.35, 0.45, 0.55, 0.8)
+    UI.drawRoundedRect("line", hcX, hcY, hcW, hcH, 4)
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.printf(handCountText, hcX, hcY + 3, hcW, "center")
 
-    -- Play Hand Button
+    ----------------------------------------------------------------------------
+    -- 5. BALATRO ACTION BUTTONS ROW
+    ----------------------------------------------------------------------------
+    local hasSelection = (#selectedCards >= 1 and #selectedCards <= 5)
+    local actionY = 636
+
+    -- Left: Chơi Tay Bài [Space]
     local btnPlay = {
         id = "play",
-        text = "TẤN CÔNG [Space]",
-        x = 330,
-        y = btnY,
-        w = 210,
-        h = 55,
-        color = UI.COLORS.btnPlay,
-        font = UI.fonts.regular,
+        text = "Chơi Tay Bài [Space]",
+        x = 445,
+        y = actionY,
+        w = 175,
+        h = 58,
+        color = UI.COLORS.chipsBlue,
+        font = UI.fonts.small,
         disabled = not hasSelection or game.handsRemaining <= 0,
     }
     table.insert(buttons, btnPlay)
     UI.drawButton(btnPlay, mx >= btnPlay.x and mx <= btnPlay.x + btnPlay.w and my >= btnPlay.y and my <= btnPlay.y + btnPlay.h)
 
-    -- Discard Button
+    -- Center: Sắp Xếp Container Box
+    local sortBoxX = 635
+    local sortBoxY = actionY - 8
+    local sortBoxW = 145
+    local sortBoxH = 68
+    love.graphics.setColor(0.12, 0.16, 0.20, 0.95)
+    UI.drawRoundedRect("fill", sortBoxX, sortBoxY, sortBoxW, sortBoxH, 6)
+    love.graphics.setColor(0.30, 0.38, 0.46, 1)
+    UI.drawRoundedRect("line", sortBoxX, sortBoxY, sortBoxW, sortBoxH, 6)
+
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(UI.COLORS.textMuted)
+    love.graphics.printf("SẮP XẾP BÀI", sortBoxX, sortBoxY + 4, sortBoxW, "center")
+
+    local btnSortRank = {
+        id = "sort_rank",
+        text = "Bậc [R]",
+        x = sortBoxX + 6,
+        y = sortBoxY + 24,
+        w = 62,
+        h = 36,
+        color = (game.sortMode == "rank") and { 0.28, 0.48, 0.72, 1 } or UI.COLORS.btnNormal,
+        font = UI.fonts.tiny,
+    }
+    table.insert(buttons, btnSortRank)
+    UI.drawButton(btnSortRank, mx >= btnSortRank.x and mx <= btnSortRank.x + btnSortRank.w and my >= btnSortRank.y and my <= btnSortRank.y + btnSortRank.h)
+
+    local btnSortSuit = {
+        id = "sort_suit",
+        text = "Chất [S]",
+        x = sortBoxX + 76,
+        y = sortBoxY + 24,
+        w = 62,
+        h = 36,
+        color = (game.sortMode == "suit") and { 0.28, 0.48, 0.72, 1 } or UI.COLORS.btnNormal,
+        font = UI.fonts.tiny,
+    }
+    table.insert(buttons, btnSortSuit)
+    UI.drawButton(btnSortSuit, mx >= btnSortSuit.x and mx <= btnSortSuit.x + btnSortSuit.w and my >= btnSortSuit.y and my <= btnSortSuit.y + btnSortSuit.h)
+
+    -- Right: Bỏ Bài [D]
     local btnDiscard = {
         id = "discard",
-        text = "ĐỔI BÀI [D]",
-        x = 560,
-        y = btnY,
-        w = 190,
-        h = 55,
-        color = UI.COLORS.btnDiscard,
-        font = UI.fonts.regular,
+        text = "Bỏ Bài [D]",
+        x = 795,
+        y = actionY,
+        w = 160,
+        h = 58,
+        color = UI.COLORS.multRed,
+        font = UI.fonts.small,
         disabled = not hasSelection or game.discardsRemaining <= 0,
     }
     table.insert(buttons, btnDiscard)
     UI.drawButton(btnDiscard, mx >= btnDiscard.x and mx <= btnDiscard.x + btnDiscard.w and my >= btnDiscard.y and my <= btnDiscard.y + btnDiscard.h)
 
-    -- Sort by Rank Button
-    local btnSortRank = {
-        id = "sort_rank",
-        text = "Xếp theo Số [R]",
-        x = 880,
-        y = btnY,
-        w = 180,
-        h = 55,
-        color = (game.sortMode == "rank") and { 0.28, 0.42, 0.55, 1 } or UI.COLORS.btnNormal,
-        font = UI.fonts.regular,
-        disabled = false,
-    }
-    table.insert(buttons, btnSortRank)
-    UI.drawButton(btnSortRank, mx >= btnSortRank.x and mx <= btnSortRank.x + btnSortRank.w and my >= btnSortRank.y and my <= btnSortRank.y + btnSortRank.h)
+    ----------------------------------------------------------------------------
+    -- 6. BOTTOM-RIGHT FACEDOWN DRAW DECK PILE
+    ----------------------------------------------------------------------------
+    local deckPileX = 1140
+    local deckPileY = 535
+    local deckPileW = 115
+    local deckPileH = 160
 
-    -- Sort by Suit Button
-    local btnSortSuit = {
-        id = "sort_suit",
-        text = "Xếp theo Chất [S]",
-        x = 1080,
-        y = btnY,
-        w = 180,
-        h = 55,
-        color = (game.sortMode == "suit") and { 0.28, 0.42, 0.55, 1 } or UI.COLORS.btnNormal,
-        font = UI.fonts.regular,
-        disabled = false,
-    }
-    table.insert(buttons, btnSortSuit)
-    UI.drawButton(btnSortSuit, mx >= btnSortSuit.x and mx <= btnSortSuit.x + btnSortSuit.w and my >= btnSortSuit.y and my <= btnSortSuit.y + btnSortSuit.h)
+    local isDeckHovered = (mx >= deckPileX and mx <= deckPileX + deckPileW and my >= deckPileY and my <= deckPileY + deckPileH)
 
-    -- Handbook & Deck Viewer Buttons in Top Bar
-    local btnHandbookPlay = {
-        id = "open_handbook",
-        text = "SỔ TAY [H]",
-        x = 885,
-        y = 25,
-        w = 175,
-        h = 60,
-        color = { 0.22, 0.45, 0.35, 1 },
-        font = UI.fonts.regular,
-    }
-    table.insert(buttons, btnHandbookPlay)
-    UI.drawButton(btnHandbookPlay, mx >= btnHandbookPlay.x and mx <= btnHandbookPlay.x + btnHandbookPlay.w and my >= btnHandbookPlay.y and my <= btnHandbookPlay.y + btnHandbookPlay.h)
+    -- Layer 1 & 2 shadow stack
+    love.graphics.setColor(0.08, 0.10, 0.12, 0.7)
+    UI.drawRoundedRect("fill", deckPileX - 4, deckPileY + 4, deckPileW, deckPileH, 8)
+    UI.drawRoundedRect("fill", deckPileX - 2, deckPileY + 2, deckPileW, deckPileH, 8)
 
-    local btnDeckPlay = {
+    -- Top Deck Card Back
+    love.graphics.setColor(isDeckHovered and { 0.22, 0.32, 0.42, 1 } or { 0.16, 0.20, 0.26, 1 })
+    UI.drawRoundedRect("fill", deckPileX, deckPileY, deckPileW, deckPileH, 8)
+    love.graphics.setLineWidth(isDeckHovered and 2.5 or 1.5)
+    love.graphics.setColor(isDeckHovered and UI.COLORS.goldYellow or { 0.35, 0.45, 0.55, 1 })
+    UI.drawRoundedRect("line", deckPileX, deckPileY, deckPileW, deckPileH, 8)
+
+    -- Card back pattern: inner decorative border & crest
+    love.graphics.setColor(0.24, 0.32, 0.40, 0.7)
+    UI.drawRoundedRect("line", deckPileX + 6, deckPileY + 6, deckPileW - 12, deckPileH - 12, 6)
+
+    -- Faction symbol on card back
+    UI.drawSuitSymbol(game.selectedSuit, deckPileX + deckPileW / 2, deckPileY + deckPileH / 2 - 10, 36)
+
+    -- Deck Pile Label & Counter
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.printf("BỘ BÀI [Tab]", deckPileX, deckPileY + 12, deckPileW, "center")
+
+    local totalCardsInGame = #game.deck + #game.discardPile + #game.hand
+    local deckCountStr = #game.deck .. " / " .. totalCardsInGame
+    love.graphics.setFont(UI.fonts.medium)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf(deckCountStr, deckPileX, deckPileY + deckPileH - 34, deckPileW, "center")
+
+    local btnDeckPile = {
         id = "open_deck_viewer",
-        text = "BỘ BÀI [Tab]",
-        x = 1075,
-        y = 25,
-        w = 175,
-        h = 60,
-        color = { 0.20, 0.38, 0.58, 1 },
-        font = UI.fonts.regular,
+        x = deckPileX,
+        y = deckPileY,
+        w = deckPileW,
+        h = deckPileH,
     }
-    table.insert(buttons, btnDeckPlay)
-    UI.drawButton(btnDeckPlay, mx >= btnDeckPlay.x and mx <= btnDeckPlay.x + btnDeckPlay.w and my >= btnDeckPlay.y and my <= btnDeckPlay.y + btnDeckPlay.h)
+    table.insert(buttons, btnDeckPile)
 
-    -- Deity Hover Tooltip
+    ----------------------------------------------------------------------------
+    -- 7. TOOLTIPS (Deity & Card Equipment)
+    ----------------------------------------------------------------------------
     if hoveredDeityTooltip then
         local d = hoveredDeityTooltip
         local ttW = 290
@@ -1388,7 +1591,6 @@ local function drawPlayingState()
         love.graphics.printf(d.desc, ttx + 10, tty + 34, ttW - 20, "left")
     end
 
-    -- Card Equipment Tooltip
     if hoveredCardTooltip then
         local c = hoveredCardTooltip
         local ttW = 280
@@ -3383,19 +3585,9 @@ function love.mousepressed(x, y, button)
 
         -- In playing or other states: check hand cards
         if #game.hand > 0 then
-            local cardW = 100
-            local cardH = 145
-            local cardGap = 16
-            local areaX = 300
-            local areaW = V_WIDTH - areaX
-            local totalHandW = #game.hand * cardW + math.max(0, #game.hand - 1) * cardGap
-            local handStartX = areaX + (areaW - totalHandW) / 2
-            local handStartY = 450
-
             for i = #game.hand, 1, -1 do
                 local c = game.hand[i]
-                local cx = handStartX + (i - 1) * (cardW + cardGap)
-                local cy = handStartY
+                local cx, cy, cardW, cardH = getHandCardPosition(i, #game.hand)
                 if c.selected then cy = cy - 26 end
 
                 if mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH then
@@ -3565,19 +3757,9 @@ function love.mousepressed(x, y, button)
             end
         end
 
-        local cardW = 100
-        local cardH = 145
-        local cardGap = 16
-        local areaX = 300
-        local areaW = V_WIDTH - areaX
-        local totalHandW = #game.hand * cardW + math.max(0, #game.hand - 1) * cardGap
-        local handStartX = areaX + (areaW - totalHandW) / 2
-        local handStartY = 450
-
         for i = #game.hand, 1, -1 do
             local c = game.hand[i]
-            local cx = handStartX + (i - 1) * (cardW + cardGap)
-            local cy = handStartY
+            local cx, cy, cardW, cardH = getHandCardPosition(i, #game.hand)
             if c.selected then cy = cy - 26 end
 
             if mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH then

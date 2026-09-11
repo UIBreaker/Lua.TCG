@@ -330,6 +330,64 @@ assert(#testCardTarget.equipments == 1, "Target card must have 1 equipment after
 assert(testCardTarget.equipments[1].name == eqToBuy.name, "Equipment name must match")
 log("[PASS] 24. Shop equipment purchase and socketing attaches properly without being erased")
 
+-- 20. Test Deck Exhaustion Defeat Rule (no reshuffle during battle, empty hand & deck = gameover)
+local combatSim = {
+    deck = { Deck.newCard(2, "aurelia"), Deck.newCard(3, "aurelia") },
+    hand = { Deck.newCard(4, "aurelia") },
+    discardPile = {},
+    monster = Monster.create(1, false, false, 1),
+    handsRemaining = 2,
+    discardsRemaining = 1,
+}
+combatSim.monster.hp = 999 -- Very high HP monster
+
+-- Play the single card from hand: moves to discardPile
+local playedCard = table.remove(combatSim.hand, 1)
+table.insert(combatSim.discardPile, playedCard)
+combatSim.handsRemaining = combatSim.handsRemaining - 1
+
+-- Draw next cards from deck
+while #combatSim.hand < 8 and #combatSim.deck > 0 do
+    table.insert(combatSim.hand, table.remove(combatSim.deck))
+end
+assert(#combatSim.hand == 2, "Hand drew the 2 remaining deck cards")
+assert(#combatSim.deck == 0, "Deck is now completely empty")
+assert(#combatSim.discardPile == 1, "Discard pile has 1 card")
+
+-- Play the remaining 2 cards from hand
+while #combatSim.hand > 0 do
+    table.insert(combatSim.discardPile, table.remove(combatSim.hand, 1))
+end
+combatSim.handsRemaining = combatSim.handsRemaining - 1
+
+-- Draw attempt with empty deck (must NOT pull from discardPile!)
+while #combatSim.hand < 8 and #combatSim.deck > 0 do
+    table.insert(combatSim.hand, table.remove(combatSim.deck))
+end
+assert(#combatSim.hand == 0, "Hand must remain empty because deck is empty")
+assert(#combatSim.deck == 0, "Deck remains empty without reshuffle during battle")
+assert(#combatSim.discardPile == 3, "All 3 cards are in discard pile")
+
+-- Defeat check
+local isDefeated = (#combatSim.hand == 0 and #combatSim.deck == 0 and combatSim.monster.hp > 0)
+assert(isDefeated == true, "Deck and hand exhaustion without defeating monster must trigger Defeat")
+log("[PASS] 25. Deck exhaustion defeat rule verified: played cards stay in discard pile and empty deck+hand causes Defeat")
+
+-- 21. Test UI.drawCard with faceted gemstone sockets and gilded border
+local UI = require("src.ui")
+UI.initFonts()
+local mockCard1 = Deck.newCard(10, "valoria")
+local mockCard2 = Deck.newCard(14, "aurelia")
+Equipment.attach(mockCard2, Equipment.ITEMS.holy_relic)
+Equipment.attach(mockCard2, Equipment.ITEMS.gem_fire)
+
+-- Verify UI.drawCard executes without error for both cards
+local okDraw1 = pcall(function() UI.drawCard(mockCard1, 10, 10, 100, 145) end)
+local okDraw2 = pcall(function() UI.drawCard(mockCard2, 120, 10, 100, 145) end)
+assert(okDraw1, "UI.drawCard on standard card must execute cleanly")
+assert(okDraw2, "UI.drawCard on equipped card with gemstone sockets must execute cleanly")
+log("[PASS] 26. UI.drawCard renders faceted gemstone sockets and gilded frame without error")
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then

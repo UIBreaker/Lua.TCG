@@ -254,6 +254,21 @@ function UI.drawCard(card, x, y, w, h)
     end
     UI.drawRoundedRect("line", 0, 0, w, h, 8)
 
+    -- Gilded inner frame for equipped cards (subtle, elegant golden foil inlay)
+    local eqCount = (card.equipments and #card.equipments) or 0
+    if eqCount > 0 then
+        love.graphics.setLineWidth(1.5)
+        love.graphics.setColor(0.88, 0.74, 0.26, 0.85)
+        UI.drawRoundedRect("line", 3, 3, w - 6, h - 6, 6)
+
+        -- Corner ornamental notches
+        love.graphics.setColor(0.95, 0.82, 0.35, 0.95)
+        love.graphics.line(5, 8, 8, 5)
+        love.graphics.line(w - 5, 8, w - 8, 5)
+        love.graphics.line(5, h - 8, 8, h - 5)
+        love.graphics.line(w - 5, h - 8, w - 8, h - 5)
+    end
+
     local suitColor = card.color or { 0.2, 0.2, 0.2, 1 }
 
     -- Top-left rank
@@ -296,23 +311,67 @@ function UI.drawCard(card, x, y, w, h)
     local cW = UI.fonts.small:getWidth(chipStr)
     love.graphics.print(chipStr, (w - cW) / 2, h - 20)
 
-    -- Draw 5 Equipment Sockets across the top edge
+    -- 5 Faceted Gemstone Sockets across the top edge
     local socketCount = 5
-    local socketSize = 5
-    local socketStartX = (w - (socketCount * 12 - 4)) / 2
-    local socketY = 8
+    local socketR = 5.2
+    local socketGap = 13
+    local socketStartX = (w - (socketCount * socketGap - 3)) / 2 + 3
+    local socketY = 9
 
     for s = 1, socketCount do
-        local sx = socketStartX + (s - 1) * 12
+        local sx = socketStartX + (s - 1) * socketGap
         local eq = card.equipments and card.equipments[s]
+
         if eq then
-            love.graphics.setColor(eq.color or UI.COLORS.goldYellow)
-            love.graphics.circle("fill", sx + 4, socketY, socketSize)
-            love.graphics.setColor(1, 1, 1, 0.9)
-            love.graphics.circle("line", sx + 4, socketY, socketSize)
+            -- Slotted Gemstone with jewelry bezel & prong setting
+            local gc = eq.color or UI.COLORS.goldYellow
+
+            -- 1. Outer golden prong rim
+            love.graphics.setColor(0.95, 0.82, 0.28, 0.9)
+            love.graphics.circle("fill", sx, socketY, socketR + 1.2)
+
+            -- 2. Dark setting shadow
+            love.graphics.setColor(0.12, 0.12, 0.14, 0.8)
+            love.graphics.circle("fill", sx, socketY, socketR)
+
+            -- 3. Gemstone body
+            love.graphics.setColor(gc[1], gc[2], gc[3], 0.95)
+            love.graphics.circle("fill", sx, socketY, socketR - 0.4)
+
+            -- 4. Facet lower shading (depth)
+            love.graphics.setColor(0, 0, 0, 0.35)
+            love.graphics.arc("fill", sx, socketY, socketR - 0.4, 0, math.pi)
+
+            -- 5. Inner facet ring
+            love.graphics.setColor(1, 1, 1, 0.35)
+            love.graphics.setLineWidth(1)
+            love.graphics.circle("line", sx, socketY, (socketR - 0.4) * 0.55)
+
+            -- 6. Specular highlight glint (sparkle reflection)
+            love.graphics.setColor(1, 1, 1, 0.95)
+            love.graphics.circle("fill", sx - 1.6, socketY - 1.6, 1.4)
+
+            -- 7. Four golden prongs at corners
+            love.graphics.setColor(0.98, 0.88, 0.35, 1)
+            love.graphics.circle("fill", sx - socketR, socketY, 0.9)
+            love.graphics.circle("fill", sx + socketR, socketY, 0.9)
+            love.graphics.circle("fill", sx, socketY - socketR, 0.9)
+            love.graphics.circle("fill", sx, socketY + socketR, 0.9)
         else
-            love.graphics.setColor(0.7, 0.7, 0.75, 0.5)
-            love.graphics.circle("line", sx + 4, socketY, socketSize - 1)
+            -- Empty metallic setting socket
+            love.graphics.setColor(0.24, 0.27, 0.32, 0.9)
+            love.graphics.circle("fill", sx, socketY, socketR + 0.8)
+
+            love.graphics.setColor(0.11, 0.13, 0.16, 0.95)
+            love.graphics.circle("fill", sx, socketY, socketR - 0.5)
+
+            love.graphics.setLineWidth(1)
+            love.graphics.setColor(0.55, 0.60, 0.68, 0.5)
+            love.graphics.circle("line", sx, socketY, socketR - 0.5)
+
+            -- Center indent
+            love.graphics.setColor(0.06, 0.08, 0.10, 0.85)
+            love.graphics.circle("fill", sx, socketY, 1.1)
         end
     end
 
