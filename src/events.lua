@@ -135,14 +135,15 @@ Events.LIST = {
         options = {
             {
                 title = "Đồng Khí Quy Tâm",
-                desc = "Biến đổi 3 lá bài ngẫu nhiên trong bộ bài thành CHẤT KHỞI ĐẦU của bạn!",
+                desc = "Biến đổi 3 lá bài ngẫu nhiên trong bộ bài thành PHE KHỞI ĐẦU của bạn!",
                 action = function(gameState)
                     local targetDeck = (gameState.persistentDeck and #gameState.persistentDeck > 0) and gameState.persistentDeck or gameState.deck
                     local changed = 0
-                    local sInfo = Deck.SUITS[gameState.selectedSuit] or Deck.SUITS.hearts
+                    local userFaction = gameState.selectedFaction or gameState.selectedSuit or "aurelia"
+                    local sInfo = Deck.FACTIONS[userFaction] or Deck.SUITS[userFaction] or Deck.FACTIONS.aurelia
                     for _, c in ipairs(targetDeck) do
-                        if c.suit ~= gameState.selectedSuit then
-                            c.suit = gameState.selectedSuit
+                        if c.suit ~= userFaction then
+                            c.suit = userFaction
                             c.suitName = sInfo.name
                             c.suitSymbol = sInfo.symbol
                             c.color = sInfo.color
@@ -151,10 +152,10 @@ Events.LIST = {
                         end
                     end
                     if changed > 0 then
-                        return "Lời nguyền đảo ngược! " .. changed .. " lá bài đã biến thành chất " .. sInfo.name .. "!"
+                        return "Lời nguyền đảo ngược! " .. changed .. " lá bài đã quy thuận Phe " .. sInfo.name .. "!"
                     else
                         gameState.gold = gameState.gold + 8
-                        return "Bộ bài của bạn đã thuần chất! Bà tiên tri tặng bạn: +$8 Vàng!"
+                        return "Bộ bài của bạn đã thuần phục Phe " .. sInfo.name .. "! Bà tiên tri tặng bạn: +$8 Vàng!"
                     end
                 end,
             },

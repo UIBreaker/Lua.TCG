@@ -1,13 +1,61 @@
 local Deck = {}
 
-Deck.SUITS = {
-    hearts   = { id = "hearts",   name = "Cơ",    symbol = "♥", color = { 0.92, 0.22, 0.28, 1 } },
-    diamonds = { id = "diamonds", name = "Rô",    symbol = "♦", color = { 0.95, 0.45, 0.15, 1 } },
-    clubs    = { id = "clubs",    name = "Chuồn", symbol = "♣", color = { 0.18, 0.72, 0.48, 1 } },
-    spades   = { id = "spades",   name = "Bích",  symbol = "♠", color = { 0.32, 0.46, 0.85, 1 } },
+Deck.FACTIONS = {
+    aurelia = {
+        id = "aurelia",
+        name = "Aurelia",
+        fullName = "Aurelia — Phe Ánh Sáng",
+        vnName = "Ánh Sáng",
+        symbol = "☀️",
+        color = { 1.0, 0.82, 0.22, 1 },
+        icon = "☀️",
+        passive1 = "Hào Quang Thánh Thiện: Đòn đánh chứa thẻ Aurelia nhận x1.15 XMult.",
+        passive2 = "Kỷ Luật Thần Thánh: Bài hình (J, Q, K) cố định điểm, miễn nhiễm debuff quái vật.",
+    },
+    elaris = {
+        id = "elaris",
+        name = "Elaris",
+        fullName = "Elaris — Phe Thiên Nhiên",
+        vnName = "Thiên Nhiên",
+        symbol = "🌲",
+        color = { 0.22, 0.82, 0.42, 1 },
+        icon = "🌲",
+        passive1 = "Sức Sống Rừng Già: Giới hạn giữ bài trên tay +1 (9 lá) & tái chế Chiến Binh khi đổi bài.",
+        passive2 = "Lộc Biếc Đâm Chồi: Thắng trận không mất quá nửa lượt đánh giúp nâng cấp/phục hồi 1 lá bài.",
+    },
+    vharos = {
+        id = "vharos",
+        name = "Vharos",
+        fullName = "Vharos — Phe Hắc Ám",
+        vnName = "Hắc Ám",
+        symbol = "🔥",
+        color = { 0.92, 0.25, 0.35, 1 },
+        icon = "🔥",
+        passive1 = "Hơi Thở Ma Quỷ: Thẻ Vharos khi xuất trận cộng trực tiếp +40 Chips.",
+        passive2 = "Huyết Tế Bóng Đêm: Khi Chiến Binh (2-10) bị hy sinh/tiêu hủy, gây sát thương chuẩn bằng số của lá đó.",
+    },
+    valoria = {
+        id = "valoria",
+        name = "Valoria",
+        fullName = "Valoria — Phe Nhân Loại",
+        vnName = "Nhân Loại",
+        symbol = "⚔️",
+        color = { 0.35, 0.65, 0.95, 1 },
+        icon = "⚔️",
+        passive1 = "Chiến Thuật Hành Quân: Nhận thêm +1 Lượt Đổi Bài (Discard) miễn phí mỗi trận.",
+        passive2 = "Hậu Cần Quân Khí: Tiêu diệt quái vật bằng đội hình Valoria tăng +25% vàng thu thập.",
+    },
 }
 
-Deck.SUIT_ORDER = { "hearts", "diamonds", "clubs", "spades" }
+-- Backward compatibility aliases
+Deck.SUITS = Deck.FACTIONS
+Deck.SUITS.hearts   = Deck.FACTIONS.aurelia
+Deck.SUITS.diamonds = Deck.FACTIONS.valoria
+Deck.SUITS.clubs    = Deck.FACTIONS.elaris
+Deck.SUITS.spades   = Deck.FACTIONS.vharos
+
+Deck.FACTION_ORDER = { "aurelia", "elaris", "vharos", "valoria" }
+Deck.SUIT_ORDER = Deck.FACTION_ORDER
 
 Deck.RANK_NAMES = {
     [1] = "A",
@@ -15,6 +63,59 @@ Deck.RANK_NAMES = {
     [7] = "7", [8] = "8", [9] = "9", [10] = "10",
     [11] = "J", [12] = "Q", [13] = "K", [14] = "A"
 }
+
+Deck.CARD_ROLES = {
+    soldier = {
+        id = "soldier",
+        name = "Chiến Binh",
+        title = "Hàng Ngũ Chiến Binh (2-10)",
+        icon = "🛡️",
+        desc = "Lực lượng nòng cốt xếp các thế bài cơ bản. Điểm số tăng dần từ 2 đến 10.",
+    },
+    knight = {
+        id = "knight",
+        name = "Hiệp Sĩ",
+        title = "Hiệp Sĩ / Cận Vệ (J)",
+        icon = "🗡️",
+        desc = "Bản lề chiến thuật: Tăng thêm +15 Chips & +2 Mult cho mỗi lá Chiến Binh đứng cùng.",
+    },
+    queen = {
+        id = "queen",
+        name = "Hoàng Hậu",
+        title = "Hoàng Hậu / Phù Sư (Q)",
+        icon = "👑",
+        desc = "Tương tác trang bị: Tự đem lại x1.1 XMult, +15 Chips & +2 Mult cho mỗi ô trang bị đã khảm.",
+    },
+    king = {
+        id = "king",
+        name = "Quốc Vương",
+        title = "Quốc Vương / Lãnh Chúa (K)",
+        icon = "🏰",
+        desc = "Sức mạnh áp đảo: Trụ cột dồn sát thương nặng ký, cộng trực tiếp +25 Chips & +5 Mult.",
+    },
+    ace = {
+        id = "ace",
+        name = "Thần Khí",
+        title = "Át Chủ Bài / Thần Khí (A)",
+        icon = "⚡",
+        desc = "Linh hoạt tối đa: Có thể làm đầu/cuối trong Sảnh và kích hoạt cộng hưởng phe phái.",
+    },
+}
+
+function Deck.getCardRole(rank)
+    if rank >= 2 and rank <= 10 then
+        return Deck.CARD_ROLES.soldier
+    elseif rank == 11 then
+        return Deck.CARD_ROLES.knight
+    elseif rank == 12 then
+        return Deck.CARD_ROLES.queen
+    elseif rank == 13 then
+        return Deck.CARD_ROLES.king
+    elseif rank == 1 or rank == 14 then
+        return Deck.CARD_ROLES.ace
+    end
+    return Deck.CARD_ROLES.soldier
+end
 
 function Deck.getChipValue(rank)
     if rank == 1 then
@@ -30,17 +131,25 @@ end
 
 local nextCardId = 1
 function Deck.newCard(rank, suit)
-    local suitInfo = Deck.SUITS[suit] or Deck.SUITS.hearts
+    local suitInfo = Deck.FACTIONS[suit] or Deck.SUITS[suit] or Deck.FACTIONS.aurelia
+    local actualSuit = suitInfo.id
+    local role = Deck.getCardRole(rank)
+
     local card = {
         id = nextCardId,
         rank = rank,
-        baseRank = rank, -- Persistent rank restored across encounters
-        suit = suit,
+        baseRank = rank, -- Persistent rank
+        suit = actualSuit,
         suitName = suitInfo.name,
         suitSymbol = suitInfo.symbol,
         rankName = Deck.RANK_NAMES[rank] or tostring(rank),
         color = suitInfo.color,
         baseChips = Deck.getChipValue(rank),
+        role = role.id,
+        roleName = role.name,
+        roleTitle = role.title,
+        roleIcon = role.icon,
+        roleDesc = role.desc,
         equipments = {}, -- Up to 5 equipment slots
         -- Visual properties
         x = 0,
@@ -55,7 +164,7 @@ function Deck.newCard(rank, suit)
     return card
 end
 
--- Create starter deck of exactly 3 RANDOM cards of the chosen suit
+-- Create starter deck of exactly 3 RANDOM cards of the chosen faction
 function Deck.createStarterDeck(suit)
     local cards = {}
     local pool = { 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 }
@@ -123,6 +232,11 @@ function Deck.cloneCard(card)
     newC.rank = newC.baseRank
     newC.rankName = Deck.RANK_NAMES[newC.rank] or tostring(newC.rank)
     newC.baseChips = Deck.getChipValue(newC.rank)
+    newC.role = card.role or newC.role
+    newC.roleName = card.roleName or newC.roleName
+    newC.roleTitle = card.roleTitle or newC.roleTitle
+    newC.roleIcon = card.roleIcon or newC.roleIcon
+    newC.roleDesc = card.roleDesc or newC.roleDesc
     newC.selected = false
     newC.hovered = false
     newC.equipments = {}
@@ -143,6 +257,12 @@ function Deck.addCardToDeck(gameState, card)
     card.rank = card.baseRank
     card.rankName = Deck.RANK_NAMES[card.rank] or tostring(card.rank)
     card.baseChips = Deck.getChipValue(card.rank)
+    local role = Deck.getCardRole(card.rank)
+    card.role = role.id
+    card.roleName = role.name
+    card.roleTitle = role.title
+    card.roleIcon = role.icon
+    card.roleDesc = role.desc
     card.selected = false
     card.hovered = false
     card.equipments = card.equipments or {}
@@ -217,7 +337,7 @@ function Deck.sortByRank(hand)
 end
 
 function Deck.sortBySuit(hand)
-    local suitOrderMap = { hearts = 1, diamonds = 2, clubs = 3, spades = 4 }
+    local suitOrderMap = { aurelia = 1, elaris = 2, vharos = 3, valoria = 4, hearts = 1, diamonds = 2, clubs = 3, spades = 4 }
     table.sort(hand, function(a, b)
         local sa = suitOrderMap[a.suit] or 99
         local sb = suitOrderMap[b.suit] or 99

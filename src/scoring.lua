@@ -64,7 +64,22 @@ function Scoring.calculate(handInfo, deities, context)
         bonusMult = bonusMult + b.mult
     end
 
-    -- Step 2: Scoring cards & their equipment
+    -- Count Soldiers (ranks 2..10) in played hand (scoringCards and unscoredCards) for Knight (J) synergy
+    local soldierCount = 0
+    for _, c in ipairs(handInfo.scoringCards or {}) do
+        if c.rank >= 2 and c.rank <= 10 then
+            soldierCount = soldierCount + 1
+        end
+    end
+    for _, c in ipairs(handInfo.unscoredCards or {}) do
+        if c.rank >= 2 and c.rank <= 10 then
+            soldierCount = soldierCount + 1
+        end
+    end
+
+    -- Step 2: Scoring cards, Roles, Faction Passives & Equipments
+    local hasAureliaCard = false
+
     for idx, card in ipairs(handInfo.scoringCards) do
         local cardChips = card.baseChips
         bonusChips = bonusChips + cardChips
@@ -75,8 +90,63 @@ function Scoring.calculate(handInfo, deities, context)
             cardIndex = idx,
             addedChips = cardChips,
             addedMult = 0,
-            message = card.rankName .. card.suitSymbol .. " +" .. cardChips .. " Chips"
+            message = (card.roleIcon or "") .. " " .. card.rankName .. card.suitSymbol .. " +" .. cardChips .. " Chips"
         }
+
+        -- Faction Passives per card
+        if card.suit == "aurelia" or (context and context.selectedSuit == "aurelia") then
+            hasAureliaCard = true
+        end
+
+        if card.suit == "vharos" then
+            bonusChips = bonusChips + 40
+            cardEvent.addedChips = cardEvent.addedChips + 40
+            cardEvent.message = cardEvent.message .. " | 🔥 Hơi Thở Ma Quỷ (+40 Chips)"
+        end
+
+        -- Card Role Passives:
+        -- J (Hiệp Sĩ): +15 Chips & +2 Mult per Soldier in the hand
+        if card.rank == 11 then
+            if soldierCount > 0 then
+                local jChips = 15 * soldierCount
+                local jMult = 2 * soldierCount
+                bonusChips = bonusChips + jChips
+                bonusMult = bonusMult + jMult
+                cardEvent.addedChips = cardEvent.addedChips + jChips
+                cardEvent.addedMult = cardEvent.addedMult + jMult
+                cardEvent.message = cardEvent.message .. " | 🗡️ Cận Vệ (+" .. jChips .. " Chips, +" .. jMult .. " Mult)"
+            end
+        -- Q (Hoàng Hậu): x1.1 XMult & +15 Chips, +2 Mult per equipped socket
+        elseif card.rank == 12 then
+            xMultTotal = xMultTotal * 1.1
+            local eqCount = #(card.equipments or {})
+            if eqCount > 0 then
+                local qChips = 15 * eqCount
+                local qMult = 2 * eqCount
+                bonusChips = bonusChips + qChips
+                bonusMult = bonusMult + qMult
+                cardEvent.addedChips = cardEvent.addedChips + qChips
+                cardEvent.addedMult = cardEvent.addedMult + qMult
+                cardEvent.message = cardEvent.message .. " | 👑 Hoàng Hậu (x1.1 XMult, +" .. qChips .. " Chips, +" .. qMult .. " Mult)"
+            else
+                cardEvent.message = cardEvent.message .. " | 👑 Hoàng Hậu (x1.1 XMult)"
+            end
+        -- K (Quốc Vương): Pillar of damage: +25 Chips & +5 Mult
+        elseif card.rank == 13 then
+            local kChips = 25
+            local kMult = 5
+            bonusChips = bonusChips + kChips
+            bonusMult = bonusMult + kMult
+            cardEvent.addedChips = cardEvent.addedChips + kChips
+            cardEvent.addedMult = cardEvent.addedMult + kMult
+            cardEvent.message = cardEvent.message .. " | 🏰 Quốc Vương (+" .. kChips .. " Chips, +" .. kMult .. " Mult)"
+        -- A (Thần Khí): Ultimate resonance: +15 Chips
+        elseif card.rank == 1 or card.rank == 14 then
+            local aChips = 15
+            bonusChips = bonusChips + aChips
+            cardEvent.addedChips = cardEvent.addedChips + aChips
+            cardEvent.message = cardEvent.message .. " | ⚡ Thần Khí (+" .. aChips .. " Chips)"
+        end
 
         -- Check Card Equipments (onCardScore)
         for _, eq in ipairs(card.equipments or {}) do
@@ -127,6 +197,16 @@ function Scoring.calculate(handInfo, deities, context)
         end
         cardEvent.deityTriggers = deityTriggers
         table.insert(steps, cardEvent)
+    end
+
+    -- Aurelia Faction Passive: Hào Quang Thánh Thiện (x1.15 XMult if hand contains Aurelia card)
+    if hasAureliaCard then
+        xMultTotal = xMultTotal * 1.15
+        table.insert(steps, {
+            type = "faction_bonus",
+            message = "☀️ Hào Quang Thánh Thiện (Aurelia): ×1.15 XMult!",
+            xMult = 1.15,
+        })
     end
 
     -- Step 3: Deities hand-level triggers (+Chips, +Mult, XMult)

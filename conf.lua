@@ -1,7 +1,7 @@
 function love.conf(t)
     t.identity = "poker_roguelike_demo"
     t.version = "11.5"
-    t.console = true
+    t.console = false
 
     t.window.title = "Poker Roguelike Demo (LÖVE 2D)"
     t.window.icon = nil
@@ -12,7 +12,7 @@ function love.conf(t)
     t.window.minwidth = 960
     t.window.minheight = 540
     t.window.fullscreen = false
-    t.window.vsync = 1
+    t.window.vsync = 0
     t.window.highdpi = true
 
     t.modules.audio = true

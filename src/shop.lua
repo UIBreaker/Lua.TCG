@@ -89,21 +89,22 @@ function Shop.refresh(shop, gameState)
     })
 
     -- 4. Card for sale (to reinforce deck)
+    local userFaction = gameState.selectedFaction or gameState.selectedSuit or "aurelia"
     local rewardCard = nil
     if math.random() < 0.5 then
-        rewardCard = Deck.createRewardCard(gameState.selectedSuit)
+        rewardCard = Deck.createRewardCard(userFaction)
     else
-        -- Native suit high rank card
-        local rankPool = { 9, 10, 11, 12, 13 }
+        -- Native faction high rank card
+        local rankPool = { 9, 10, 11, 12, 13, 14 }
         local r = rankPool[math.random(#rankPool)]
-        rewardCard = Deck.newCard(r, gameState.selectedSuit or "hearts")
+        rewardCard = Deck.newCard(r, userFaction)
     end
     table.insert(shop.items, {
         category = "card",
         card = rewardCard,
-        name = "Lá Tiếp Viện: " .. rewardCard.rankName .. " " .. rewardCard.suitName,
-        subtitle = "BỔ SUNG BỘ BÀI",
-        desc = "Thêm 1 lá bài mới " .. rewardCard.rankName .. rewardCard.suitSymbol .. " (" .. rewardCard.baseChips .. " Chips, bền " .. rewardCard.rank .. " lần đánh) vào bộ bài!",
+        name = "Chiêu Mộ: " .. (rewardCard.roleName or "") .. " " .. rewardCard.rankName .. " " .. rewardCard.suitSymbol,
+        subtitle = "CHIÊU MỘ QUÂN BÀI",
+        desc = "Thêm 1 lá bài " .. (rewardCard.roleTitle or "") .. " " .. rewardCard.rankName .. rewardCard.suitSymbol .. " (+" .. rewardCard.baseChips .. " Chips, Phe " .. rewardCard.suitName .. ") vào bộ bài!",
         cost = 4,
         color = rewardCard.color,
         icon = "🃏",

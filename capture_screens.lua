@@ -1,7 +1,6 @@
 local Capture = {}
 
 local frame = 0
-local destDir = "C:\\Users\\Nhật Nam\\.gemini\\antigravity\\brain\\e7060809-5028-446f-bcc6-a8e18d45b68f\\"
 local Equipment = require("src.equipment")
 
 local function saveImage(name)
@@ -16,11 +15,6 @@ local function saveImage(name)
         else
             print("[ERROR OPENING] " .. name)
         end
-        local f2 = io.open(destDir .. name, "wb")
-        if f2 then
-            f2:write(bytes)
-            f2:close()
-        end
     end)
 end
 
@@ -31,7 +25,7 @@ function Capture.update(gameRef, callbacks)
         saveImage("shot_menu.png")
 
     elseif frame == 8 then
-        callbacks.startNewGame("hearts")
+        callbacks.startNewGame("aurelia")
         saveImage("shot_map.png")
 
     elseif frame == 18 then

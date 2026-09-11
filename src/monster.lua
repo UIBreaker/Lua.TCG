@@ -50,52 +50,33 @@ local BOSSES = {
     },
 }
 
-function Monster.getBaseHp(round, isBoss, isElite)
-    if isBoss then
-        if round == 5 then return 250 end
-        if round == 10 then return 400 end
-        if round >= 20 then return 650 end
-        return 500
-    end
-    if isElite then
-        if round <= 6 then return 110 end
-        if round <= 11 then return 200 end
-        return 320
-    end
+-- Calculate Monster HP: Room 1 = 10 HP, each subsequent monster encounter increases HP by +50% indefinitely
+function Monster.getHpByEncounter(encounterCount, isBoss, isElite)
+    local n = math.max(1, encounterCount or 1)
+    local baseHp = math.floor(10 * (1.5 ^ (n - 1)) + 0.5)
 
-    local normalHpTable = {
-        [1] = 30,    -- Tầng 1: 30 HP
-        [2] = 45,
-        [3] = 55,
-        [4] = 70,
-        [5] = 85,
-        [6] = 100,
-        [7] = 115,
-        [8] = 130,
-        [9] = 150,
-        [10] = 170,
-        [11] = 190,
-        [12] = 210,
-        [13] = 230,
-        [14] = 250,
-        [15] = 275,
-        [16] = 300,
-        [17] = 330,
-        [18] = 360,
-        [19] = 390,
-        [20] = 650,
-    }
-    if normalHpTable[round] then return normalHpTable[round] end
-    return math.floor(390 * (1.15 ^ (round - 19)))
+    if isBoss then
+        return math.max(25, math.floor(baseHp * 2.5))
+    elseif isElite then
+        return math.max(15, math.floor(baseHp * 1.5))
+    else
+        return baseHp
+    end
 end
 
-function Monster.create(round, isBossOverride, isEliteOverride)
+function Monster.getBaseHp(round, isBoss, isElite)
+    return Monster.getHpByEncounter(round, isBoss, isElite)
+end
+
+function Monster.create(round, isBossOverride, isEliteOverride, encounterCountOverride)
     local isBoss = (isBossOverride == true)
     local isElite = (isEliteOverride == true)
-    local hp = Monster.getBaseHp(round, isBoss, isElite)
+    local encounterCount = encounterCountOverride or round or 1
+    local hp = Monster.getHpByEncounter(encounterCount, isBoss, isElite)
 
     local monster = {
         round = round,
+        encounterCount = encounterCount,
         isBoss = isBoss,
         isElite = isElite,
         hp = hp,

@@ -50,66 +50,143 @@ function UI.drawRoundedRect(mode, x, y, w, h, r)
     love.graphics.rectangle(mode, x, y, w, h, r, r)
 end
 
--- Procedural vector drawing for card suit symbols
+-- Procedural vector drawing for card faction and suit symbols
 function UI.drawSuitSymbol(suit, cx, cy, size, customColor)
     love.graphics.push("all")
     if customColor then
         love.graphics.setColor(customColor)
     end
 
-    if suit == "hearts" then
-        local r = size * 0.26
-        love.graphics.circle("fill", cx - size * 0.22, cy - size * 0.10, r)
-        love.graphics.circle("fill", cx + size * 0.22, cy - size * 0.10, r)
-        local poly = {
-            cx - size * 0.46, cy - size * 0.04,
-            cx + size * 0.46, cy - size * 0.04,
-            cx, cy + size * 0.48
-        }
-        love.graphics.polygon("fill", poly)
-        love.graphics.rectangle("fill", cx - size * 0.22, cy - size * 0.10, size * 0.44, size * 0.14)
+    local s = suit or "aurelia"
 
-    elseif suit == "diamonds" then
-        local poly = {
-            cx, cy - size * 0.48,
-            cx + size * 0.36, cy,
-            cx, cy + size * 0.48,
-            cx - size * 0.36, cy
-        }
-        love.graphics.polygon("fill", poly)
-
-    elseif suit == "clubs" then
+    -- 1. ☀️ AURELIA (Phe Ánh Sáng / Hearts alias)
+    if s == "aurelia" or s == "hearts" then
+        -- Central radiant sun circle
         local r = size * 0.22
-        love.graphics.circle("fill", cx, cy - size * 0.18, r)
-        love.graphics.circle("fill", cx - size * 0.22, cy + size * 0.08, r)
-        love.graphics.circle("fill", cx + size * 0.22, cy + size * 0.08, r)
-        love.graphics.circle("fill", cx, cy + size * 0.04, r * 0.85)
-        local stem = {
-            cx - size * 0.06, cy + size * 0.05,
-            cx + size * 0.06, cy + size * 0.05,
-            cx + size * 0.18, cy + size * 0.48,
-            cx - size * 0.18, cy + size * 0.48
-        }
-        love.graphics.polygon("fill", stem)
+        love.graphics.circle("fill", cx, cy, r)
 
-    elseif suit == "spades" then
-        local poly = {
-            cx, cy - size * 0.48,
-            cx - size * 0.46, cy + size * 0.08,
-            cx + size * 0.46, cy + size * 0.08
+        -- 8 Sun rays bursting outwards
+        local rayOuter = size * 0.46
+        local rayInner = size * 0.25
+        local rayHalfW = size * 0.08
+        local angles = { 0, math.pi / 4, math.pi / 2, 3 * math.pi / 4, math.pi, 5 * math.pi / 4, 3 * math.pi / 2, 7 * math.pi / 4 }
+        for _, ang in ipairs(angles) do
+            local cosA = math.cos(ang)
+            local sinA = math.sin(ang)
+            local perpX = -sinA * rayHalfW
+            local perpY = cosA * rayHalfW
+
+            local tipX = cx + cosA * rayOuter
+            local tipY = cy + sinA * rayOuter
+            local b1X = cx + cosA * rayInner + perpX
+            local b1Y = cy + sinA * rayInner + perpY
+            local b2X = cx + cosA * rayInner - perpX
+            local b2Y = cy + sinA * rayInner - perpY
+
+            love.graphics.polygon("fill", { b1X, b1Y, tipX, tipY, b2X, b2Y })
+        end
+
+    -- 2. 🌲 ELARIS (Phe Thiên Nhiên / Clubs alias)
+    elseif s == "elaris" or s == "clubs" then
+        -- Tree trunk
+        local tw = size * 0.12
+        local th = size * 0.22
+        love.graphics.rectangle("fill", cx - tw / 2, cy + size * 0.22, tw, th)
+
+        -- 3 Layered triangular evergreen foliage
+        -- Top tier
+        love.graphics.polygon("fill", {
+            cx, cy - size * 0.46,
+            cx + size * 0.24, cy - size * 0.14,
+            cx - size * 0.24, cy - size * 0.14
+        })
+        -- Middle tier
+        love.graphics.polygon("fill", {
+            cx, cy - size * 0.22,
+            cx + size * 0.34, cy + size * 0.06,
+            cx - size * 0.34, cy + size * 0.06
+        })
+        -- Bottom tier
+        love.graphics.polygon("fill", {
+            cx, cy - size * 0.02,
+            cx + size * 0.44, cy + size * 0.24,
+            cx - size * 0.44, cy + size * 0.24
+        })
+
+    -- 3. 🔥 VHAROS (Phe Hắc Ám / Spades alias)
+    elseif s == "vharos" or s == "spades" then
+        -- Dark leaping flame with dynamic horns/curls
+        local flamePoly = {
+            cx, cy - size * 0.48,           -- top main peak
+            cx + size * 0.18, cy - size * 0.26,
+            cx + size * 0.38, cy - size * 0.12,  -- right sub-flame
+            cx + size * 0.32, cy + size * 0.15,
+            cx + size * 0.18, cy + size * 0.44,  -- bottom right base
+            cx - size * 0.18, cy + size * 0.44,  -- bottom left base
+            cx - size * 0.32, cy + size * 0.15,
+            cx - size * 0.38, cy - size * 0.12,  -- left sub-flame
+            cx - size * 0.18, cy - size * 0.26
         }
-        love.graphics.polygon("fill", poly)
-        local r = size * 0.24
-        love.graphics.circle("fill", cx - size * 0.22, cy + size * 0.12, r)
-        love.graphics.circle("fill", cx + size * 0.22, cy + size * 0.12, r)
-        love.graphics.rectangle("fill", cx - size * 0.22, cy, size * 0.44, size * 0.15)
-        local stem = {
-            cx - size * 0.06, cy + size * 0.08,
-            cx + size * 0.06, cy + size * 0.08,
-            cx + size * 0.18, cy + size * 0.48,
-            cx - size * 0.18, cy + size * 0.48
+        love.graphics.polygon("fill", flamePoly)
+
+        -- Inner brighter flame core
+        love.graphics.setColor(1, 1, 1, 0.45)
+        local innerFlame = {
+            cx, cy - size * 0.28,
+            cx + size * 0.14, cy + size * 0.06,
+            cx + size * 0.08, cy + size * 0.32,
+            cx - size * 0.08, cy + size * 0.32,
+            cx - size * 0.14, cy + size * 0.06
         }
-        love.graphics.polygon("fill", stem)
+        love.graphics.polygon("fill", innerFlame)
+
+    -- 4. ⚔️ VALORIA (Phe Nhân Loại / Diamonds alias)
+    elseif s == "valoria" or s == "diamonds" then
+        -- Crossed swords
+        local halfBlade = size * 0.44
+        local bladeW = size * 0.08
+
+        -- Sword 1 (TL to BR)
+        love.graphics.push()
+        love.graphics.translate(cx, cy)
+        love.graphics.rotate(math.pi / 4)
+        -- Blade
+        love.graphics.polygon("fill", {
+            0, -halfBlade,
+            bladeW / 2, -halfBlade * 0.8,
+            bladeW / 2, halfBlade * 0.5,
+            -bladeW / 2, halfBlade * 0.5,
+            -bladeW / 2, -halfBlade * 0.8
+        })
+        -- Crossguard
+        love.graphics.rectangle("fill", -size * 0.18, halfBlade * 0.5, size * 0.36, size * 0.06)
+        -- Hilt & Pommel
+        love.graphics.rectangle("fill", -size * 0.04, halfBlade * 0.56, size * 0.08, size * 0.18)
+        love.graphics.circle("fill", 0, halfBlade * 0.78, size * 0.06)
+        love.graphics.pop()
+
+        -- Sword 2 (TR to BL)
+        love.graphics.push()
+        love.graphics.translate(cx, cy)
+        love.graphics.rotate(-math.pi / 4)
+        -- Blade
+        love.graphics.polygon("fill", {
+            0, -halfBlade,
+            bladeW / 2, -halfBlade * 0.8,
+            bladeW / 2, halfBlade * 0.5,
+            -bladeW / 2, halfBlade * 0.5,
+            -bladeW / 2, -halfBlade * 0.8
+        })
+        -- Crossguard
+        love.graphics.rectangle("fill", -size * 0.18, halfBlade * 0.5, size * 0.36, size * 0.06)
+        -- Hilt & Pommel
+        love.graphics.rectangle("fill", -size * 0.04, halfBlade * 0.56, size * 0.08, size * 0.18)
+        love.graphics.circle("fill", 0, halfBlade * 0.78, size * 0.06)
+        love.graphics.pop()
+
+        -- Central Shield Boss
+        love.graphics.setColor(1, 1, 1, 0.6)
+        love.graphics.circle("fill", cx, cy, size * 0.12)
     end
 
     love.graphics.pop()
@@ -196,6 +273,19 @@ function UI.drawCard(card, x, y, w, h)
     local rk = card.rankName
     local rkW = UI.fonts.regular:getWidth(rk)
     love.graphics.print(rk, w - rkW - 8, h - 25)
+
+    -- Role text at lower center
+    local roleText = card.roleName
+    if not roleText and card.rank then
+        local Deck = require("src.deck")
+        local role = Deck.getCardRole(card.rank)
+        roleText = role.name
+    end
+    if roleText then
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(0.4, 0.45, 0.5, 0.9)
+        love.graphics.printf(roleText, 0, h - 39, w, "center")
+    end
 
     -- Base Chip badge at bottom center
     love.graphics.setColor(UI.COLORS.chipsBlue[1], UI.COLORS.chipsBlue[2], UI.COLORS.chipsBlue[3], 0.9)

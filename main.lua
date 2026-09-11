@@ -10,11 +10,12 @@ local Equipment = require("src.equipment")
 local Map = require("src.map")
 local Events = require("src.events")
 
+io.stdout:setvbuf("no")
 local isCaptureMode = false
 for _, a in ipairs(arg or {}) do
     if a == "--test" then
         require("test_system")
-        os.exit(0)
+        love.event.quit(0)
     elseif a == "--capture" then
         isCaptureMode = true
     end
@@ -216,9 +217,16 @@ end
 
 local function startMonsterEncounter(floor, isBossNode, isEliteNode)
     game.round = floor or 1
-    game.monster = Monster.create(game.round, isBossNode, isEliteNode)
+    game.monsterEncounterCount = game.monsterEncounterCount or 1
+    game.monster = Monster.create(game.round, isBossNode, isEliteNode, game.monsterEncounterCount)
     game.handsRemaining = game.maxHands
-    game.discardsRemaining = game.maxDiscards
+
+    -- Valoria Passive: +1 Discard per combat
+    if game.selectedFaction == "valoria" or game.selectedSuit == "valoria" then
+        game.discardsRemaining = game.maxDiscards + 1
+    else
+        game.discardsRemaining = game.maxDiscards
+    end
 
     -- Apply Boss modifier if any
     if game.monster.isBoss and game.monster.bossData and game.monster.bossData.applyModifier then
@@ -238,10 +246,9 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
         end
     end
 
-    -- "đánh trừ -1 đi qua trận mới thì khôi phục như ban đầu"
     -- Restore persistentDeck back to original baseRank and rebuild active deck
     if not game.persistentDeck or #game.persistentDeck == 0 then
-        game.persistentDeck = Deck.createStarterDeck(game.selectedSuit or "hearts")
+        game.persistentDeck = Deck.createStarterDeck(game.selectedFaction or game.selectedSuit or "aurelia")
     end
     Deck.restoreDeck(game.persistentDeck)
     game.masterDeck = game.persistentDeck
@@ -254,8 +261,9 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
     Deck.shuffle(game.deck)
     clearAllSelections()
 
-    -- Ensure player draws starting hand (up to 8 cards, or all cards if deck has <= 8)
-    while #game.hand < 8 and #game.deck > 0 do
+    -- Elaris Passive: Sức Sống Rừng Già (draw up to 9 cards instead of 8)
+    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and 9 or 8
+    while #game.hand < maxHandSize and #game.deck > 0 do
         local drawn = table.remove(game.deck)
         drawn.selected = false
         table.insert(game.hand, drawn)
@@ -274,13 +282,15 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
     Sound.play("card_deal")
 end
 
-local function startNewGame(chosenSuit)
-    game.selectedSuit = chosenSuit or "hearts"
+local function startNewGame(chosenFaction)
+    game.selectedFaction = chosenFaction or "aurelia"
+    game.selectedSuit = game.selectedFaction
+    game.monsterEncounterCount = 1
     game.round = 1
     game.act = 1
     game.gold = 6
     game.maxHands = 4
-    game.maxDiscards = 3
+    game.maxDiscards = (game.selectedFaction == "valoria") and 4 or 3
     game.unlockedHands = { high_card = true }
     game.deities = {} -- Mới vào game không có vị thần nào hết!
     game.hand = {}
@@ -293,8 +303,8 @@ local function startNewGame(chosenSuit)
     transferSourceEqIndex = nil
     transferMessage = nil
 
-    -- 1. Create starter persistent deck of 3 RANDOM cards of the chosen suit
-    game.persistentDeck = Deck.createStarterDeck(game.selectedSuit)
+    -- 1. Create starter persistent deck of 3 RANDOM cards of the chosen faction
+    game.persistentDeck = Deck.createStarterDeck(game.selectedFaction)
     Deck.restoreDeck(game.persistentDeck)
     game.masterDeck = game.persistentDeck
 
@@ -380,12 +390,54 @@ local function discardSelected()
     end
 
     table.sort(game.selectedIndices, function(a, b) return a > b end)
+    local discardedCards = {}
     for _, idx in ipairs(game.selectedIndices) do
         local card = table.remove(game.hand, idx)
         card.selected = false
-        table.insert(game.discardPile, card)
+        table.insert(discardedCards, card)
     end
     clearAllSelections()
+
+    -- Process Faction Passives on Discard
+    local isVharos = (game.selectedFaction == "vharos" or game.selectedSuit == "vharos")
+    local isElaris = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris")
+
+    for _, card in ipairs(discardedCards) do
+        -- Vharos: Huyết Tế Bóng Đêm (Soldier cards 2-10 sacrificed deal direct true damage equal to rank)
+        if (card.suit == "vharos" or isVharos) and card.rank >= 2 and card.rank <= 10 then
+            local trueDmg = card.rank
+            if game.monster and game.monster.hp > 0 then
+                local actualDmg, defeated = Monster.takeDamage(game.monster, trueDmg)
+                table.insert(anim.floatingTexts, {
+                    text = "🔥 Huyết Tế Bóng Đêm (Lá " .. card.rankName .. "): -" .. actualDmg .. " Sát Thương Chuẩn!",
+                    color = { 0.95, 0.25, 0.35, 1 },
+                    x = 640,
+                    y = 440,
+                    alpha = 2.0,
+                })
+                Sound.play("xmult_boom")
+                if defeated then
+                    local baseReward = game.monster.isBoss and 15 or (game.monster.isElite and 10 or 4)
+                    game.gold = game.gold + baseReward
+                    Sound.play("round_win")
+                end
+            end
+        end
+
+        -- Elaris: Sức Sống Rừng Già (Recycle Soldier cards 2-10 to the bottom of the draw deck)
+        if (card.suit == "elaris" or isElaris) and card.rank >= 2 and card.rank <= 10 then
+            table.insert(game.deck, 1, card) -- recycled to draw deck
+            table.insert(anim.floatingTexts, {
+                text = "🌲 Tái Chế Chiến Binh (" .. card.rankName .. ") về Cọc Rút!",
+                color = { 0.2, 0.85, 0.4, 1 },
+                x = 640,
+                y = 480,
+                alpha = 1.5,
+            })
+        else
+            table.insert(game.discardPile, card)
+        end
+    end
 
     if hasFreeDiscard then
         table.insert(anim.floatingTexts, {
@@ -399,8 +451,9 @@ local function discardSelected()
         game.discardsRemaining = game.discardsRemaining - 1
     end
 
-    -- Refill hand to 8
-    while #game.hand < 8 do
+    -- Refill hand to maxHandSize (9 for Elaris, 8 for others)
+    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and 9 or 8
+    while #game.hand < maxHandSize do
         if #game.deck == 0 then
             if #game.discardPile == 0 then break end
             for _, c in ipairs(game.discardPile) do
@@ -725,6 +778,38 @@ function love.update(dt)
                             end
                         end
                         anim.earnedGold = baseReward + unusedHandsBonus + deityBonus
+
+                        -- Valoria Passive: +25% Gold on monster defeat
+                        if game.selectedFaction == "valoria" or game.selectedSuit == "valoria" then
+                            local valBonus = math.max(1, math.floor(anim.earnedGold * 0.25))
+                            anim.earnedGold = anim.earnedGold + valBonus
+                            table.insert(anim.floatingTexts, {
+                                text = "⚔️ Hậu Cần Quân Khí (Valoria): +" .. valBonus .. " Vàng (+25%)!",
+                                color = UI.COLORS.goldYellow,
+                                x = 640,
+                                y = 280,
+                                alpha = 2.5,
+                            })
+                        end
+
+                        -- Elaris Passive: Lộc Biếc Đâm Chồi (Win within half of max hands upgrades a card)
+                        if (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and game.handsRemaining >= math.ceil(game.maxHands / 2) then
+                            if game.persistentDeck and #game.persistentDeck > 0 then
+                                local targetCard = game.persistentDeck[love.math and love.math.random(#game.persistentDeck) or 1]
+                                Deck.upgradeCard(targetCard)
+                                table.insert(anim.floatingTexts, {
+                                    text = "🌲 Lộc Biếc Đâm Chồi: Tôi luyện thành công lá " .. targetCard.rankName .. targetCard.suitSymbol .. " (+1 Rank)!",
+                                    color = { 0.2, 0.85, 0.4, 1 },
+                                    x = 640,
+                                    y = 330,
+                                    alpha = 3.0,
+                                })
+                            end
+                        end
+
+                        -- Increment encounter count for next monster (starts at 10 HP, +50% each encounter indefinitely)
+                        game.monsterEncounterCount = (game.monsterEncounterCount or 1) + 1
+
                         game.gold = game.gold + anim.earnedGold
                         Sound.play("round_win")
                     elseif game.handsRemaining <= 0 then
@@ -735,49 +820,9 @@ function love.update(dt)
                 if anim.stepTimer >= 0.8 or anim.currentStepIndex > #steps + 1 then
                     anim.active = false
 
-                    -- Card Degradation: Each played card loses 1 rank. If rank A is played, card is destroyed!
-                    if anim.playedCards and #anim.playedCards > 0 then
-                        for _, c in ipairs(anim.playedCards) do
-                            local status = Deck.degradeCard(c)
-                            if status == "destroyed" then
-                                -- Remove from discard pile, deck, and hand
-                                for idx = #game.discardPile, 1, -1 do
-                                    if game.discardPile[idx].id == c.id then
-                                        table.remove(game.discardPile, idx)
-                                        break
-                                    end
-                                end
-                                for idx = #game.deck, 1, -1 do
-                                    if game.deck[idx].id == c.id then
-                                        table.remove(game.deck, idx)
-                                        break
-                                    end
-                                end
-                                for idx = #game.hand, 1, -1 do
-                                    if game.hand[idx].id == c.id then
-                                        table.remove(game.hand, idx)
-                                        break
-                                    end
-                                end
-                                table.insert(anim.floatingTexts, {
-                                    text = "LÁ BÀI [" .. c.suitSymbol .. "] ĐÃ VỠ VỤN VÀ BIẾN MẤT!",
-                                    color = UI.COLORS.multRed,
-                                    x = 640,
-                                    y = 380,
-                                    alpha = 3.0,
-                                })
-                                Sound.play("xmult_boom")
-                            else
-                                table.insert(anim.floatingTexts, {
-                                    text = "Lá " .. c.suitSymbol .. " -1 Rank -> " .. c.rankName .. "!",
-                                    color = UI.COLORS.chipsBlue,
-                                    x = 640,
-                                    y = 440,
-                                    alpha = 2.0,
-                                })
-                            end
-                        end
-                        anim.playedCards = {}
+                    -- Old card degradation is removed per user request:
+                    -- Cards do NOT lose rank on play. Played cards are simply discarded.
+                    anim.playedCards = {}
                     end
 
                     -- Check if player has run out of all cards
@@ -877,48 +922,48 @@ local function drawMenu()
 
     love.graphics.setFont(UI.fonts.medium)
     love.graphics.setColor(UI.COLORS.textLight)
-    love.graphics.printf("Lựa chọn Chất bài Khởi đầu (3 lá ngẫu nhiên thuần chất - Mỗi lần đánh giảm 1 Rank, A bị trừ sẽ mất bài):", 0, 95, V_WIDTH, "center")
+    love.graphics.printf("Lựa chọn Phe Phái Khởi Đầu (3 lá ngẫu nhiên - Quái khởi đầu 10 HP, tăng 50% mỗi phòng quái):", 0, 95, V_WIDTH, "center")
 
-    -- 4 Suit Selection Cards
-    local suits = {
+    -- 4 Faction Selection Cards
+    local factions = {
         {
-            id = "hearts",
-            title = "CƠ (HEARTS)",
-            color = Deck.SUITS.hearts.color,
-            badge = "Khởi đầu: 3 lá Cơ ngẫu nhiên",
-            blessing = "Bắt đầu với 3 lá CƠ ngẫu nhiên.\nChưa có Thần bài nào.\nMỗi lần đánh giảm 1 Rank (A trừ = mất bài)!\nĐánh bại BOSS tầng 20 để thỉnh Thần!",
+            id = "aurelia",
+            title = "☀️ AURELIA",
+            color = Deck.FACTIONS.aurelia.color,
+            badge = "Phe Ánh Sáng",
+            blessing = "• Hào Quang Thánh Thiện:\nĐòn đánh có thẻ Aurelia nhận x1.15 XMult.\n• Kỷ Luật Thần Thánh:\nBài hình (J, Q, K) cố định điểm, miễn nhiễm suy yếu từ quái vật.",
         },
         {
-            id = "diamonds",
-            title = "RÔ (DIAMONDS)",
-            color = Deck.SUITS.diamonds.color,
-            badge = "Khởi đầu: 3 lá Rô ngẫu nhiên",
-            blessing = "Bắt đầu với 3 lá RÔ ngẫu nhiên.\nChưa có Thần bài nào.\nMỗi lần đánh giảm 1 Rank (A trừ = mất bài)!\nĐánh bại BOSS tầng 20 để thỉnh Thần!",
+            id = "elaris",
+            title = "🌲 ELARIS",
+            color = Deck.FACTIONS.elaris.color,
+            badge = "Phe Thiên Nhiên",
+            blessing = "• Sức Sống Rừng Già:\nCầm tối đa 9 lá bài & tái chế Chiến Binh (2-10) khi đổi bài.\n• Lộc Biếc Đâm Chồi:\nThắng không quá nửa lượt đánh giúp tôi luyện hoàn hảo 1 lá bài.",
         },
         {
-            id = "clubs",
-            title = "CHUỒN (CLUBS)",
-            color = Deck.SUITS.clubs.color,
-            badge = "Khởi đầu: 3 lá Chuồn ngẫu nhiên",
-            blessing = "Bắt đầu với 3 lá CHUỒN ngẫu nhiên.\nChưa có Thần bài nào.\nMỗi lần đánh giảm 1 Rank (A trừ = mất bài)!\nĐánh bại BOSS tầng 20 để thỉnh Thần!",
+            id = "vharos",
+            title = "🔥 VHAROS",
+            color = Deck.FACTIONS.vharos.color,
+            badge = "Phe Hắc Ám",
+            blessing = "• Hơi Thở Ma Quỷ:\nThẻ Vharos khi xuất trận cộng trực tiếp +40 Chips.\n• Huyết Tế Bóng Đêm:\nKhi Chiến Binh (2-10) bị hy sinh, gây sát thương chuẩn bằng số của lá.",
         },
         {
-            id = "spades",
-            title = "BÍCH (SPADES)",
-            color = Deck.SUITS.spades.color,
-            badge = "Khởi đầu: 3 lá Bích ngẫu nhiên",
-            blessing = "Bắt đầu với 3 lá BÍCH ngẫu nhiên.\nChưa có Thần bài nào.\nMỗi lần đánh giảm 1 Rank (A trừ = mất bài)!\nĐánh bại BOSS tầng 20 để thỉnh Thần!",
+            id = "valoria",
+            title = "⚔️ VALORIA",
+            color = Deck.FACTIONS.valoria.color,
+            badge = "Phe Nhân Loại",
+            blessing = "• Chiến Thuật Hành Quân:\nNhận thêm +1 Lượt Đổi Bài miễn phí mỗi trận (4 lượt đổi).\n• Hậu Cần Quân Khí:\nTiêu diệt quái vật tăng +25% vàng thu thập.",
         },
     }
 
     local cardW = 240
-    local cardH = 360
+    local cardH = 370
     local startX = (V_WIDTH - (4 * cardW + 3 * 24)) / 2
-    local cardY = 145
+    local cardY = 140
 
     local mx, my = toVirtual(love.mouse.getPosition())
 
-    for i, s in ipairs(suits) do
+    for i, s in ipairs(factions) do
         local cx = startX + (i - 1) * (cardW + 24)
         local isHovered = (mx >= cx and mx <= cx + cardW and my >= cardY and my <= cardY + cardH)
 
@@ -934,32 +979,32 @@ local function drawMenu()
 
         love.graphics.setFont(UI.fonts.medium)
         love.graphics.setColor(s.color)
-        love.graphics.printf(s.title, cx, cardY + 16, cardW, "center")
+        love.graphics.printf(s.title, cx, cardY + 14, cardW, "center")
 
-        UI.drawSuitSymbol(s.id, cx + cardW / 2, cardY + 80, 56, s.color)
+        UI.drawSuitSymbol(s.id, cx + cardW / 2, cardY + 70, 52, s.color)
 
         love.graphics.setColor(s.color[1], s.color[2], s.color[3], 0.25)
-        UI.drawRoundedRect("fill", cx + 16, cardY + 125, cardW - 32, 34, 6)
+        UI.drawRoundedRect("fill", cx + 16, cardY + 110, cardW - 32, 30, 6)
         love.graphics.setFont(UI.fonts.regular)
         love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.printf(s.badge, cx, cardY + 131, cardW, "center")
+        love.graphics.printf(s.badge, cx, cardY + 115, cardW, "center")
 
-        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setFont(UI.fonts.tiny)
         love.graphics.setColor(UI.COLORS.textLight)
-        love.graphics.printf(s.blessing, cx + 16, cardY + 175, cardW - 32, "center")
+        love.graphics.printf(s.blessing, cx + 14, cardY + 150, cardW - 28, "left")
 
-        local btnY = cardY + cardH - 52
+        local btnY = cardY + cardH - 48
         love.graphics.setColor(isHovered and s.color or UI.COLORS.btnNormal)
-        UI.drawRoundedRect("fill", cx + 24, btnY, cardW - 48, 38, 6)
+        UI.drawRoundedRect("fill", cx + 24, btnY, cardW - 48, 36, 6)
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.setFont(UI.fonts.regular)
-        love.graphics.printf("CHỌN CHẤT NÀY", cx, btnY + 8, cardW, "center")
+        love.graphics.printf("CHỌN PHE NÀY", cx, btnY + 7, cardW, "center")
     end
 
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.printf("Mẹo: Nhấn [F11] để Bật/Tắt Full Màn Hình Tràn Viền bất kỳ lúc nào!", 0, V_HEIGHT - 65, V_WIDTH, "center")
-    love.graphics.printf("Đánh bài gây Sát Thương trừ máu Quái Vật. Cứ 3 màn thường sẽ có 1 màn BOSS và Rương Thưởng Trang Bị!", 0, V_HEIGHT - 40, V_WIDTH, "center")
+    love.graphics.printf("Mẹo: Nhấn [F11] để Bật/Tắt Full Màn Hình Tràn Viền bất kỳ lúc nào!", 0, V_HEIGHT - 55, V_WIDTH, "center")
+    love.graphics.printf("Khởi đầu với 3 lá ngẫu nhiên thuộc phe đã chọn. Đánh bại BOSS để thỉnh Thần Bài Ban Ơn!", 0, V_HEIGHT - 32, V_WIDTH, "center")
 end
 
 local function drawPlayingState()
@@ -1981,12 +2026,18 @@ local function drawDeckViewerModal()
 
     -- Filter cards
     local filteredCards = {}
-    local suitCounts = { hearts = 0, diamonds = 0, clubs = 0, spades = 0 }
+    local suitCounts = { aurelia = 0, elaris = 0, vharos = 0, valoria = 0 }
     local equippedCount = 0
 
     for _, c in ipairs(allCards) do
-        if suitCounts[c.suit] then
-            suitCounts[c.suit] = suitCounts[c.suit] + 1
+        local s = c.suit
+        if s == "hearts" then s = "aurelia"
+        elseif s == "diamonds" then s = "valoria"
+        elseif s == "clubs" then s = "elaris"
+        elseif s == "spades" then s = "vharos" end
+
+        if suitCounts[s] then
+            suitCounts[s] = suitCounts[s] + 1
         end
         local hasEq = (c.equipments and #c.equipments > 0)
         if hasEq then equippedCount = equippedCount + 1 end
@@ -1995,7 +2046,7 @@ local function drawDeckViewerModal()
             table.insert(filteredCards, c)
         elseif deckViewerFilter == "equipped" and hasEq then
             table.insert(filteredCards, c)
-        elseif deckViewerFilter == c.suit then
+        elseif deckViewerFilter == s or deckViewerFilter == c.suit then
             table.insert(filteredCards, c)
         end
     end
@@ -2003,20 +2054,20 @@ local function drawDeckViewerModal()
     -- Left Column: Cards (Width 680)
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(UI.COLORS.textLight)
-    love.graphics.print("Tổng cộng: " .. #allCards .. " lá  (Cơ: " .. suitCounts.hearts .. " | Rô: " .. suitCounts.diamonds .. " | Chuồn: " .. suitCounts.clubs .. " | Bích: " .. suitCounts.spades .. " | Đã khảm: " .. equippedCount .. " lá)", modalX + 24, modalY + 58)
+    love.graphics.print("Tổng cộng: " .. #allCards .. " lá  (☀️ Aurelia: " .. suitCounts.aurelia .. " | 🌲 Elaris: " .. suitCounts.elaris .. " | 🔥 Vharos: " .. suitCounts.vharos .. " | ⚔️ Valoria: " .. suitCounts.valoria .. " | Đã khảm: " .. equippedCount .. " lá)", modalX + 24, modalY + 58)
 
     -- Filter Tabs
     local filterTabs = {
         { id = "all", text = "Tất cả (" .. #allCards .. ")" },
-        { id = "hearts", text = "Cơ (" .. suitCounts.hearts .. ")" },
-        { id = "diamonds", text = "Rô (" .. suitCounts.diamonds .. ")" },
-        { id = "clubs", text = "Chuồn (" .. suitCounts.clubs .. ")" },
-        { id = "spades", text = "Bích (" .. suitCounts.spades .. ")" },
-        { id = "equipped", text = "Đã Khảm (" .. equippedCount .. ")" },
+        { id = "aurelia", text = "☀️ Aurelia (" .. suitCounts.aurelia .. ")" },
+        { id = "elaris", text = "🌲 Elaris (" .. suitCounts.elaris .. ")" },
+        { id = "vharos", text = "🔥 Vharos (" .. suitCounts.vharos .. ")" },
+        { id = "valoria", text = "⚔️ Valoria (" .. suitCounts.valoria .. ")" },
+        { id = "equipped", text = "💎 Đã Khảm (" .. equippedCount .. ")" },
     }
     local tabStartX = modalX + 24
     local tabY = modalY + 86
-    local tabW = 104
+    local tabW = 108
     local tabH = 30
 
     for idx, tab in ipairs(filterTabs) do
@@ -2735,37 +2786,30 @@ local function drawCardInspectorModal(card)
     local cardArtY = modalY + 80
     UI.drawCard(card, cardArtX, cardArtY, cardArtW, cardArtH)
 
-    -- Durability details block under card art
-    local durY = cardArtY + cardArtH + 20
+    -- Role & Faction details block under card art
+    local durY = cardArtY + cardArtH + 15
+    local durH = 175
     love.graphics.setColor(0.14, 0.17, 0.22, 0.9)
-    UI.drawRoundedRect("fill", cardArtX, durY, cardArtW, 160, 8)
+    UI.drawRoundedRect("fill", cardArtX, durY, cardArtW, durH, 8)
     love.graphics.setLineWidth(1.5)
-    love.graphics.setColor(card.rank == 1 and UI.COLORS.multRed or UI.COLORS.chipsBlue)
-    UI.drawRoundedRect("line", cardArtX, durY, cardArtW, 160, 8)
+    love.graphics.setColor(card.color or UI.COLORS.goldYellow)
+    UI.drawRoundedRect("line", cardArtX, durY, cardArtW, durH, 8)
 
-    local uses = Deck.getDurabilityUses(card)
+    local role = card.role and Deck.CARD_ROLES[card.role] or Deck.getCardRole(card.rank)
     love.graphics.setFont(UI.fonts.small)
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.printf("ĐỘ BỀN LÁ BÀI", cardArtX, durY + 10, cardArtW, "center")
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.printf(role.icon .. " " .. role.name, cardArtX, durY + 10, cardArtW, "center")
 
-    love.graphics.setFont(UI.fonts.medium)
-    love.graphics.setColor(card.rank == 1 and UI.COLORS.multRed or UI.COLORS.goldYellow)
-    love.graphics.printf(uses .. " LẦN ĐÁNH", cardArtX, durY + 34, cardArtW, "center")
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(card.color or UI.COLORS.textLight)
+    love.graphics.printf("Phe: " .. (card.suitName or "Aurelia"), cardArtX + 8, durY + 32, cardArtW - 16, "center")
 
     love.graphics.setFont(UI.fonts.tiny)
     love.graphics.setColor(UI.COLORS.textLight)
-    love.graphics.printf("Mỗi lần đánh ra sẽ giảm 1 Rank.", cardArtX + 8, durY + 68, cardArtW - 16, "center")
+    love.graphics.printf(role.desc, cardArtX + 8, durY + 54, cardArtW - 16, "left")
 
-    if card.rank == 1 then
-        love.graphics.setColor(UI.COLORS.multRed)
-        love.graphics.setFont(UI.fonts.tiny)
-        love.graphics.printf("CẢNH BÁO: Rank A! Đánh lần nữa sẽ VỠ VỤN & MẤT BÀI!", cardArtX + 6, durY + 105, cardArtW - 12, "center")
-    else
-        love.graphics.setColor(UI.COLORS.textMuted)
-        love.graphics.setFont(UI.fonts.tiny)
-        local nextRank = Deck.RANK_NAMES[card.rank - 1] or "A"
-        love.graphics.printf("Lần tới giảm thành: " .. nextRank .. " " .. card.suitSymbol, cardArtX + 6, durY + 115, cardArtW - 12, "center")
-    end
+    love.graphics.setColor(UI.COLORS.hpGreen)
+    love.graphics.printf("Điểm: +" .. card.baseChips .. " Chips", cardArtX + 8, durY + durH - 24, cardArtW - 16, "center")
 
     -- Right side: 5 Equipment Sockets
     local rightX = modalX + 230
@@ -3387,9 +3431,9 @@ function love.mousepressed(x, y, button)
         -- Filter tabs
         local tabStartX = modalX + 24
         local tabY = modalY + 86
-        local tabW = 104
+        local tabW = 108
         local tabH = 30
-        local filterIds = { "all", "hearts", "diamonds", "clubs", "spades", "equipped" }
+        local filterIds = { "all", "aurelia", "elaris", "vharos", "valoria", "equipped" }
         for idx, fid in ipairs(filterIds) do
             local tx = tabStartX + (idx - 1) * (tabW + 6)
             if mx >= tx and mx <= tx + tabW and my >= tabY and my <= tabY + tabH then
@@ -3411,15 +3455,15 @@ function love.mousepressed(x, y, button)
 
     if state == "menu" then
         local cardW = 240
-        local cardH = 360
+        local cardH = 370
         local startX = (V_WIDTH - (4 * cardW + 3 * 24)) / 2
-        local cardY = 145
-        local suitKeys = { "hearts", "diamonds", "clubs", "spades" }
+        local cardY = 140
+        local factionKeys = { "aurelia", "elaris", "vharos", "valoria" }
 
-        for i, skey in ipairs(suitKeys) do
+        for i, fkey in ipairs(factionKeys) do
             local cx = startX + (i - 1) * (cardW + 24)
             if mx >= cx and mx <= cx + cardW and my >= cardY and my <= cardY + cardH then
-                startNewGame(skey)
+                startNewGame(fkey)
                 return
             end
         end

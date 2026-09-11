@@ -17,20 +17,31 @@ end
 
 log("=== RUNNING ROGUELIKE POKER SYSTEM TESTS ===")
 
--- 1. Test Monster HP scaling (Floor 1 must be 30 HP, Floor 20 Boss must be 650 HP)
-local m1 = Monster.create(1, false)
-assert(m1.hp == 30, "Floor 1 monster HP should be 30")
-assert(m1.maxHp == 30, "Floor 1 monster maxHp should be 30")
-log("[PASS] 1. Floor 1 Monster HP is 30 HP: " .. m1.name .. " (" .. m1.hp .. " HP)")
+-- 1. Test Monster HP scaling (Encounter 1 = 10 HP, each subsequent encounter increases by 50% indefinitely)
+local m1 = Monster.create(1, false, false, 1)
+assert(m1.hp == 10, "Encounter 1 monster HP must be 10, got: " .. m1.hp)
+assert(m1.maxHp == 10, "Encounter 1 monster maxHp must be 10")
+log("[PASS] 1. Encounter 1 Monster HP is 10 HP: " .. m1.name .. " (" .. m1.hp .. " HP)")
 
-local boss20 = Monster.create(20, true)
-assert(boss20.isBoss == true, "Floor 20 boss should be a boss")
-assert(boss20.hp == 650, "Floor 20 Boss HP should be 650")
-log("[PASS] 2. Floor 20 Boss created successfully: " .. boss20.name .. " (" .. boss20.hp .. " HP)")
+local m2 = Monster.create(2, false, false, 2)
+assert(m2.hp == 15, "Encounter 2 monster HP must be 15 (+50%), got: " .. m2.hp)
+local m3 = Monster.create(3, false, false, 3)
+assert(m3.hp == 23, "Encounter 3 monster HP must be 23 (+50%), got: " .. m3.hp)
+local m4 = Monster.create(4, false, false, 4)
+assert(m4.hp == 34, "Encounter 4 monster HP must be 34 (+50%), got: " .. m4.hp)
+local m5 = Monster.create(5, false, false, 5)
+assert(m5.hp == 51, "Encounter 5 monster HP must be 51 (+50%), got: " .. m5.hp)
+log("[PASS] 2. Monster HP scaling (+50% each encounter) verified: 10 -> 15 -> 23 -> 34 -> 51 HP")
+
+-- 2. Test Boss creation with scaling
+local boss1 = Monster.create(5, true, false, 5)
+assert(boss1.isBoss == true, "Boss must be flagged isBoss")
+assert(boss1.hp == math.floor(51 * 2.5), "Boss HP must be 2.5x base, got: " .. boss1.hp)
+log("[PASS] 2b. Boss created with scaled HP: " .. boss1.name .. " (" .. boss1.hp .. " HP)")
 
 -- 2. Test Poker Hand Unlock & Fallback
-local cardA = { rank = 14, rankName = "A", suit = "hearts", baseChips = 11 }
-local cardA2 = { rank = 14, rankName = "A", suit = "hearts", baseChips = 11 }
+local cardA = { rank = 14, rankName = "A", suit = "aurelia", baseChips = 11 }
+local cardA2 = { rank = 14, rankName = "A", suit = "aurelia", baseChips = 11 }
 
 -- Only high_card unlocked
 local unlocked = { high_card = true }
@@ -81,7 +92,8 @@ local gameState = {
     deities = {},
     deck = {},
     hand = {},
-    selectedSuit = "hearts",
+    selectedFaction = "aurelia",
+    selectedSuit = "aurelia",
 }
 local shop = Shop.new()
 Shop.refresh(shop, gameState)
@@ -110,34 +122,38 @@ assert(#gameState.deities == 0, "Deity should be removed after sale")
 assert(gameState.gold == goldBefore + 3, "Selling deity should give half price (+$3)")
 log("[PASS] 10. Selling deity refunds gold properly")
 
--- 6. Test Starter Deck (exactly 3 RANDOM cards of chosen suit)
-local starterDeck = Deck.createStarterDeck("hearts")
-assert(#starterDeck == 3, "Starter deck should have exactly 3 cards")
-for _, card in ipairs(starterDeck) do
-    assert(card.suit == "hearts", "All starter cards must be chosen suit")
-    assert(card.rank >= 3 and card.rank <= 13, "Starter card ranks should be valid")
+-- 6. Test Starter Deck for 4 Factions (Aurelia, Elaris, Vharos, Valoria)
+for _, faction in ipairs({ "aurelia", "elaris", "vharos", "valoria" }) do
+    local sDeck = Deck.createStarterDeck(faction)
+    assert(#sDeck == 3, "Starter deck should have exactly 3 cards")
+    for _, card in ipairs(sDeck) do
+        assert(card.suit == faction, "Card suit must match faction " .. faction)
+        assert(card.role ~= nil, "Card must have role assigned")
+    end
 end
-log("[PASS] 11. Starter deck has exactly 3 random cards of chosen suit: " .. #starterDeck .. " cards")
+log("[PASS] 11. Starter deck has exactly 3 random cards for all 4 Factions")
 
--- 7. Test Card Degradation System (e.g. 5 -> 4, 2 -> A, A -> destroyed)
-local testCard = Deck.newCard(5, "hearts")
-local st1 = Deck.degradeCard(testCard)
-assert(st1 == "degraded", "Rank 5 should degrade to degraded")
-assert(testCard.rank == 4, "Rank should now be 4")
-assert(testCard.rankName == "4", "Rank name should be 4")
+-- 7. Test Card Roles Hierarchy (Soldiers 2-10, Knight J, Queen Q, King K, Ace A)
+local soldierCard = Deck.newCard(5, "aurelia")
+assert(soldierCard.role == "soldier", "Rank 5 must be soldier")
+assert(soldierCard.roleName == "Chiến Binh", "Role name must be Chiến Binh")
 
-local st2 = Deck.degradeCard(testCard) -- 4 -> 3
-local st3 = Deck.degradeCard(testCard) -- 3 -> 2
-assert(testCard.rank == 2, "Rank should now be 2")
+local knightCard = Deck.newCard(11, "aurelia")
+assert(knightCard.role == "knight", "Rank 11 must be knight")
+assert(knightCard.roleName == "Hiệp Sĩ", "Role name must be Hiệp Sĩ")
 
-local st4 = Deck.degradeCard(testCard) -- 2 -> 1 ("A")
-assert(st4 == "degraded", "2 should degrade to A")
-assert(testCard.rank == 1, "Rank should now be 1")
-assert(testCard.rankName == "A", "Rank name should be A")
+local queenCard = Deck.newCard(12, "aurelia")
+assert(queenCard.role == "queen", "Rank 12 must be queen")
+assert(queenCard.roleName == "Hoàng Hậu", "Role name must be Hoàng Hậu")
 
-local st5 = Deck.degradeCard(testCard) -- A -> destroyed!
-assert(st5 == "destroyed", "Degrading A must destroy the card")
-log("[PASS] 12. Card degradation system verified: 5 -> 4 -> 3 -> 2 -> A -> DESTROYED")
+local kingCard = Deck.newCard(13, "aurelia")
+assert(kingCard.role == "king", "Rank 13 must be king")
+assert(kingCard.roleName == "Quốc Vương", "Role name must be Quốc Vương")
+
+local aceCard = Deck.newCard(14, "aurelia")
+assert(aceCard.role == "ace", "Rank 14 must be ace")
+assert(aceCard.roleName == "Thần Khí", "Role name must be Thần Khí")
+log("[PASS] 12. Card Hierarchy verified: Chiến Binh (2-10), Hiệp Sĩ (J), Hoàng Hậu (Q), Quốc Vương (K), Thần Khí (A)")
 
 -- 8. Test Equipment Transfer in Shop
 local cardSrc = Deck.newCard(8, "hearts")
@@ -268,13 +284,30 @@ assert(combatHand[3].selected == false, "Card 3 must NOT be selected")
 assert(combatHand[4].selected == false, "Card 4 must NOT be selected")
 log("[PASS] 22. Hand card selection isolates strictly to the chosen card (no 2-card selection bug)")
 
--- 18. Test Deck Restoration across battle resets durability but keeps persistent rank and equipments
-Deck.degradeCard(combatHand[1]) -- degrade card 1 in combat
-assert(combatHand[1].rank < combatHand[1].baseRank, "In combat card rank must degrade")
--- End of battle restore
-Deck.restoreDeck(testGameState.persistentDeck)
-assert(origCard.rank == origCard.baseRank, "Persistent card rank must be intact at baseRank")
-assert(#origCard.equipments == 1, "Persistent card equipments must still be intact")
+-- 18. Test Faction and Role Scoring Synergy (Aurelia x1.15, Vharos +40 Chips, Knight J synergy)
+local Scoring = require("src.scoring")
+-- Aurelia single card
+local aureliaCard = Deck.newCard(7, "aurelia")
+local evalAurelia = Poker.evaluate({ aureliaCard }, { high_card = true })
+local scoreAurelia = Scoring.calculate(evalAurelia, {}, { selectedFaction = "aurelia" })
+assert(scoreAurelia.xMultTotal >= 1.15, "Aurelia card must grant x1.15 XMult")
+log("[PASS] 23. Aurelia Hào Quang Thánh Thiện grants x1.15 XMult in scoring")
+
+-- Vharos single card (+40 Chips)
+local vharosCard = Deck.newCard(5, "vharos")
+local evalVharos = Poker.evaluate({ vharosCard }, { high_card = true })
+local scoreVharos = Scoring.calculate(evalVharos, {}, { selectedFaction = "vharos" })
+assert(scoreVharos.bonusChips >= 40, "Vharos card must grant +40 Chips")
+log("[PASS] 23b. Vharos Hơi Thở Ma Quỷ grants +40 Chips in scoring")
+
+-- Knight J (rank 11) + Soldier (rank 5) synergy: +15 chips & +2 mult
+local knightCardTest = Deck.newCard(11, "valoria")
+local soldierCardTest = Deck.newCard(5, "valoria")
+local evalKnight = Poker.evaluate({ knightCardTest, soldierCardTest }, { high_card = true, pair = true })
+local scoreKnight = Scoring.calculate(evalKnight, {}, {})
+assert(scoreKnight.bonusMult >= 2, "Knight played with Soldier must grant bonus Mult")
+log("[PASS] 23c. Knight (J) synergizes with Soldier (2-10) to grant bonus Chips and Mult")
+
 -- 19. Test Shop equipment purchase and socketing workflow
 local shopSim = Shop.new()
 Shop.refresh(shopSim, testGameState)
@@ -297,10 +330,11 @@ assert(#testCardTarget.equipments == 1, "Target card must have 1 equipment after
 assert(testCardTarget.equipments[1].name == eqToBuy.name, "Equipment name must match")
 log("[PASS] 24. Shop equipment purchase and socketing attaches properly without being erased")
 
-log("=== ALL 24 SYSTEM TESTS PASSED SUCCESSFULLY! ===")
+log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then
     love.event.quit(0)
 else
     os.exit(0)
 end
+return true
