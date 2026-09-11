@@ -48,19 +48,22 @@ function Capture.update(gameRef, callbacks)
     elseif frame == 48 then
         callbacks.closeHandbook()
         callbacks.openShop()
+        saveImage("shot_shop.png")
+
+    elseif frame == 56 then
         callbacks.openShopTransfer()
         saveImage("shot_shop_transfer.png")
 
-    elseif frame == 58 then
+    elseif frame == 66 then
         callbacks.closeShopTransfer()
         callbacks.openRest()
         saveImage("shot_rest.png")
 
-    elseif frame == 68 then
+    elseif frame == 76 then
         callbacks.openBossDeity()
         saveImage("shot_boss_deity.png")
 
-    elseif frame == 78 then
+    elseif frame == 86 then
         -- Add 1 reward card (e.g. K of Spades) to persistent deck and open Socketing
         local Deck = require("src.deck")
         local kSpades = Deck.newCard(13, "spades")
@@ -68,17 +71,17 @@ function Capture.update(gameRef, callbacks)
         callbacks.openSocketing(Equipment.ITEMS.feather_free)
         saveImage("shot_socketing_fix.png")
 
-    elseif frame == 88 then
+    elseif frame == 96 then
         callbacks.openDeckViewer()
         saveImage("shot_deck_viewer_fix.png")
 
-    elseif frame == 98 then
+    elseif frame == 106 then
         callbacks.closeDeckViewer()
         callbacks.startMonsterEncounter(1, false)
         callbacks.selectCardIndex(1)
         saveImage("shot_hand_selection_fix.png")
 
-    elseif frame == 110 then
+    elseif frame == 120 then
         print("All screenshots captured!")
         love.event.quit(0)
     end
