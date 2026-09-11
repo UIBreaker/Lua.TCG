@@ -506,4 +506,76 @@ function UI.formatNumber(num)
     return sign .. formatted
 end
 
+-- Draw Balatro-style hover badge above hand card
+function UI.drawCardHoverBadge(card, cx, cy, cardW, cardH)
+    if not card or card.faceDown then return end
+    local bw = 108
+    local bh = 46
+    local bx = cx + (cardW - bw) / 2
+    local by = cy - bh - 8
+
+    -- Shadow
+    love.graphics.setColor(0, 0, 0, 0.4)
+    UI.drawRoundedRect("fill", bx + 2, by + 2, bw, bh, 6)
+
+    -- Background
+    love.graphics.setColor(0.10, 0.12, 0.16, 0.96)
+    UI.drawRoundedRect("fill", bx, by, bw, bh, 6)
+    love.graphics.setLineWidth(1.5)
+    love.graphics.setColor(0.40, 0.50, 0.62, 0.9)
+    UI.drawRoundedRect("line", bx, by, bw, bh, 6)
+
+    -- Top Section: Rank & Suit
+    love.graphics.setFont(UI.fonts.small)
+    local sColor = UI.COLORS[card.suit] or UI.COLORS.goldYellow
+    love.graphics.setColor(sColor)
+    local suitShort = (card.suit == "aurelia") and "Thánh" or ((card.suit == "elaris") and "Mộc" or ((card.suit == "vharos") and "Quỷ" or "Thép"))
+    local titleStr = card.rankName .. " " .. card.suitSymbol .. " " .. suitShort
+    love.graphics.printf(titleStr, bx, by + 4, bw, "center")
+
+    -- Divider
+    love.graphics.setColor(0.25, 0.32, 0.40, 0.7)
+    love.graphics.line(bx + 6, by + 24, bx + bw - 6, by + 24)
+
+    -- Bottom Section: +Chips / Equipment bonus
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(UI.COLORS.chipsBlue)
+    local chipStr = "+" .. (card.baseChips or 0) .. " chip"
+    if card.equipments and #card.equipments > 0 then
+        local eqMult = 0
+        for _, eq in ipairs(card.equipments) do
+            if eq.addedMult then eqMult = eqMult + eq.addedMult end
+        end
+        if eqMult > 0 then
+            chipStr = chipStr .. " / +" .. eqMult .. "m"
+        end
+    end
+    love.graphics.printf(chipStr, bx, by + 28, bw, "center")
+end
+
+-- Center-anchored dynamic scaling number rendering
+function UI.drawAnimatedNumber(text, bx, by, bw, bh, color, scaleFactor)
+    scaleFactor = scaleFactor or 1.0
+    local font = UI.fonts.huge
+    if font:getWidth(text) > (bw - 16) then
+        font = UI.fonts.large
+    end
+    if font:getWidth(text) > (bw - 16) then
+        font = UI.fonts.medium
+    end
+    love.graphics.setFont(font)
+    love.graphics.setColor(color)
+
+    local cx = bx + bw / 2
+    local cy = by + 22 + (bh - 22) / 2
+    local tw = font:getWidth(text)
+    local th = font:getHeight()
+
+    love.graphics.push()
+    love.graphics.translate(cx, cy)
+    love.graphics.scale(scaleFactor, scaleFactor)
+    love.graphics.print(text, -tw / 2, -th / 2)
+    love.graphics.pop()
+end
+
 return UI

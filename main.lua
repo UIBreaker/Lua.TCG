@@ -122,6 +122,21 @@ local anim = {
     fireParticles = {},
 }
 
+-- Hand Card Drag & Drop State
+local handDrag = {
+    active = false,
+    cardIndex = nil,
+    startX = 0,
+    startY = 0,
+    currentX = 0,
+    currentY = 0,
+    offsetX = 0,
+    offsetY = 0,
+    isDragging = false,
+}
+
+local getHandCardPosition
+
 local function spawnSparks(x, y, count, color)
     color = color or UI.COLORS.goldYellow
     count = count or 16
@@ -865,11 +880,55 @@ function love.update(dt)
         end
     end
 
+    -- Smoothly lerp deity bounce scales
+    if anim.deityBounce then
+        for idx, v in pairs(anim.deityBounce) do
+            anim.deityBounce[idx] = v + (1.0 - v) * math.min(1.0, dt * 10)
+        end
+    end
+
     -- Smoothly lerp card squash & stretch
     if anim.cardBounce then
         for idx, b in pairs(anim.cardBounce) do
             b.scaleX = b.scaleX + (1.0 - b.scaleX) * math.min(1.0, dt * 12)
             b.scaleY = b.scaleY + (1.0 - b.scaleY) * math.min(1.0, dt * 12)
+        end
+    end
+
+    -- Smoothly lerp player hand cards visual positions & rotation
+    if game.hand and #game.hand > 0 then
+        for i, c in ipairs(game.hand) do
+            local tx, ty, tw, th, tangle = getHandCardPosition(i, #game.hand)
+            if c.selected then
+                ty = ty - 28
+            end
+            if c.hovered and not (handDrag.active and handDrag.cardIndex == i and handDrag.isDragging) then
+                ty = ty - 22
+            end
+
+            if not c.visualX then
+                c.visualX = tx
+                c.visualY = ty
+                c.visualAngle = tangle or 0
+                c.rotation = tangle or 0
+            else
+                if not (handDrag.active and handDrag.cardIndex == i and handDrag.isDragging) then
+                    c.visualX = c.visualX + (tx - c.visualX) * math.min(1.0, dt * 18)
+                    c.visualY = c.visualY + (ty - c.visualY) * math.min(1.0, dt * 18)
+                    c.visualAngle = c.visualAngle + ((tangle or 0) - c.visualAngle) * math.min(1.0, dt * 18)
+                    c.rotation = c.visualAngle
+                end
+            end
+        end
+    end
+
+    -- If dragging a card, update its visual position
+    if handDrag.active and handDrag.isDragging and handDrag.cardIndex then
+        local c = game.hand[handDrag.cardIndex]
+        if c then
+            c.visualX = handDrag.currentX + handDrag.offsetX
+            c.visualY = handDrag.currentY + handDrag.offsetY - 26
+            c.rotation = math.max(-0.25, math.min(0.25, (handDrag.currentX - handDrag.startX) * 0.0015))
         end
     end
 
@@ -888,22 +947,20 @@ function love.update(dt)
         end
     end
 
-    -- Fire Embers generation for Mult & Score
+    -- Fire Embers generation for Left Sidebar Mult & Score
     if state == "scoring" and anim.active then
         local multVal = anim.displayMult or 0
         if multVal >= 20 then
             local tier = (multVal >= 100) and 3 or ((multVal >= 50) and 2 or 1)
-            local b2X = (V_WIDTH - 980) / 2 + (980 - (4 * 180 + 3 * 34)) / 2 + 180 + 34
-            local rowY = 115 + 288
-            spawnFireEmbers(b2X, rowY, 180, 74, tier)
+            -- Left Sidebar Mult box: x = 162, y = 229, w = 96, h = 50
+            spawnFireEmbers(162, 229, 96, 50, tier)
         end
 
         local scoreVal = anim.displayFinalScore or 0
         if scoreVal >= 1000 then
             local tier = (scoreVal >= 50000) and 3 or ((scoreVal >= 10000) and 2 or 1)
-            local b4X = (V_WIDTH - 980) / 2 + (980 - (4 * 180 + 3 * 34)) / 2 + (180 + 34) * 3
-            local rowY = 115 + 288
-            spawnFireEmbers(b4X, rowY, 180, 74, tier)
+            -- Left Sidebar Score panel: x = 25, y = 175, w = 245, h = 158
+            spawnFireEmbers(25, 175, 245, 158, tier)
         end
     end
 
@@ -993,11 +1050,12 @@ function love.update(dt)
                     anim.bounceScale.score = 1.35
                     screenShake = math.max(screenShake, 2.0)
 
-                    local bannerX = (V_WIDTH - 980) / 2
-                    local totalCardsW = #anim.playedCards * 90 + (#anim.playedCards - 1) * 16
-                    local startCX = bannerX + (980 - totalCardsW) / 2
-                    local cardCenterX = startCX + (st.cardIndex - 1) * (90 + 16) + 45
-                    local cardCenterY = 115 + 72 + 65 - 18
+                    local cardW = 96
+                    local cardGap = 16
+                    local totalCardsW = #anim.playedCards * cardW + math.max(0, #anim.playedCards - 1) * cardGap
+                    local startCX = 295 + (820 - totalCardsW) / 2
+                    local cardCenterX = startCX + (st.cardIndex - 1) * (cardW + cardGap) + cardW / 2
+                    local cardCenterY = 295 + 70 - 20
                     spawnSparks(cardCenterX, cardCenterY, 18, UI.COLORS.goldYellow)
 
                     anim.targetStepDelay = 0.34
@@ -1032,24 +1090,46 @@ function love.update(dt)
                         anim.displayMult = anim.displayMult + st.addedMult
                         anim.bounceScale.mult = 1.45
                     end
+
+                    local dIdx = nil
+                    if st.deity then
+                        for di, d in ipairs(game.deities) do
+                            if d == st.deity or d.id == st.deity.id then dIdx = di break end
+                        end
+                    end
+                    local dCenterX = 295 + 56
+                    if dIdx then
+                        anim.deityBounce[dIdx] = 1.45
+                        dCenterX = 295 + (dIdx - 1) * (112 + 12) + 56
+                    end
+                    local dCenterY = 15 + 22 + 44
+
                     if st.xMult > 1.0 then
                         anim.displayXMult = anim.displayXMult * st.xMult
                         anim.bounceScale.xMult = 1.65
                         anim.bounceScale.score = 1.70
                         screenShake = math.max(screenShake, math.min(22, 7 + st.xMult * 4))
                         Sound.play("xmult_boom", pitch)
-                        spawnSparks(V_WIDTH / 2, 115 + 288 + 37, 28, UI.COLORS.xmultGold)
+                        spawnSparks(dCenterX, dCenterY, 28, UI.COLORS.xmultGold)
                         anim.targetStepDelay = 0.54 -- Suspense micro-pause!
                         table.insert(anim.floatingTexts, {
                             text = "x" .. st.xMult .. " XMult!",
                             color = UI.COLORS.xmultGold,
-                            x = 640,
-                            y = 350,
-                            alpha = 1.2,
+                            x = dCenterX,
+                            y = dCenterY - 20,
+                            alpha = 1.5,
                         })
                     else
                         anim.targetStepDelay = 0.30
                         Sound.play("mult_pop", pitch)
+                        spawnSparks(dCenterX, dCenterY, 16, UI.COLORS.multRed)
+                        table.insert(anim.floatingTexts, {
+                            text = "+" .. st.addedMult .. " Mult!",
+                            color = UI.COLORS.multRed,
+                            x = dCenterX,
+                            y = dCenterY - 20,
+                            alpha = 1.3,
+                        })
                     end
                     anim.displayFinalScore = math.floor(anim.displayChips * anim.displayMult * anim.displayXMult)
                     anim.stepCategory = "THẦN BÀI: " .. (st.deity and st.deity.name or "BỔ TRỢ"):upper()
@@ -1069,9 +1149,21 @@ function love.update(dt)
                     anim.damageDealt = actualDmg
                     anim.monsterDefeated = defeated
 
+                    -- Damage projectile/impact directly into monster at top left
+                    local mCenterX = 145
+                    local mCenterY = 100
+                    spawnSparks(mCenterX, mCenterY, 32, UI.COLORS.hpRed)
+                    table.insert(anim.floatingTexts, {
+                        text = "-" .. UI.formatNumber(actualDmg) .. " HP!",
+                        color = UI.COLORS.hpRed,
+                        x = mCenterX,
+                        y = mCenterY - 15,
+                        alpha = 2.0,
+                    })
+
                     if defeated then
                         Sound.play("jackpot")
-                        spawnSparks(V_WIDTH / 2, 115 + 325, 36, UI.COLORS.goldYellow)
+                        spawnSparks(mCenterX, mCenterY, 40, UI.COLORS.goldYellow)
                         anim.targetStepDelay = 0.60
                     else
                         anim.targetStepDelay = 0.45
@@ -1389,17 +1481,32 @@ local function drawMenu()
     love.graphics.printf("Khởi đầu với 3 lá ngẫu nhiên thuộc phe đã chọn. Đánh bại BOSS để thỉnh Thần Bài Ban Ơn!", 0, V_HEIGHT - 32, V_WIDTH, "center")
 end
 
-local function getHandCardPosition(index, totalCards)
+getHandCardPosition = function(index, totalCards)
     local cardW = 100
     local cardH = 145
-    local cardGap = 14
     local handAreaX = 295
     local handAreaW = 820
-    local totalHandW = totalCards * cardW + math.max(0, totalCards - 1) * cardGap
-    local handStartX = handAreaX + (handAreaW - totalHandW) / 2
-    local handStartY = 465
-    local cx = handStartX + (index - 1) * (cardW + cardGap)
-    return cx, handStartY, cardW, cardH
+
+    if totalCards <= 1 then
+        local cx = handAreaX + (handAreaW - cardW) / 2
+        return cx, 470, cardW, cardH, 0
+    end
+
+    -- Dynamic spacing: when hand card count increases, cards overlap cleanly (as in Balatro)
+    local maxSpacing = 106
+    local maxHandW = handAreaW - 20
+    local spacing = math.min(maxSpacing, (maxHandW - cardW) / (totalCards - 1))
+    local totalW = (totalCards - 1) * spacing + cardW
+    local startX = handAreaX + (handAreaW - totalW) / 2
+
+    local t = (index - 1) / (totalCards - 1) - 0.5 -- from -0.5 (left) to +0.5 (right)
+    local angle = t * 0.14 -- gentle arc rotation (-4 deg to +4 deg)
+    local archY = (t * 2)^2 * 10 -- parabolic curve: cards at ends dip down slightly
+
+    local cx = startX + (index - 1) * spacing
+    local cy = 466 + archY
+
+    return cx, cy, cardW, cardH, angle
 end
 
 local function drawPlayingState()
@@ -1514,7 +1621,66 @@ local function drawPlayingState()
         selectedSuit = game.selectedSuit,
     }) or nil
 
-    if eval and scPreview then
+    if state == "scoring" and anim.active then
+        local handTitle = (anim.evalResult and anim.evalResult.type and anim.evalResult.type.vnName) or "ĐIỂM VÁN"
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(UI.COLORS.goldYellow)
+        love.graphics.printf(handTitle, sbX, sbY + 30, sbW, "center")
+
+        -- Chips box (Blue)
+        local cbX = sbX + 12
+        local cbY = sbY + 54
+        local cbW = 96
+        local cbH = 50
+        love.graphics.setColor(0.12, 0.32, 0.65, 0.95)
+        UI.drawRoundedRect("fill", cbX, cbY, cbW, cbH, 6)
+        love.graphics.setColor(UI.COLORS.chipsBlue)
+        UI.drawRoundedRect("line", cbX, cbY, cbW, cbH, 6)
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(1, 1, 1, 0.8)
+        love.graphics.printf("Chips", cbX, cbY + 4, cbW, "center")
+        UI.drawAnimatedNumber(UI.formatNumber(anim.displayChips), cbX, cbY, cbW, cbH, UI.COLORS.chipsBlue, anim.bounceScale and anim.bounceScale.chips or 1.0)
+
+        -- Multiplication X
+        love.graphics.setFont(UI.fonts.large)
+        love.graphics.setColor(UI.COLORS.multRed)
+        love.graphics.printf("X", sbX + 108, cbY + 12, 28, "center")
+
+        -- Mult box (Red)
+        local mbX2 = sbX + 137
+        local mbY2 = cbY
+        local mbW2 = 96
+        local mbH2 = 50
+        love.graphics.setColor(0.65, 0.18, 0.22, 0.95)
+        UI.drawRoundedRect("fill", mbX2, mbY2, mbW2, mbH2, 6)
+        love.graphics.setColor(UI.COLORS.multRed)
+        UI.drawRoundedRect("line", mbX2, mbY2, mbW2, mbH2, 6)
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(1, 1, 1, 0.8)
+        love.graphics.printf("Mult", mbX2, mbY2 + 4, mbW2, "center")
+        UI.drawAnimatedNumber(UI.formatNumber(anim.displayMult), mbX2, mbY2, mbW2, mbH2, UI.COLORS.multRed, anim.bounceScale and anim.bounceScale.mult or 1.0)
+
+        -- Fire particles around Left Sidebar Mult box if displayMult >= 20
+        if anim.fireParticles and #anim.fireParticles > 0 and (anim.displayMult or 0) >= 20 then
+            love.graphics.setBlendMode("add")
+            for _, p in ipairs(anim.fireParticles) do
+                local alpha = math.max(0, (p.life / p.maxLife) * (p.alpha or 0.8))
+                love.graphics.setColor(p.r, p.g, p.b, alpha)
+                love.graphics.circle("fill", p.x, p.y, p.size * (p.life / p.maxLife))
+            end
+            love.graphics.setBlendMode("alpha")
+        end
+
+        -- Sát thương dự kiến / đã tích tụ
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(UI.COLORS.goldYellow)
+        local scoreText = "Sát thương: " .. UI.formatNumber(anim.displayFinalScore) .. " HP"
+        if anim.displayXMult and anim.displayXMult > 1.0 then
+            scoreText = scoreText .. " (x" .. string.format("%.1f", anim.displayXMult):gsub("%.0$", "") .. ")"
+        end
+        love.graphics.printf(scoreText, sbX, sbY + 108, sbW, "center")
+
+    elseif eval and scPreview then
         love.graphics.setFont(UI.fonts.small)
         love.graphics.setColor(UI.COLORS.goldYellow)
         love.graphics.printf(eval.type.vnName, sbX, sbY + 30, sbW, "center")
@@ -1823,26 +1989,58 @@ local function drawPlayingState()
         love.graphics.setFont(UI.fonts.small)
         love.graphics.setColor(UI.COLORS.goldYellow)
         love.graphics.printf(eval.type.vnName .. ": " .. scPreview.totalChips .. " Chips × " .. scPreview.totalMult .. " Mult = " .. scPreview.finalScore .. " Sát Thương!", hbX, hbY + 8, hbW, "center")
-    else
+    elseif state ~= "scoring" then
         love.graphics.setFont(UI.fonts.tiny)
         love.graphics.setColor(0.85, 0.90, 0.95, 0.75)
-        love.graphics.printf("[Chuột trái]: Chọn 1-5 lá bài | [Chuột phải]: Xem chi tiết & độ bền | [F11]: Toàn màn hình", 295, 420, 820, "center")
+        love.graphics.printf("[Chuột trái]: Chọn hoặc Giữ kéo thả sắp xếp | [Chuột phải]: Xem chi tiết | [F11]: Toàn màn hình", 295, 420, 820, "center")
     end
 
     ----------------------------------------------------------------------------
     -- 4. PLAYER HAND CARDS
     ----------------------------------------------------------------------------
-    for i, c in ipairs(game.hand) do
-        local cx, cy, cardW, cardH = getHandCardPosition(i, #game.hand)
-        if c.selected then cy = cy - 26 end
+    local cardW = 100
+    local cardH = 145
+    local hoveredCard = nil
+    local hoveredIdx = nil
 
+    -- Find hovered card from right to left (top-most in z-order)
+    for i = #game.hand, 1, -1 do
+        local c = game.hand[i]
+        local cx = c.visualX or 0
+        local cy = c.visualY or 0
         local isHovered = (mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH)
         c.hovered = isHovered
-        if isHovered and c.equipments and #c.equipments > 0 then
-            hoveredCardTooltip = c
+        if isHovered and not hoveredCard and not (handDrag.active and handDrag.isDragging) then
+            hoveredCard = c
+            hoveredIdx = i
+            if c.equipments and #c.equipments > 0 then
+                hoveredCardTooltip = c
+            end
         end
+    end
 
-        UI.drawCard(c, cx, cy, cardW, cardH)
+    -- Draw non-dragged cards in order 1 to #game.hand
+    for i, c in ipairs(game.hand) do
+        if not (handDrag.active and handDrag.isDragging and handDrag.cardIndex == i) then
+            local cx = c.visualX or 0
+            local cy = c.visualY or 0
+            UI.drawCard(c, cx, cy, cardW, cardH)
+        end
+    end
+
+    -- Draw dragged card on top of everything with extra elevation shadow
+    if handDrag.active and handDrag.isDragging and handDrag.cardIndex then
+        local dc = game.hand[handDrag.cardIndex]
+        if dc then
+            love.graphics.setColor(0, 0, 0, 0.45)
+            UI.drawRoundedRect("fill", dc.visualX + 6, dc.visualY + 14, cardW, cardH, 8)
+            UI.drawCard(dc, dc.visualX, dc.visualY, cardW, cardH)
+        end
+    end
+
+    -- Draw Balatro hover badge above hovered card
+    if hoveredCard and not (handDrag.active and handDrag.isDragging) then
+        UI.drawCardHoverBadge(hoveredCard, hoveredCard.visualX or 0, hoveredCard.visualY or 0, cardW, cardH)
     end
 
     -- Hand count badge (e.g. 8/8) above action buttons
@@ -2034,74 +2232,50 @@ local function drawPlayingState()
 end
 
 local function drawScoringState()
+    -- 1. Draw the underlying playing table completely untouched (NO dark overlay, NO modal popup!)
     drawPlayingState()
 
-    love.graphics.setColor(0, 0, 0, 0.70)
-    love.graphics.rectangle("fill", 0, 0, V_WIDTH, V_HEIGHT)
+    -- 2. Center Play Zone: Played Cards Staging Area (y = 295)
+    local cards = anim.playedCards or {}
+    local cardW = 96
+    local cardH = 140
+    local cardGap = 16
+    local totalCardsW = #cards * cardW + math.max(0, #cards - 1) * cardGap
+    local playAreaX = 295
+    local playAreaW = 820
+    local startCX = playAreaX + (playAreaW - totalCardsW) / 2
+    local playY = 295
 
-    local bannerW = 980
-    local bannerH = 470
-    local bannerX = (V_WIDTH - bannerW) / 2
-    local bannerY = 115
+    -- Hand Name Header & Step Log Banner above played cards in Play Zone
+    local bannerW = math.max(480, totalCardsW + 60)
+    local bannerH = 50
+    local bannerX = playAreaX + (playAreaW - bannerW) / 2
+    local bannerY = playY - 62
 
-    -- Modal panel background & border
-    love.graphics.setColor(UI.COLORS.panelBg)
-    UI.drawRoundedRect("fill", bannerX, bannerY, bannerW, bannerH, 14)
-    love.graphics.setLineWidth(3)
+    love.graphics.setColor(0.08, 0.10, 0.14, 0.92)
+    UI.drawRoundedRect("fill", bannerX, bannerY, bannerW, bannerH, 8)
+    love.graphics.setLineWidth(2)
     love.graphics.setColor(UI.COLORS.goldYellow)
-    UI.drawRoundedRect("line", bannerX, bannerY, bannerW, bannerH, 14)
+    UI.drawRoundedRect("line", bannerX, bannerY, bannerW, bannerH, 8)
 
-    -- 1. Modal Header: Hand Type & description
-    love.graphics.setFont(UI.fonts.large)
+    local handNameText = (anim.evalResult and anim.evalResult.type and anim.evalResult.type.vnName or "TAY BÀI") .. " (" .. (anim.evalResult and anim.evalResult.type and anim.evalResult.type.name or "") .. ")"
+    love.graphics.setFont(UI.fonts.medium)
     love.graphics.setColor(UI.COLORS.goldYellow)
-    local handNameText = anim.evalResult.type.vnName .. " (" .. anim.evalResult.type.name .. ")"
-    love.graphics.printf(handNameText, bannerX, bannerY + 14, bannerW, "center")
+    love.graphics.printf(handNameText, bannerX, bannerY + 6, bannerW, "center")
 
     love.graphics.setFont(UI.fonts.tiny)
-    love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.printf("ĐANG GIẢI MÃ VÀ CỘNG DỒN TỪNG LÁ BÀI & THẦN BÀI / TRANG BỊ", bannerX, bannerY + 44, bannerW, "center")
+    love.graphics.setColor(UI.COLORS.textLight)
+    love.graphics.printf(anim.stepLog or "", bannerX + 10, bannerY + 28, bannerW - 20, "center")
 
-    -- 2. Played Cards Row
-    local cards = anim.playedCards
-    local cardW = 90
-    local cardH = 130
-    local cardGap = 16
-    local totalCardsW = #cards * cardW + (#cards - 1) * cardGap
-    local startCX = bannerX + (bannerW - totalCardsW) / 2
-    local baseCardY = bannerY + 72
-
-    local function drawAnimatedNumber(text, bx, by, bw, bh, color, scaleFactor)
-        scaleFactor = scaleFactor or 1.0
-        local font = UI.fonts.huge
-        if font:getWidth(text) > (bw - 16) then
-            font = UI.fonts.large
-        end
-        if font:getWidth(text) > (bw - 16) then
-            font = UI.fonts.medium
-        end
-        love.graphics.setFont(font)
-        love.graphics.setColor(color)
-
-        local cx = bx + bw / 2
-        local cy = by + 22 + (bh - 22) / 2
-        local tw = font:getWidth(text)
-        local th = font:getHeight()
-
-        love.graphics.push()
-        love.graphics.translate(cx, cy)
-        love.graphics.scale(scaleFactor, scaleFactor)
-        love.graphics.print(text, -tw / 2, -th / 2)
-        love.graphics.pop()
-    end
-
+    -- Render Played Cards in Play Zone
     for i, c in ipairs(cards) do
         local cx = startCX + (i - 1) * (cardW + cardGap)
-        local cy = baseCardY
+        local cy = playY
         local isActive = (anim.activeCardIndex == i)
         local isScored = (anim.scoredCards and anim.scoredCards[i] ~= nil)
 
         if isActive then
-            cy = baseCardY - 18 -- Lift active card
+            cy = cy - 20 -- Lift active card
         end
 
         if anim.cardBounce and anim.cardBounce[i] then
@@ -2140,7 +2314,7 @@ local function drawScoringState()
 
             love.graphics.setFont(UI.fonts.small)
             love.graphics.setColor(UI.COLORS.goldYellow)
-            local bonusText = "+" .. c.baseChips .. " Chips"
+            local bonusText = "+" .. (c.baseChips or 0) .. " Chips"
             if anim.scoredCards and anim.scoredCards[i] then
                 local sc = anim.scoredCards[i]
                 if sc.addedMult and sc.addedMult > 0 then
@@ -2170,60 +2344,7 @@ local function drawScoringState()
         end
     end
 
-    -- 3. Dedicated Event / Step Explanation Banner
-    local logBarW = bannerW - 60
-    local logBarH = 38
-    local logBarX = bannerX + 30
-    local logBarY = bannerY + 236
-
-    love.graphics.setColor(0.08, 0.10, 0.14, 0.92)
-    UI.drawRoundedRect("fill", logBarX, logBarY, logBarW, logBarH, 6)
-    love.graphics.setLineWidth(1.5)
-    love.graphics.setColor(0.30, 0.38, 0.48, 0.8)
-    UI.drawRoundedRect("line", logBarX, logBarY, logBarW, logBarH, 6)
-
-    -- Step Category Pill on the left
-    local catPillW = 150
-    local catPillH = 28
-    local catPillX = logBarX + 6
-    local catPillY = logBarY + 5
-
-    local catColor = UI.COLORS.chipsBlue
-    local catName = anim.stepCategory or "TAY BÀI GỐC"
-    if catName:find("LÁ BÀI") then
-        catColor = UI.COLORS.goldYellow
-    elseif catName:find("TRANG BỊ") then
-        catColor = { 0.75, 0.35, 0.95, 1 }
-    elseif catName:find("THẦN BÀI") then
-        catColor = UI.COLORS.xmultGold
-    elseif catName:find("SÁT THƯƠNG") then
-        catColor = UI.COLORS.hpRed
-    end
-
-    love.graphics.setColor(catColor[1], catColor[2], catColor[3], 0.25)
-    UI.drawRoundedRect("fill", catPillX, catPillY, catPillW, catPillH, 4)
-    love.graphics.setColor(catColor)
-    UI.drawRoundedRect("line", catPillX, catPillY, catPillW, catPillH, 4)
-
-    love.graphics.setFont(UI.fonts.small)
-    love.graphics.setColor(catColor)
-    love.graphics.printf(catName, catPillX, catPillY + 4, catPillW, "center")
-
-    -- Step Explanation Text
-    love.graphics.setFont(UI.fonts.regular)
-    love.graphics.setColor(UI.COLORS.textLight)
-    love.graphics.printf(anim.stepLog or "", logBarX + catPillW + 16, logBarY + 8, logBarW - catPillW - 24, "left")
-
-    -- 4. Four Formula Calculation Boxes:
-    -- [ TỔNG CHIPS ]  ×  [ TỔNG MULT ]  ×  [ HỆ SỐ XMULT ]  =  [ SÁT THƯƠNG (HP) ]
-    local boxW = 180
-    local boxH = 74
-    local opW = 34
-    local totalRowW = 4 * boxW + 3 * opW
-    local startRowX = bannerX + (bannerW - totalRowW) / 2
-    local rowY = bannerY + 288
-
-    -- Living Fire Embers (additive blending) around Mult & Score
+    -- 3. Sparks and Fire Particles directly on board
     if anim.fireParticles and #anim.fireParticles > 0 then
         love.graphics.setBlendMode("add")
         for _, p in ipairs(anim.fireParticles) do
@@ -2234,72 +2355,6 @@ local function drawScoringState()
         love.graphics.setBlendMode("alpha")
     end
 
-    -- Box 1: TỔNG CHIPS
-    local b1X = startRowX
-    love.graphics.setColor(UI.COLORS.chipsBlue[1], UI.COLORS.chipsBlue[2], UI.COLORS.chipsBlue[3], 0.22)
-    UI.drawRoundedRect("fill", b1X, rowY, boxW, boxH, 8)
-    love.graphics.setLineWidth(2)
-    love.graphics.setColor(UI.COLORS.chipsBlue)
-    UI.drawRoundedRect("line", b1X, rowY, boxW, boxH, 8)
-    love.graphics.setFont(UI.fonts.tiny)
-    love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.printf("TỔNG CHIPS", b1X, rowY + 8, boxW, "center")
-    drawAnimatedNumber(UI.formatNumber(anim.displayChips), b1X, rowY, boxW, boxH, UI.COLORS.chipsBlue, anim.bounceScale and anim.bounceScale.chips or 1.0)
-
-    -- Operator 1: ×
-    local op1X = b1X + boxW
-    love.graphics.setFont(UI.fonts.large)
-    love.graphics.setColor(1, 1, 1, 0.75)
-    love.graphics.printf("×", op1X, rowY + 22, opW, "center")
-
-    -- Box 2: TỔNG MULT
-    local b2X = op1X + opW
-    love.graphics.setColor(UI.COLORS.multRed[1], UI.COLORS.multRed[2], UI.COLORS.multRed[3], 0.22)
-    UI.drawRoundedRect("fill", b2X, rowY, boxW, boxH, 8)
-    love.graphics.setColor(UI.COLORS.multRed)
-    UI.drawRoundedRect("line", b2X, rowY, boxW, boxH, 8)
-    love.graphics.setFont(UI.fonts.tiny)
-    love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.printf("TỔNG MULT", b2X, rowY + 8, boxW, "center")
-    drawAnimatedNumber(UI.formatNumber(anim.displayMult), b2X, rowY, boxW, boxH, UI.COLORS.multRed, anim.bounceScale and anim.bounceScale.mult or 1.0)
-
-    -- Operator 2: ×
-    local op2X = b2X + boxW
-    love.graphics.setFont(UI.fonts.large)
-    love.graphics.setColor(1, 1, 1, 0.75)
-    love.graphics.printf("×", op2X, rowY + 22, opW, "center")
-
-    -- Box 3: HỆ SỐ XMULT
-    local b3X = op2X + opW
-    local xmultActive = anim.displayXMult > 1.0
-    love.graphics.setColor(UI.COLORS.xmultGold[1], UI.COLORS.xmultGold[2], UI.COLORS.xmultGold[3], xmultActive and 0.30 or 0.12)
-    UI.drawRoundedRect("fill", b3X, rowY, boxW, boxH, 8)
-    love.graphics.setColor(xmultActive and UI.COLORS.xmultGold or { 0.45, 0.45, 0.50, 0.6 })
-    UI.drawRoundedRect("line", b3X, rowY, boxW, boxH, 8)
-    love.graphics.setFont(UI.fonts.tiny)
-    love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.printf("HỆ SỐ XMULT", b3X, rowY + 8, boxW, "center")
-    local xmultText = xmultActive and ("x" .. string.format("%.1f", anim.displayXMult):gsub("%.0$", "")) or "x1.0"
-    drawAnimatedNumber(xmultText, b3X, rowY, boxW, boxH, xmultActive and UI.COLORS.xmultGold or UI.COLORS.textMuted, anim.bounceScale and anim.bounceScale.xMult or 1.0)
-
-    -- Operator 3: =
-    local op3X = b3X + boxW
-    love.graphics.setFont(UI.fonts.large)
-    love.graphics.setColor(1, 1, 1, 0.75)
-    love.graphics.printf("=", op3X, rowY + 22, opW, "center")
-
-    -- Box 4: SÁT THƯƠNG (HP)
-    local b4X = op3X + opW
-    love.graphics.setColor(UI.COLORS.hpRed[1], UI.COLORS.hpRed[2], UI.COLORS.hpRed[3], 0.25)
-    UI.drawRoundedRect("fill", b4X, rowY, boxW, boxH, 8)
-    love.graphics.setColor(UI.COLORS.hpRed)
-    UI.drawRoundedRect("line", b4X, rowY, boxW, boxH, 8)
-    love.graphics.setFont(UI.fonts.tiny)
-    love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.printf("SÁT THƯƠNG (HP)", b4X, rowY + 8, boxW, "center")
-    drawAnimatedNumber(UI.formatNumber(anim.displayFinalScore), b4X, rowY, boxW, boxH, UI.COLORS.goldYellow, anim.bounceScale and anim.bounceScale.score or 1.0)
-
-    -- Spark & Trigger Particles (additive blending)
     if anim.particles and #anim.particles > 0 then
         love.graphics.setBlendMode("add")
         for _, p in ipairs(anim.particles) do
@@ -2311,33 +2366,33 @@ local function drawScoringState()
         love.graphics.setBlendMode("alpha")
     end
 
-    -- 5. Footer Message / Hint
-    local footerY = bannerY + 382
-    if anim.currentStepIndex > #anim.scoringData.steps then
-        if anim.monsterDefeated then
-            love.graphics.setFont(UI.fonts.large)
-            love.graphics.setColor(UI.COLORS.btnPlay)
-            love.graphics.printf("⚔ TIÊU DIỆT QUÁI VẬT! (+ $" .. anim.earnedGold .. " Vàng)", bannerX, footerY, bannerW, "center")
-        elseif game.handsRemaining <= 0 then
-            love.graphics.setFont(UI.fonts.large)
-            love.graphics.setColor(UI.COLORS.multRed)
-            love.graphics.printf("HẾT LƯỢT ĐÁNH — BẠN ĐÃ BỊ ĐÁNH BẠI!", bannerX, footerY, bannerW, "center")
-        else
-            love.graphics.setFont(UI.fonts.medium)
-            love.graphics.setColor(UI.COLORS.goldYellow)
-            love.graphics.printf("Đã gây " .. UI.formatNumber(anim.displayFinalScore) .. " Sát thương vào Quái Vật!", bannerX, footerY, bannerW, "center")
-        end
-    else
-        love.graphics.setFont(UI.fonts.small)
-        love.graphics.setColor(UI.COLORS.textMuted)
-        love.graphics.printf("Bước " .. math.min(anim.currentStepIndex, #anim.scoringData.steps) .. "/" .. #anim.scoringData.steps .. "  •  [Nhấp chuột hoặc bấm Phím Cách để tua nhanh]", bannerX, footerY + 8, bannerW, "center")
-    end
-
-    -- Floating Texts
+    -- 4. Floating Texts directly on board
     for _, ft in ipairs(anim.floatingTexts) do
         love.graphics.setFont(UI.fonts.large)
         love.graphics.setColor(ft.color[1], ft.color[2], ft.color[3], ft.alpha)
         love.graphics.printf(ft.text, ft.x - 200, ft.y, 400, "center")
+    end
+
+    -- 5. Footer Hint & Fast-Forward Prompt
+    local footerY = 442
+    if anim.currentStepIndex > #anim.scoringData.steps then
+        if anim.monsterDefeated then
+            love.graphics.setFont(UI.fonts.large)
+            love.graphics.setColor(UI.COLORS.btnPlay)
+            love.graphics.printf("⚔ TIÊU DIỆT QUÁI VẬT! (+ $" .. anim.earnedGold .. " Vàng)", playAreaX, footerY - 4, playAreaW, "center")
+        elseif game.handsRemaining <= 0 then
+            love.graphics.setFont(UI.fonts.large)
+            love.graphics.setColor(UI.COLORS.multRed)
+            love.graphics.printf("HẾT LƯỢT ĐÁNH — BẠN ĐÃ BỊ ĐÁNH BẠI!", playAreaX, footerY - 4, playAreaW, "center")
+        else
+            love.graphics.setFont(UI.fonts.small)
+            love.graphics.setColor(UI.COLORS.goldYellow)
+            love.graphics.printf("Đã gây " .. UI.formatNumber(anim.displayFinalScore) .. " Sát thương vào Quái Vật!", playAreaX, footerY, playAreaW, "center")
+        end
+    else
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(UI.COLORS.textMuted)
+        love.graphics.printf("Bước " .. math.min(anim.currentStepIndex, #anim.scoringData.steps) .. "/" .. #anim.scoringData.steps .. "  •  [Nhấp chuột hoặc bấm Phím Cách để tua nhanh]", playAreaX, footerY, playAreaW, "center")
     end
 end
 
@@ -4377,8 +4432,10 @@ function love.mousepressed(x, y, button)
         if #game.hand > 0 then
             for i = #game.hand, 1, -1 do
                 local c = game.hand[i]
-                local cx, cy, cardW, cardH = getHandCardPosition(i, #game.hand)
-                if c.selected then cy = cy - 26 end
+                local cx = c.visualX or 0
+                local cy = c.visualY or 0
+                local cardW = 100
+                local cardH = 145
 
                 if mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH then
                     inspectCardModal = c
@@ -4595,11 +4652,21 @@ function love.mousepressed(x, y, button)
 
         for i = #game.hand, 1, -1 do
             local c = game.hand[i]
-            local cx, cy, cardW, cardH = getHandCardPosition(i, #game.hand)
-            if c.selected then cy = cy - 26 end
+            local cx = c.visualX or 0
+            local cy = c.visualY or 0
+            local cardW = 100
+            local cardH = 145
 
             if mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH then
-                toggleCardSelection(i)
+                handDrag.active = true
+                handDrag.cardIndex = i
+                handDrag.startX = mx
+                handDrag.startY = my
+                handDrag.currentX = mx
+                handDrag.currentY = my
+                handDrag.offsetX = cx - mx
+                handDrag.offsetY = cy - my
+                handDrag.isDragging = false
                 return
             end
         end
@@ -5041,5 +5108,56 @@ end
 function love.wheelmoved(x, y)
     if state == "map" and game.map then
         Map.scroll(game.map, -y * 120)
+    end
+end
+
+function love.mousemoved(x, y, dx, dy)
+    local mx, my = toVirtual(x, y)
+    if handDrag.active and handDrag.cardIndex and state == "playing" then
+        handDrag.currentX = mx
+        handDrag.currentY = my
+        local dist = math.sqrt((mx - handDrag.startX)^2 + (my - handDrag.startY)^2)
+        if dist > 7 then
+            handDrag.isDragging = true
+        end
+
+        if handDrag.isDragging then
+            local idx = handDrag.cardIndex
+            local c = game.hand[idx]
+            if c then
+                -- Check left neighbor
+                if idx > 1 then
+                    local prevSlotX = getHandCardPosition(idx - 1, #game.hand)
+                    if c.visualX < prevSlotX + 35 then
+                        game.hand[idx], game.hand[idx - 1] = game.hand[idx - 1], game.hand[idx]
+                        handDrag.cardIndex = idx - 1
+                        Sound.play("card_slide")
+                    end
+                end
+                -- Check right neighbor
+                if idx < #game.hand then
+                    local nextSlotX = getHandCardPosition(idx + 1, #game.hand)
+                    if c.visualX > nextSlotX - 35 then
+                        game.hand[idx], game.hand[idx + 1] = game.hand[idx + 1], game.hand[idx]
+                        handDrag.cardIndex = idx + 1
+                        Sound.play("card_slide")
+                    end
+                end
+            end
+        end
+    end
+end
+
+function love.mousereleased(x, y, button)
+    if button == 1 and handDrag.active then
+        if not handDrag.isDragging and handDrag.cardIndex then
+            toggleCardSelection(handDrag.cardIndex)
+            Sound.play("card_deal")
+        elseif handDrag.isDragging then
+            Sound.play("card_slide")
+        end
+        handDrag.active = false
+        handDrag.cardIndex = nil
+        handDrag.isDragging = false
     end
 end

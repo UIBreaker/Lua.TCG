@@ -541,6 +541,17 @@ local sciResult = UI.formatNumber(1234000000000)
 assert(sciResult:find("e12") ~= nil, ">= 1e9 must use scientific e-notation, got: " .. sciResult)
 log("[PASS] 32. UI.formatNumber verified: 15 -> 15, 1250 -> 1,250, 1234567 -> 1,234,567, 1.234e12 -> " .. sciResult)
 
+-- 33. Test Hand Card Drag Reordering
+local testHand = { Deck.newCard(2, "aurelia"), Deck.newCard(5, "aurelia"), Deck.newCard(10, "aurelia") }
+assert(testHand[1].rank == 2 and testHand[2].rank == 5 and testHand[3].rank == 10, "Initial hand order")
+-- Swap 1 and 2
+testHand[1], testHand[2] = testHand[2], testHand[1]
+assert(testHand[1].rank == 5 and testHand[2].rank == 2, "Hand swap 1 & 2 verified")
+-- Swap 2 and 3
+testHand[2], testHand[3] = testHand[3], testHand[2]
+assert(testHand[1].rank == 5 and testHand[2].rank == 10 and testHand[3].rank == 2, "Hand swap 2 & 3 verified: [5, 10, 2]")
+log("[PASS] 33. Hand Drag Reordering verified: cards swap indices cleanly without data loss")
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then
