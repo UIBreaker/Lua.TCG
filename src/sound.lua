@@ -90,6 +90,18 @@ function Sound.init()
             local freq = 220 - (t / d) * 110
             return env * 0.5 * (math.sin(2 * math.pi * freq * t) + math.sin(2 * math.pi * (freq * 1.5) * t) * 0.5)
         end)
+
+        -- 9. Jackpot chime (Bright rapid casino victory chimes)
+        sounds.jackpot = generateSound(0.55, rate, function(t, d)
+            local env = (1 - t / d) ^ 1.5
+            local note = 523.25 -- C5
+            if t > 0.40 then note = 1046.50 -- C6
+            elseif t > 0.28 then note = 783.99 -- G5
+            elseif t > 0.14 then note = 659.25 -- E5
+            end
+            local chime = math.sin(2 * math.pi * note * t) + 0.35 * math.sin(2 * math.pi * note * 2 * t)
+            return env * 0.55 * chime
+        end)
     end)
 
     if not success then
@@ -98,12 +110,17 @@ function Sound.init()
     end
 end
 
-function Sound.play(name)
+function Sound.play(name, pitch)
     if not enabled then return end
     local s = sounds[name]
     if s then
         pcall(function()
             s:stop()
+            if pitch and s.setPitch then
+                s:setPitch(math.max(0.2, math.min(3.0, pitch)))
+            elseif s.setPitch then
+                s:setPitch(1.0)
+            end
             s:play()
         end)
     end

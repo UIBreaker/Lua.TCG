@@ -232,7 +232,9 @@ function UI.drawCard(card, x, y, w, h)
     if card.rotation and card.rotation ~= 0 then
         love.graphics.rotate(card.rotation)
     end
-    love.graphics.scale(card.scale or 1, card.scale or 1)
+    local sx = card.scaleX or card.scale or 1
+    local sy = card.scaleY or card.scale or 1
+    love.graphics.scale(sx, sy)
     love.graphics.translate(-w / 2, -h / 2)
 
     -- Shadow
@@ -475,6 +477,33 @@ function UI.drawPlayerHpBar(x, y, w, h, currentHp, maxHp, shield)
     end
     local tw = UI.fonts.small:getWidth(hpText)
     love.graphics.print(hpText, x + (w - tw) / 2, y + (h - 16) / 2)
+end
+
+-- Format numbers with commas (e.g. 1,234,567) or scientific e-notation (e.g. 1.234e12)
+function UI.formatNumber(num)
+    if not num then return "0" end
+    local absVal = math.abs(num)
+    local sign = (num < 0) and "-" or ""
+
+    -- Scientific e-notation when >= 1 Billion (1e9)
+    if absVal >= 1e9 then
+        local exp = math.floor(math.log10(absVal))
+        local mantissa = absVal / (10 ^ exp)
+        return string.format("%s%.3fe%d", sign, mantissa, exp)
+    end
+
+    if absVal % 1 ~= 0 and absVal < 100 then
+        return string.format("%s%.1f", sign, absVal)
+    end
+
+    local n = math.floor(absVal)
+    local formatted = tostring(n)
+    local k
+    while true do
+        formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", "%1,%2")
+        if k == 0 then break end
+    end
+    return sign .. formatted
 end
 
 return UI

@@ -15,7 +15,7 @@ local isCaptureMode = false
 for _, a in ipairs(arg or {}) do
     if a == "--test" then
         require("test_system")
-        love.event.quit(0)
+        os.exit(0)
     elseif a == "--capture" then
         isCaptureMode = true
     end
@@ -103,13 +103,85 @@ local anim = {
     displayChips = 0,
     displayMult = 0,
     displayXMult = 1.0,
+    displayFinalScore = 0,
     stepTimer = 0,
     playedCards = {},
     floatingTexts = {},
     monsterDefeated = false,
     earnedGold = 0,
     damageDealt = 0,
+    -- Pacing & Rising Pitch
+    pitchStep = 0,
+    targetStepDelay = 0.36,
+    -- Squash & Stretch + Dynamic Scale Bounce
+    cardBounce = {},
+    deityBounce = {},
+    bounceScale = { chips = 1.0, mult = 1.0, xMult = 1.0, score = 1.0 },
+    -- Particle & Fire System
+    particles = {},
+    fireParticles = {},
 }
+
+local function spawnSparks(x, y, count, color)
+    color = color or UI.COLORS.goldYellow
+    count = count or 16
+    for i = 1, count do
+        local angle = math.random() * math.pi * 2
+        local speed = math.random(80, 240)
+        table.insert(anim.particles, {
+            x = x,
+            y = y,
+            vx = math.cos(angle) * speed,
+            vy = math.sin(angle) * speed,
+            gravity = math.random(60, 160),
+            size = math.random(3, 6),
+            r = color[1],
+            g = color[2],
+            b = color[3],
+            alpha = 1.0,
+            life = math.random(0.35, 0.65),
+            maxLife = 0.65,
+        })
+    end
+    while #anim.particles > 100 do
+        table.remove(anim.particles, 1)
+    end
+end
+
+local function spawnFireEmbers(bx, by, bw, bh, tier)
+    tier = tier or 1
+    local col
+    if tier >= 3 then
+        col = (math.random() < 0.6) and { 0.20, 0.85, 1.0 } or { 0.70, 0.40, 1.0 }
+    elseif tier == 2 then
+        col = (math.random() < 0.6) and { 0.95, 0.18, 0.35 } or { 0.85, 0.25, 0.90 }
+    else
+        col = (math.random() < 0.6) and { 1.0, 0.65, 0.15 } or { 1.0, 0.35, 0.05 }
+    end
+
+    local count = 2
+    for i = 1, count do
+        local px = bx + math.random(6, bw - 6)
+        local py = by + bh - math.random(2, 10)
+        table.insert(anim.fireParticles, {
+            x = px,
+            y = py,
+            vx = math.random(-25, 25),
+            vy = -math.random(70, 150),
+            size = math.random(4, 9),
+            r = col[1],
+            g = col[2],
+            b = col[3],
+            alpha = 1.0,
+            life = math.random(0.30, 0.60),
+            maxLife = 0.60,
+            tier = tier,
+        })
+    end
+    while #anim.fireParticles > 90 do
+        table.remove(anim.fireParticles, 1)
+    end
+end
 
 -- Screen shake
 local screenShake = 0
@@ -646,9 +718,16 @@ local function playSelectedHand()
     anim.monsterDefeated = false
     anim.earnedGold = 0
     anim.damageDealt = 0
+    anim.pitchStep = 0
+    anim.targetStepDelay = 0.36
+    anim.cardBounce = {}
+    anim.deityBounce = {}
+    anim.bounceScale = { chips = 1.35, mult = 1.35, xMult = 1.0, score = 1.35 }
+    anim.particles = {}
+    anim.fireParticles = {}
 
     state = "scoring"
-    Sound.play("chip_tick")
+    Sound.play("chip_tick", 1.0)
 end
 
 local function generateBossChestRewards()
@@ -749,6 +828,9 @@ function love.update(dt)
             selectCardIndex = function(idx)
                 toggleCardSelection(idx)
             end,
+            playSelectedHand = function()
+                playSelectedHand()
+            end,
         })
     end
 
@@ -766,7 +848,7 @@ function love.update(dt)
         game.monster.damageLagHp = math.max(game.monster.hp, game.monster.damageLagHp - dt * (game.monster.maxHp * 0.75))
     end
 
-    -- Update floating texts
+    -- Smoothly update floating texts
     for i = #anim.floatingTexts, 1, -1 do
         local ft = anim.floatingTexts[i]
         ft.y = ft.y - dt * 40
@@ -776,14 +858,79 @@ function love.update(dt)
         end
     end
 
+    -- Smoothly lerp number bounce scales
+    if anim.bounceScale then
+        for k, v in pairs(anim.bounceScale) do
+            anim.bounceScale[k] = v + (1.0 - v) * math.min(1.0, dt * 10)
+        end
+    end
+
+    -- Smoothly lerp card squash & stretch
+    if anim.cardBounce then
+        for idx, b in pairs(anim.cardBounce) do
+            b.scaleX = b.scaleX + (1.0 - b.scaleX) * math.min(1.0, dt * 12)
+            b.scaleY = b.scaleY + (1.0 - b.scaleY) * math.min(1.0, dt * 12)
+        end
+    end
+
+    -- Smoothly update spark particles
+    if anim.particles then
+        for i = #anim.particles, 1, -1 do
+            local p = anim.particles[i]
+            p.life = p.life - dt
+            if p.life <= 0 then
+                table.remove(anim.particles, i)
+            else
+                p.x = p.x + p.vx * dt
+                p.y = p.y + p.vy * dt + p.gravity * dt
+                p.alpha = math.max(0, p.life / p.maxLife)
+            end
+        end
+    end
+
+    -- Fire Embers generation for Mult & Score
+    if state == "scoring" and anim.active then
+        local multVal = anim.displayMult or 0
+        if multVal >= 20 then
+            local tier = (multVal >= 100) and 3 or ((multVal >= 50) and 2 or 1)
+            local b2X = (V_WIDTH - 980) / 2 + (980 - (4 * 180 + 3 * 34)) / 2 + 180 + 34
+            local rowY = 115 + 288
+            spawnFireEmbers(b2X, rowY, 180, 74, tier)
+        end
+
+        local scoreVal = anim.displayFinalScore or 0
+        if scoreVal >= 1000 then
+            local tier = (scoreVal >= 50000) and 3 or ((scoreVal >= 10000) and 2 or 1)
+            local b4X = (V_WIDTH - 980) / 2 + (980 - (4 * 180 + 3 * 34)) / 2 + (180 + 34) * 3
+            local rowY = 115 + 288
+            spawnFireEmbers(b4X, rowY, 180, 74, tier)
+        end
+    end
+
+    if anim.fireParticles then
+        for i = #anim.fireParticles, 1, -1 do
+            local p = anim.fireParticles[i]
+            p.life = p.life - dt
+            if p.life <= 0 then
+                table.remove(anim.fireParticles, i)
+            else
+                p.x = p.x + p.vx * dt
+                p.y = p.y + p.vy * dt
+                p.alpha = math.max(0, p.life / p.maxLife)
+            end
+        end
+    end
+
     -- Scoring Animation Loop
     if state == "scoring" and anim.active then
         anim.stepTimer = anim.stepTimer + dt
-        local stepDelay = 0.42
+        local stepDelay = anim.targetStepDelay or 0.36
 
         if anim.stepTimer >= stepDelay then
             anim.stepTimer = 0
             anim.currentStepIndex = anim.currentStepIndex + 1
+            anim.pitchStep = (anim.pitchStep or 0) + 1
+            local pitch = math.min(2.2, 1.0 + (anim.pitchStep - 1) * 0.07)
 
             local steps = anim.scoringData.steps
             if anim.currentStepIndex <= #steps then
@@ -796,6 +943,32 @@ function love.update(dt)
                     anim.displayChips = st.chips
                     anim.displayMult = st.mult
                     anim.displayFinalScore = st.chips * st.mult
+                    anim.bounceScale.chips = 1.35
+                    anim.bounceScale.mult = 1.35
+                    anim.bounceScale.score = 1.35
+                    anim.targetStepDelay = 0.36
+                    Sound.play("chip_tick", pitch)
+
+                elseif st.type == "discard_buff_trigger" then
+                    anim.activeCardIndex = nil
+                    anim.stepCategory = "CHIẾN THUẬT BỎ BÀI"
+                    anim.stepLog = st.message
+                    if st.addedChips and st.addedChips > 0 then
+                        anim.displayChips = anim.displayChips + st.addedChips
+                        anim.bounceScale.chips = 1.35
+                    end
+                    if st.addedMult and st.addedMult > 0 then
+                        anim.displayMult = anim.displayMult + st.addedMult
+                        anim.bounceScale.mult = 1.35
+                    end
+                    if st.xMult and st.xMult > 1.0 then
+                        anim.displayXMult = anim.displayXMult * st.xMult
+                        anim.bounceScale.xMult = 1.45
+                    end
+                    anim.displayFinalScore = math.floor(anim.displayChips * anim.displayMult * anim.displayXMult)
+                    anim.bounceScale.score = 1.40
+                    anim.targetStepDelay = 0.32
+                    Sound.play("chip_tick", pitch)
 
                 elseif st.type == "card_scored" then
                     anim.activeCardIndex = st.cardIndex
@@ -810,43 +983,73 @@ function love.update(dt)
                         trigStr = " (" .. st.deityTriggers[1].message .. ")"
                     end
                     anim.stepLog = "Lá " .. st.card.rankName .. st.card.suitSymbol .. ": +" .. st.addedChips .. " Chips" .. (st.addedMult > 0 and (" & +" .. st.addedMult .. " Mult") or "") .. trigStr
-                    Sound.play("chip_tick")
+
+                    -- Squash & Stretch + Spark burst
+                    anim.cardBounce[st.cardIndex] = { scaleX = 0.84, scaleY = 1.28 }
+                    anim.bounceScale.chips = 1.40
+                    if st.addedMult > 0 then
+                        anim.bounceScale.mult = 1.45
+                    end
+                    anim.bounceScale.score = 1.35
+                    screenShake = math.max(screenShake, 2.0)
+
+                    local bannerX = (V_WIDTH - 980) / 2
+                    local totalCardsW = #anim.playedCards * 90 + (#anim.playedCards - 1) * 16
+                    local startCX = bannerX + (980 - totalCardsW) / 2
+                    local cardCenterX = startCX + (st.cardIndex - 1) * (90 + 16) + 45
+                    local cardCenterY = 115 + 72 + 65 - 18
+                    spawnSparks(cardCenterX, cardCenterY, 18, UI.COLORS.goldYellow)
+
+                    anim.targetStepDelay = 0.34
+                    Sound.play("chip_tick", pitch)
 
                 elseif st.type == "equipment_trigger" then
                     anim.activeCardIndex = nil
                     if st.addedChips then
                         anim.displayChips = anim.displayChips + st.addedChips
-                        Sound.play("chip_tick")
+                        anim.bounceScale.chips = 1.35
+                        Sound.play("chip_tick", pitch)
                     end
                     if st.addedMult then
                         anim.displayMult = anim.displayMult + st.addedMult
-                        Sound.play("mult_pop")
+                        anim.bounceScale.mult = 1.45
+                        Sound.play("mult_pop", pitch)
                     end
                     anim.displayFinalScore = math.floor(anim.displayChips * anim.displayMult * anim.displayXMult)
+                    anim.bounceScale.score = 1.35
                     anim.stepCategory = "HIỆU ỨNG TRANG BỊ"
                     anim.stepLog = st.message
+                    screenShake = math.max(screenShake, 3.0)
+                    anim.targetStepDelay = 0.28
 
                 elseif st.type == "deity_hand" then
                     anim.activeCardIndex = nil
                     if st.addedChips > 0 then
                         anim.displayChips = anim.displayChips + st.addedChips
-                        Sound.play("chip_tick")
+                        anim.bounceScale.chips = 1.35
                     end
                     if st.addedMult > 0 then
                         anim.displayMult = anim.displayMult + st.addedMult
-                        Sound.play("mult_pop")
+                        anim.bounceScale.mult = 1.45
                     end
                     if st.xMult > 1.0 then
                         anim.displayXMult = anim.displayXMult * st.xMult
-                        screenShake = 6
-                        Sound.play("xmult_boom")
+                        anim.bounceScale.xMult = 1.65
+                        anim.bounceScale.score = 1.70
+                        screenShake = math.max(screenShake, math.min(22, 7 + st.xMult * 4))
+                        Sound.play("xmult_boom", pitch)
+                        spawnSparks(V_WIDTH / 2, 115 + 288 + 37, 28, UI.COLORS.xmultGold)
+                        anim.targetStepDelay = 0.54 -- Suspense micro-pause!
                         table.insert(anim.floatingTexts, {
                             text = "x" .. st.xMult .. " XMult!",
                             color = UI.COLORS.xmultGold,
                             x = 640,
                             y = 350,
-                            alpha = 1.0,
+                            alpha = 1.2,
                         })
+                    else
+                        anim.targetStepDelay = 0.30
+                        Sound.play("mult_pop", pitch)
                     end
                     anim.displayFinalScore = math.floor(anim.displayChips * anim.displayMult * anim.displayXMult)
                     anim.stepCategory = "THẦN BÀI: " .. (st.deity and st.deity.name or "BỔ TRỢ"):upper()
@@ -854,8 +1057,10 @@ function love.update(dt)
 
                 elseif st.type == "final_score" then
                     anim.activeCardIndex = nil
-                    Sound.play("xmult_boom")
-                    screenShake = 10
+                    local shakeAmt = math.min(25, 8 + math.log10(math.max(10, st.finalScore)) * 3.5)
+                    screenShake = math.max(screenShake, shakeAmt)
+                    anim.bounceScale.score = 1.85
+                    Sound.play("xmult_boom", 0.95)
                     anim.displayFinalScore = st.finalScore
                     anim.stepCategory = "TỔNG SÁT THƯƠNG"
                     anim.stepLog = anim.displayChips .. " Chips × " .. anim.displayMult .. " Mult" .. (anim.displayXMult > 1.0 and (" × " .. anim.displayXMult .. " XMult") or "") .. " = " .. st.finalScore .. " Sát thương!"
@@ -863,6 +1068,14 @@ function love.update(dt)
                     local actualDmg, defeated = Monster.takeDamage(game.monster, st.finalScore)
                     anim.damageDealt = actualDmg
                     anim.monsterDefeated = defeated
+
+                    if defeated then
+                        Sound.play("jackpot")
+                        spawnSparks(V_WIDTH / 2, 115 + 325, 36, UI.COLORS.goldYellow)
+                        anim.targetStepDelay = 0.60
+                    else
+                        anim.targetStepDelay = 0.45
+                    end
 
                     if st.bonusGold and st.bonusGold > 0 then
                         game.gold = game.gold + st.bonusGold
@@ -1857,6 +2070,30 @@ local function drawScoringState()
     local startCX = bannerX + (bannerW - totalCardsW) / 2
     local baseCardY = bannerY + 72
 
+    local function drawAnimatedNumber(text, bx, by, bw, bh, color, scaleFactor)
+        scaleFactor = scaleFactor or 1.0
+        local font = UI.fonts.huge
+        if font:getWidth(text) > (bw - 16) then
+            font = UI.fonts.large
+        end
+        if font:getWidth(text) > (bw - 16) then
+            font = UI.fonts.medium
+        end
+        love.graphics.setFont(font)
+        love.graphics.setColor(color)
+
+        local cx = bx + bw / 2
+        local cy = by + 22 + (bh - 22) / 2
+        local tw = font:getWidth(text)
+        local th = font:getHeight()
+
+        love.graphics.push()
+        love.graphics.translate(cx, cy)
+        love.graphics.scale(scaleFactor, scaleFactor)
+        love.graphics.print(text, -tw / 2, -th / 2)
+        love.graphics.pop()
+    end
+
     for i, c in ipairs(cards) do
         local cx = startCX + (i - 1) * (cardW + cardGap)
         local cy = baseCardY
@@ -1865,6 +2102,14 @@ local function drawScoringState()
 
         if isActive then
             cy = baseCardY - 18 -- Lift active card
+        end
+
+        if anim.cardBounce and anim.cardBounce[i] then
+            c.scaleX = anim.cardBounce[i].scaleX
+            c.scaleY = anim.cardBounce[i].scaleY
+        else
+            c.scaleX = 1.0
+            c.scaleY = 1.0
         end
 
         -- Dim cards not yet scored
@@ -1978,6 +2223,17 @@ local function drawScoringState()
     local startRowX = bannerX + (bannerW - totalRowW) / 2
     local rowY = bannerY + 288
 
+    -- Living Fire Embers (additive blending) around Mult & Score
+    if anim.fireParticles and #anim.fireParticles > 0 then
+        love.graphics.setBlendMode("add")
+        for _, p in ipairs(anim.fireParticles) do
+            local alpha = math.max(0, (p.life / p.maxLife) * (p.alpha or 0.8))
+            love.graphics.setColor(p.r, p.g, p.b, alpha)
+            love.graphics.circle("fill", p.x, p.y, p.size * (p.life / p.maxLife))
+        end
+        love.graphics.setBlendMode("alpha")
+    end
+
     -- Box 1: TỔNG CHIPS
     local b1X = startRowX
     love.graphics.setColor(UI.COLORS.chipsBlue[1], UI.COLORS.chipsBlue[2], UI.COLORS.chipsBlue[3], 0.22)
@@ -1988,9 +2244,7 @@ local function drawScoringState()
     love.graphics.setFont(UI.fonts.tiny)
     love.graphics.setColor(UI.COLORS.textMuted)
     love.graphics.printf("TỔNG CHIPS", b1X, rowY + 8, boxW, "center")
-    love.graphics.setFont(UI.fonts.huge)
-    love.graphics.setColor(UI.COLORS.chipsBlue)
-    love.graphics.printf(tostring(anim.displayChips), b1X, rowY + 22, boxW, "center")
+    drawAnimatedNumber(UI.formatNumber(anim.displayChips), b1X, rowY, boxW, boxH, UI.COLORS.chipsBlue, anim.bounceScale and anim.bounceScale.chips or 1.0)
 
     -- Operator 1: ×
     local op1X = b1X + boxW
@@ -2007,9 +2261,7 @@ local function drawScoringState()
     love.graphics.setFont(UI.fonts.tiny)
     love.graphics.setColor(UI.COLORS.textMuted)
     love.graphics.printf("TỔNG MULT", b2X, rowY + 8, boxW, "center")
-    love.graphics.setFont(UI.fonts.huge)
-    love.graphics.setColor(UI.COLORS.multRed)
-    love.graphics.printf(tostring(anim.displayMult), b2X, rowY + 22, boxW, "center")
+    drawAnimatedNumber(UI.formatNumber(anim.displayMult), b2X, rowY, boxW, boxH, UI.COLORS.multRed, anim.bounceScale and anim.bounceScale.mult or 1.0)
 
     -- Operator 2: ×
     local op2X = b2X + boxW
@@ -2027,10 +2279,8 @@ local function drawScoringState()
     love.graphics.setFont(UI.fonts.tiny)
     love.graphics.setColor(UI.COLORS.textMuted)
     love.graphics.printf("HỆ SỐ XMULT", b3X, rowY + 8, boxW, "center")
-    love.graphics.setFont(UI.fonts.huge)
-    love.graphics.setColor(xmultActive and UI.COLORS.xmultGold or UI.COLORS.textMuted)
     local xmultText = xmultActive and ("x" .. string.format("%.1f", anim.displayXMult):gsub("%.0$", "")) or "x1.0"
-    love.graphics.printf(xmultText, b3X, rowY + 22, boxW, "center")
+    drawAnimatedNumber(xmultText, b3X, rowY, boxW, boxH, xmultActive and UI.COLORS.xmultGold or UI.COLORS.textMuted, anim.bounceScale and anim.bounceScale.xMult or 1.0)
 
     -- Operator 3: =
     local op3X = b3X + boxW
@@ -2047,9 +2297,19 @@ local function drawScoringState()
     love.graphics.setFont(UI.fonts.tiny)
     love.graphics.setColor(UI.COLORS.textMuted)
     love.graphics.printf("SÁT THƯƠNG (HP)", b4X, rowY + 8, boxW, "center")
-    love.graphics.setFont(UI.fonts.huge)
-    love.graphics.setColor(UI.COLORS.goldYellow)
-    love.graphics.printf(tostring(anim.displayFinalScore), b4X, rowY + 22, boxW, "center")
+    drawAnimatedNumber(UI.formatNumber(anim.displayFinalScore), b4X, rowY, boxW, boxH, UI.COLORS.goldYellow, anim.bounceScale and anim.bounceScale.score or 1.0)
+
+    -- Spark & Trigger Particles (additive blending)
+    if anim.particles and #anim.particles > 0 then
+        love.graphics.setBlendMode("add")
+        for _, p in ipairs(anim.particles) do
+            local alpha = math.max(0, p.alpha or (p.life / p.maxLife))
+            local col = p.color or UI.COLORS.goldYellow
+            love.graphics.setColor(col[1], col[2], col[3], alpha)
+            love.graphics.circle("fill", p.x, p.y, p.size * (p.life / p.maxLife))
+        end
+        love.graphics.setBlendMode("alpha")
+    end
 
     -- 5. Footer Message / Hint
     local footerY = bannerY + 382
@@ -2065,7 +2325,7 @@ local function drawScoringState()
         else
             love.graphics.setFont(UI.fonts.medium)
             love.graphics.setColor(UI.COLORS.goldYellow)
-            love.graphics.printf("Đã gây " .. anim.displayFinalScore .. " Sát thương vào Quái Vật!", bannerX, footerY, bannerW, "center")
+            love.graphics.printf("Đã gây " .. UI.formatNumber(anim.displayFinalScore) .. " Sát thương vào Quái Vật!", bannerX, footerY, bannerW, "center")
         end
     else
         love.graphics.setFont(UI.fonts.small)

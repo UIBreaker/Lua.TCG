@@ -81,7 +81,13 @@ function Capture.update(gameRef, callbacks)
         callbacks.selectCardIndex(1)
         saveImage("shot_hand_selection_fix.png")
 
-    elseif frame == 120 then
+    elseif frame == 116 then
+        callbacks.playSelectedHand()
+
+    elseif frame == 128 then
+        saveImage("shot_scoring_juice.png")
+
+    elseif frame == 145 then
         print("All screenshots captured!")
         love.event.quit(0)
     end

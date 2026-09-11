@@ -5,6 +5,7 @@ local Deities = require("src.deities")
 local Equipment = require("src.equipment")
 local Shop = require("src.shop")
 local Deck = require("src.deck")
+local UI = require("src.ui")
 
 local logFile = io.open("test_results.txt", "w")
 local function log(str)
@@ -531,6 +532,14 @@ Deck.degradeCard(armCard)
 assert(armCard.rank == 7, "The Arm degrades played card by -1 Rank")
 
 log("[PASS] 31. 6 Disruptive Boss Abilities verified: The Needle, The Water, The Pillar, The Hook, The Fish, The Arm")
+
+-- 32. Test UI.formatNumber (commas and e-notation)
+assert(UI.formatNumber(15) == "15", "Small number formatting")
+assert(UI.formatNumber(1250) == "1,250", "Thousands comma formatting")
+assert(UI.formatNumber(1234567) == "1,234,567", "Millions comma formatting")
+local sciResult = UI.formatNumber(1234000000000)
+assert(sciResult:find("e12") ~= nil, ">= 1e9 must use scientific e-notation, got: " .. sciResult)
+log("[PASS] 32. UI.formatNumber verified: 15 -> 15, 1250 -> 1,250, 1234567 -> 1,234,567, 1.234e12 -> " .. sciResult)
 
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
