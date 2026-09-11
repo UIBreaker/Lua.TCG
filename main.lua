@@ -94,6 +94,49 @@ local treasureRewards = {}
 local isDeckViewerOpen = false
 local deckViewerFilter = "all" -- "all", "rank", "suit", "equipped"
 
+-- Main Menu & Pause Menu State
+local menuMode = "title" -- "title", "faction_select"
+local isPauseMenuOpen = false
+local isSettingsOpen = false
+local lastActiveState = "map"
+local hasRunStarted = false
+
+-- Settings Data
+local settings = {
+    sfxVolume = 0.8,
+    fastScoring = false,
+    fullscreen = false,
+}
+
+-- Micro-Animation & Juice System
+local juice = {
+    ambientTimer = 0,
+    handRankBounce = 1.0,
+    lastEvaluatedRank = nil,
+    goldBounce = 1.0,
+    lastGold = 6,
+    hpBounce = 1.0,
+    lastHp = 100,
+    buttonPressedId = nil,
+    lastHoveredButtonId = nil,
+    floatingTexts = {},
+}
+
+local function spawnJuiceText(text, x, y, color, duration)
+    table.insert(juice.floatingTexts, {
+        text = UI.sanitizeText(text),
+        x = x,
+        y = y,
+        color = color or { 1, 1, 1, 1 },
+        life = duration or 1.2,
+        maxLife = duration or 1.2,
+        vy = -38,
+    })
+    while #juice.floatingTexts > 20 do
+        table.remove(juice.floatingTexts, 1)
+    end
+end
+
 -- Scoring Animation State
 local anim = {
     active = false,
@@ -359,6 +402,10 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
     while #game.hand < maxHandSize and #game.deck > 0 do
         local drawn = table.remove(game.deck)
         drawn.selected = false
+        drawn.visualX = 1180
+        drawn.visualY = 620
+        drawn.visualAngle = 0
+        drawn.visualScale = 0.7
         table.insert(game.hand, drawn)
     end
 
@@ -417,6 +464,10 @@ local function startNewGame(chosenFaction)
     -- 2. Generate Act 1 Map (20 floors)
     game.map = Map.generate(1)
     state = "map"
+    hasRunStarted = true
+    lastActiveState = "map"
+    isPauseMenuOpen = false
+    isSettingsOpen = false
     Sound.play("card_deal")
 end
 
@@ -523,7 +574,7 @@ local function discardSelected()
             -- Blessed card returns to draw deck
             table.insert(game.deck, 1, card)
 
-            local txt = isRoyal and ("☀️ Thánh Quang (" .. card.rankName .. "): +" .. addC .. "c, +" .. addM .. "m!") or ("☀️ Thánh Quang (" .. card.rankName .. "): +" .. addC .. "c!")
+            local txt = isRoyal and ("[Thánh Quang] " .. card.rankName .. ": +" .. addC .. "c, +" .. addM .. "m!") or ("[Thánh Quang] " .. card.rankName .. ": +" .. addC .. "c!")
             table.insert(anim.floatingTexts, {
                 text = txt,
                 color = UI.COLORS.goldYellow,
@@ -533,7 +584,7 @@ local function discardSelected()
             })
             Sound.play("chip_tick")
 
-        -- 2. 🌲 ELARIS: Nảy Mầm Tái Sinh (Heal degraded rank by 1 up to baseRank, or +4 Chips if full, recycles to deck)
+        -- 2. ELARIS: Nảy Mầm Tái Sinh (Heal degraded rank by 1 up to baseRank, or +4 Chips if full, recycles to deck)
         elseif isElaris then
             local healed = false
             if card.rank < card.baseRank then
@@ -547,7 +598,7 @@ local function discardSelected()
             end
             table.insert(game.deck, 1, card)
 
-            local txt = healed and ("🌲 Phục Hồi: Lá " .. card.rankName .. " khôi phục +1 Rank!") or ("🌲 Nảy Mầm (" .. card.rankName .. "): +4 Chips!")
+            local txt = healed and ("[Phục Hồi] Lá " .. card.rankName .. " khôi phục +1 Rank!") or ("[Nảy Mầm] " .. card.rankName .. ": +4 Chips!")
             table.insert(anim.floatingTexts, {
                 text = txt,
                 color = { 0.2, 0.85, 0.4, 1 },
@@ -557,7 +608,7 @@ local function discardSelected()
             })
             Sound.play("card_deal")
 
-        -- 3. 🔥 VHAROS: Huyết Tế Bùng Nổ (Sacrifice card to discardPile for 3/6 flat True Damage chip)
+        -- 3. VHAROS: Huyết Tế Bùng Nổ (Sacrifice card to discardPile for 3/6 flat True Damage chip)
         elseif isVharos then
             table.insert(game.discardPile, card)
             local isRoyal = (card.rank >= 11)
@@ -566,7 +617,7 @@ local function discardSelected()
             if game.monster and game.monster.hp > 0 then
                 local actualDmg, defeated = Monster.takeDamage(game.monster, trueDmg)
                 table.insert(anim.floatingTexts, {
-                    text = "🔥 Huyết Tế (" .. card.rankName .. "): -" .. actualDmg .. " Sát Thương Chuẩn!",
+                    text = "[Huyết Tế] " .. card.rankName .. ": -" .. actualDmg .. " Sát Thương Chuẩn!",
                     color = { 0.95, 0.25, 0.35, 1 },
                     x = 640,
                     y = 440,
@@ -580,7 +631,7 @@ local function discardSelected()
                 end
             end
 
-        -- 4. ⚔️ VALORIA: Hậu Cần Quân Nhu & Mài Kiếm (+5 Chips for Soldier, +8 Chips & +$1 Gold for Royal, recycles to deck)
+        -- 4. VALORIA: Hậu Cần Quân Nhu & Mài Kiếm (+5 Chips for Soldier, +8 Chips & +$1 Gold for Royal, recycles to deck)
         elseif isValoria then
             local isRoyal = (card.rank >= 11)
             local addC = isRoyal and 8 or 5
@@ -593,7 +644,7 @@ local function discardSelected()
 
             table.insert(game.deck, 1, card)
 
-            local txt = isRoyal and ("⚔️ Quân Nhu (" .. card.rankName .. "): +$1 Vàng & +" .. addC .. " Chips!") or ("⚔️ Mài Kiếm (" .. card.rankName .. "): +" .. addC .. " Chips!")
+            local txt = isRoyal and ("[Quân Nhu] " .. card.rankName .. ": +$1 Vàng & +" .. addC .. " Chips!") or ("[Mài Kiếm] " .. card.rankName .. ": +" .. addC .. " Chips!")
             table.insert(anim.floatingTexts, {
                 text = txt,
                 color = { 0.35, 0.70, 0.98, 1 },
@@ -625,6 +676,10 @@ local function discardSelected()
         local drawn = table.remove(game.deck)
         if drawn then
             drawn.selected = false
+            drawn.visualX = 1180
+            drawn.visualY = 620
+            drawn.visualAngle = 0
+            drawn.visualScale = 0.7
             if game.monster and game.monster.isBoss and game.monster.bossData and game.monster.bossData.debuffId == "the_fish" then
                 drawn.faceDown = true
             end
@@ -689,7 +744,7 @@ local function playSelectedHand()
                 end
             end
             table.insert(anim.floatingTexts, {
-                text = "🪝 THE HOOK: Boss giật vứt bỏ " .. hookedCount .. " lá trên tay!",
+                text = "[THE HOOK] Boss giật vứt bỏ " .. hookedCount .. " lá trên tay!",
                 color = { 0.95, 0.45, 0.2, 1 },
                 x = 640,
                 y = 380,
@@ -846,6 +901,21 @@ function love.update(dt)
             playSelectedHand = function()
                 playSelectedHand()
             end,
+            setMenuMode = function(m)
+                menuMode = m
+            end,
+            openSettings = function()
+                isSettingsOpen = true
+            end,
+            closeSettings = function()
+                isSettingsOpen = false
+            end,
+            openPauseMenu = function()
+                isPauseMenuOpen = true
+            end,
+            closePauseMenu = function()
+                isPauseMenuOpen = false
+            end,
         })
     end
 
@@ -915,10 +985,62 @@ function love.update(dt)
                 if not (handDrag.active and handDrag.cardIndex == i and handDrag.isDragging) then
                     c.visualX = c.visualX + (tx - c.visualX) * math.min(1.0, dt * 18)
                     c.visualY = c.visualY + (ty - c.visualY) * math.min(1.0, dt * 18)
-                    c.visualAngle = c.visualAngle + ((tangle or 0) - c.visualAngle) * math.min(1.0, dt * 18)
+                    local curAngle = c.visualAngle or 0
+                    c.visualAngle = curAngle + ((tangle or 0) - curAngle) * math.min(1.0, dt * 18)
                     c.rotation = c.visualAngle
                 end
             end
+            c.visualScale = (c.visualScale or 1.0) + (1.0 - (c.visualScale or 1.0)) * math.min(1.0, dt * 14)
+        end
+    end
+
+    -- Check hand rank bounce when cards selected change hand evaluation
+    if state == "playing" then
+        local selCards = getSelectedCards()
+        local curHand = (#selCards > 0) and Poker.evaluate(selCards, game.unlockedHands) or nil
+        local curName = (curHand and curHand.type) and curHand.type.vnName or ""
+        if curName ~= juice.lastEvaluatedRank then
+            if juice.lastEvaluatedRank ~= nil and curName ~= "" then
+                juice.handRankBounce = 1.25
+            end
+            juice.lastEvaluatedRank = curName
+        end
+    end
+
+    -- Ambient and bounce lerp updates
+    juice.ambientTimer = juice.ambientTimer + dt
+    juice.goldBounce = juice.goldBounce + (1.0 - juice.goldBounce) * math.min(1.0, dt * 10)
+    juice.hpBounce = juice.hpBounce + (1.0 - juice.hpBounce) * math.min(1.0, dt * 10)
+    juice.handRankBounce = juice.handRankBounce + (1.0 - juice.handRankBounce) * math.min(1.0, dt * 10)
+
+    -- Gold change detection
+    if game.gold and juice.lastGold and game.gold ~= juice.lastGold then
+        if game.gold > juice.lastGold then
+            juice.goldBounce = 1.35
+            spawnJuiceText("+$" .. (game.gold - juice.lastGold) .. " Vàng", 175, 630, UI.COLORS.goldYellow, 1.2)
+        end
+        juice.lastGold = game.gold
+    end
+
+    -- HP change detection
+    if game.playerHp and juice.lastHp and game.playerHp ~= juice.lastHp then
+        if game.playerHp < juice.lastHp then
+            juice.hpBounce = 1.30
+            spawnJuiceText("-" .. (juice.lastHp - game.playerHp) .. " HP", 140, 580, UI.COLORS.hpRed, 1.2)
+        elseif game.playerHp > juice.lastHp then
+            juice.hpBounce = 1.30
+            spawnJuiceText("+" .. (game.playerHp - juice.lastHp) .. " HP", 140, 580, UI.COLORS.hpGreen, 1.2)
+        end
+        juice.lastHp = game.playerHp
+    end
+
+    -- Update juice floating texts
+    for i = #juice.floatingTexts, 1, -1 do
+        local ft = juice.floatingTexts[i]
+        ft.life = ft.life - dt
+        ft.y = ft.y + ft.vy * dt
+        if ft.life <= 0 then
+            table.remove(juice.floatingTexts, i)
         end
     end
 
@@ -980,7 +1102,7 @@ function love.update(dt)
 
     -- Scoring Animation Loop
     if state == "scoring" and anim.active then
-        anim.stepTimer = anim.stepTimer + dt
+        anim.stepTimer = anim.stepTimer + (settings.fastScoring and dt * 2.0 or dt)
         local stepDelay = anim.targetStepDelay or 0.36
 
         if anim.stepTimer >= stepDelay then
@@ -1196,7 +1318,7 @@ function love.update(dt)
                         local interestBonus = math.min(5, math.floor(game.gold / 5))
                         if interestBonus > 0 then
                             table.insert(anim.floatingTexts, {
-                                text = "💰 Tiền Lãi (Interest): +$" .. interestBonus .. " Vàng!",
+                                text = "[Tiền Lãi] +$" .. interestBonus .. " Vàng!",
                                 color = UI.COLORS.goldYellow,
                                 x = 640,
                                 y = 230,
@@ -1211,7 +1333,7 @@ function love.update(dt)
                             local valBonus = math.max(1, math.floor(anim.earnedGold * 0.25))
                             anim.earnedGold = anim.earnedGold + valBonus
                             table.insert(anim.floatingTexts, {
-                                text = "⚔️ Hậu Cần Quân Khí (Valoria): +" .. valBonus .. " Vàng (+25%)!",
+                                text = "[Hậu Cần Valoria] +" .. valBonus .. " Vàng (+25%)!",
                                 color = UI.COLORS.goldYellow,
                                 x = 640,
                                 y = 280,
@@ -1225,7 +1347,7 @@ function love.update(dt)
                                 local targetCard = game.persistentDeck[love.math and love.math.random(#game.persistentDeck) or 1]
                                 Deck.upgradeCard(targetCard)
                                 table.insert(anim.floatingTexts, {
-                                    text = "🌲 Lộc Biếc Đâm Chồi: Tôi luyện thành công lá " .. targetCard.rankName .. targetCard.suitSymbol .. " (+1 Rank)!",
+                                    text = "[Lộc Biếc] Tôi luyện thành công lá " .. targetCard.rankName .. " " .. (targetCard.suitSymbol or "") .. " (+1 Rank)!",
                                     color = { 0.2, 0.85, 0.4, 1 },
                                     x = 640,
                                     y = 330,
@@ -1246,7 +1368,7 @@ function love.update(dt)
                                 Deck.degradeCard(sc)
                             end
                             table.insert(anim.floatingTexts, {
-                                text = "🖐️ THE ARM: Các lá bài bị suy đồi (-1 Rank)!",
+                                text = "[THE ARM] Các lá bài bị suy đồi (-1 Rank)!",
                                 color = { 0.85, 0.35, 0.35, 1 },
                                 x = 640,
                                 y = 400,
@@ -1271,7 +1393,7 @@ function love.update(dt)
                         screenShake = 16
                         Sound.play("xmult_boom")
                         table.insert(anim.floatingTexts, {
-                            text = "💥 QUÁI PHẢN CÔNG: -" .. dmgToPlayer .. " HP!",
+                            text = "[QUÁI PHẢN CÔNG] -" .. dmgToPlayer .. " HP!",
                             color = UI.COLORS.hpRed,
                             x = 640,
                             y = 350,
@@ -1348,6 +1470,10 @@ function love.update(dt)
                             local drawn = table.remove(game.deck)
                             if drawn then
                                 drawn.selected = false
+                                drawn.visualX = 1180
+                                drawn.visualY = 620
+                                drawn.visualAngle = 0
+                                drawn.visualScale = 0.7
                                 if game.monster and game.monster.isBoss and game.monster.bossData and game.monster.bossData.debuffId == "the_fish" then
                                     drawn.faceDown = true
                                 end
@@ -1383,49 +1509,181 @@ end
 -- DRAW FUNCTIONS
 --------------------------------------------------------------------------------
 
-local function drawMenu()
-    -- Fullscreen felt background
+local function drawMainMenu()
+    local winW, winH = love.graphics.getDimensions()
+    love.graphics.setColor(UI.COLORS.felt)
+    love.graphics.rectangle("fill", -offsetX / scale, -offsetY / scale, winW / scale, winH / scale)
+
+    local mx, my = toVirtual(love.mouse.getPosition())
+    buttons = {}
+
+    -- Floating background decorative cards
+    for i = 1, 5 do
+        local floatX = 140 + (i - 1) * 245 + math.sin(juice.ambientTimer * 0.8 + i) * 15
+        local floatY = 230 + math.cos(juice.ambientTimer * 0.6 + i * 1.5) * 20
+        local floatAngle = math.sin(juice.ambientTimer * 0.5 + i) * 0.12
+        love.graphics.push()
+        love.graphics.translate(floatX, floatY)
+        love.graphics.rotate(floatAngle)
+        love.graphics.setColor(0.06, 0.12, 0.09, 0.35)
+        UI.drawRoundedRect("fill", -45, -65, 90, 130, 8)
+        love.graphics.setColor(0.18, 0.32, 0.24, 0.4)
+        UI.drawRoundedRect("line", -45, -65, 90, 130, 8)
+        love.graphics.pop()
+    end
+
+    -- Title Banner Box
+    local titleY = 65
+    love.graphics.setFont(UI.fonts.huge)
+    love.graphics.setColor(0, 0, 0, 0.6)
+    love.graphics.printf("POKER ROGUELIKE", 3, titleY + 3, V_WIDTH, "center")
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.printf("POKER ROGUELIKE", 0, titleY, V_WIDTH, "center")
+
+    love.graphics.setFont(UI.fonts.medium)
+    love.graphics.setColor(UI.COLORS.textLight)
+    love.graphics.printf("Hành Trình Thần Bài • Roguelike Deckbuilder", 0, titleY + 62, V_WIDTH, "center")
+
+    -- Central Menu Buttons
+    local btnW = 340
+    local btnH = 50
+    local startY = 210
+    local spacing = 64
+    local cx = (V_WIDTH - btnW) / 2
+
+    local btnNewRun = {
+        id = "menu_new_run",
+        text = "BẮT ĐẦU HÀNH TRÌNH",
+        x = cx,
+        y = startY,
+        w = btnW,
+        h = btnH,
+        color = UI.COLORS.btnPlay,
+        font = UI.fonts.medium,
+    }
+    table.insert(buttons, btnNewRun)
+
+    local btnContinue = {
+        id = "menu_continue",
+        text = "TIẾP TỤC VÁN ĐẤU",
+        x = cx,
+        y = startY + spacing,
+        w = btnW,
+        h = btnH,
+        color = hasRunStarted and UI.COLORS.chipsBlue or UI.COLORS.btnNormal,
+        font = UI.fonts.medium,
+        disabled = not hasRunStarted,
+    }
+    table.insert(buttons, btnContinue)
+
+    local btnHandbook = {
+        id = "menu_handbook",
+        text = "SỔ TAY CHIẾN THUẬT",
+        x = cx,
+        y = startY + spacing * 2,
+        w = btnW,
+        h = btnH,
+        color = UI.COLORS.btnNormal,
+        font = UI.fonts.medium,
+    }
+    table.insert(buttons, btnHandbook)
+
+    local btnSettings = {
+        id = "menu_settings",
+        text = "CÀI ĐẶT TRÒ CHƠI",
+        x = cx,
+        y = startY + spacing * 3,
+        w = btnW,
+        h = btnH,
+        color = UI.COLORS.btnNormal,
+        font = UI.fonts.medium,
+    }
+    table.insert(buttons, btnSettings)
+
+    local btnQuit = {
+        id = "menu_quit",
+        text = "THOÁT TRÒ CHƠI",
+        x = cx,
+        y = startY + spacing * 4,
+        w = btnW,
+        h = btnH,
+        color = { 0.35, 0.18, 0.20, 1 },
+        font = UI.fonts.medium,
+    }
+    table.insert(buttons, btnQuit)
+
+    for _, btn in ipairs(buttons) do
+        local isH = (mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h)
+        local isP = (juice.buttonPressedId == btn.id)
+        UI.drawButton(btn, isH, isP)
+    end
+
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.textMuted)
+    love.graphics.printf("Phiên bản v1.2 • [F11] Toàn Màn Hình • [ESC] Tạm Dừng Trong Trận", 0, V_HEIGHT - 45, V_WIDTH, "center")
+end
+
+local function drawFactionSelect()
     local winW, winH = love.graphics.getDimensions()
     love.graphics.setColor(UI.COLORS.bg)
     love.graphics.rectangle("fill", -offsetX / scale, -offsetY / scale, winW / scale, winH / scale)
 
-    -- Header Title
-    love.graphics.setFont(UI.fonts.huge)
-    love.graphics.setColor(UI.COLORS.goldYellow)
-    love.graphics.printf("POKER ROGUELIKE", 0, 35, V_WIDTH, "center")
+    local mx, my = toVirtual(love.mouse.getPosition())
+    buttons = {}
 
-    love.graphics.setFont(UI.fonts.medium)
+    -- Back button
+    local btnBack = {
+        id = "back_to_title",
+        text = "< QUAY LẠI MENU CHÍNH",
+        x = 40,
+        y = 35,
+        w = 220,
+        h = 38,
+        font = UI.fonts.small,
+        color = UI.COLORS.btnNormal,
+    }
+    table.insert(buttons, btnBack)
+    local isBackH = (mx >= btnBack.x and mx <= btnBack.x + btnBack.w and my >= btnBack.y and my <= btnBack.y + btnBack.h)
+    local isBackP = (juice.buttonPressedId == btnBack.id)
+    UI.drawButton(btnBack, isBackH, isBackP)
+
+    -- Header Title
+    love.graphics.setFont(UI.fonts.title)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.printf("LỰA CHỌN PHE PHÁI KHỞI ĐẦU", 0, 35, V_WIDTH, "center")
+
+    love.graphics.setFont(UI.fonts.regular)
     love.graphics.setColor(UI.COLORS.textLight)
-    love.graphics.printf("Lựa chọn Phe Phái Khởi Đầu (3 lá ngẫu nhiên - Quái khởi đầu 10 HP, tăng 50% mỗi phòng quái):", 0, 95, V_WIDTH, "center")
+    love.graphics.printf("Mỗi phe sở hữu bộ bài và ban ơn thần thánh đặc trưng (Bắt đầu với 3 lá ngẫu nhiên):", 0, 85, V_WIDTH, "center")
 
     -- 4 Faction Selection Cards
     local factions = {
         {
             id = "aurelia",
-            title = "☀️ AURELIA",
+            title = "AURELIA",
             color = Deck.FACTIONS.aurelia.color,
-            badge = "Phe Ánh Sáng",
+            badge = "Phe Ánh Sáng ♦",
             blessing = "• Hào Quang Thánh Thiện:\nĐòn đánh có thẻ Aurelia nhận x1.15 XMult.\n• Kỷ Luật Thần Thánh:\nBài hình (J, Q, K) cố định điểm, miễn nhiễm suy yếu từ quái vật.",
         },
         {
             id = "elaris",
-            title = "🌲 ELARIS",
+            title = "ELARIS",
             color = Deck.FACTIONS.elaris.color,
-            badge = "Phe Thiên Nhiên",
+            badge = "Phe Thiên Nhiên ♣",
             blessing = "• Sức Sống Rừng Già:\nCầm tối đa 9 lá bài & tái chế Chiến Binh (2-10) khi đổi bài.\n• Lộc Biếc Đâm Chồi:\nThắng không quá nửa lượt đánh giúp tôi luyện hoàn hảo 1 lá bài.",
         },
         {
             id = "vharos",
-            title = "🔥 VHAROS",
+            title = "VHAROS",
             color = Deck.FACTIONS.vharos.color,
-            badge = "Phe Hắc Ám",
+            badge = "Phe Hắc Ám ♠",
             blessing = "• Hơi Thở Ma Quỷ:\nThẻ Vharos khi xuất trận cộng trực tiếp +40 Chips.\n• Huyết Tế Bóng Đêm:\nKhi Chiến Binh (2-10) bị hy sinh, gây sát thương chuẩn bằng số của lá.",
         },
         {
             id = "valoria",
-            title = "⚔️ VALORIA",
+            title = "VALORIA",
             color = Deck.FACTIONS.valoria.color,
-            badge = "Phe Nhân Loại",
+            badge = "Phe Nhân Loại ♥",
             blessing = "• Chiến Thuật Hành Quân:\nNhận thêm +1 Lượt Đổi Bài miễn phí mỗi trận (4 lượt đổi).\n• Hậu Cần Quân Khí:\nTiêu diệt quái vật tăng +25% vàng thu thập.",
         },
     }
@@ -1434,8 +1692,6 @@ local function drawMenu()
     local cardH = 370
     local startX = (V_WIDTH - (4 * cardW + 3 * 24)) / 2
     local cardY = 140
-
-    local mx, my = toVirtual(love.mouse.getPosition())
 
     for i, s in ipairs(factions) do
         local cx = startX + (i - 1) * (cardW + 24)
@@ -1468,17 +1724,32 @@ local function drawMenu()
         love.graphics.printf(s.blessing, cx + 14, cardY + 150, cardW - 28, "left")
 
         local btnY = cardY + cardH - 48
-        love.graphics.setColor(isHovered and s.color or UI.COLORS.btnNormal)
-        UI.drawRoundedRect("fill", cx + 24, btnY, cardW - 48, 36, 6)
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.setFont(UI.fonts.regular)
-        love.graphics.printf("CHỌN PHE NÀY", cx, btnY + 7, cardW, "center")
+        local btnFaction = {
+            id = "faction_" .. s.id,
+            factionId = s.id,
+            text = "CHỌN PHE NÀY",
+            x = cx + 24,
+            y = btnY,
+            w = cardW - 48,
+            h = 36,
+            color = isHovered and s.color or UI.COLORS.btnNormal,
+            font = UI.fonts.regular,
+        }
+        table.insert(buttons, btnFaction)
+        UI.drawButton(btnFaction, isHovered, juice.buttonPressedId == btnFaction.id)
     end
 
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.printf("Mẹo: Nhấn [F11] để Bật/Tắt Full Màn Hình Tràn Viền bất kỳ lúc nào!", 0, V_HEIGHT - 55, V_WIDTH, "center")
-    love.graphics.printf("Khởi đầu với 3 lá ngẫu nhiên thuộc phe đã chọn. Đánh bại BOSS để thỉnh Thần Bài Ban Ơn!", 0, V_HEIGHT - 32, V_WIDTH, "center")
+    love.graphics.printf("Khởi đầu với 3 lá ngẫu nhiên thuộc phe đã chọn. Đánh bại BOSS để thỉnh Thần Bài Ban Ơn!", 0, V_HEIGHT - 35, V_WIDTH, "center")
+end
+
+local function drawMenu()
+    if menuMode == "title" then
+        drawMainMenu()
+    else
+        drawFactionSelect()
+    end
 end
 
 getHandCardPosition = function(index, totalCards)
@@ -1683,7 +1954,18 @@ local function drawPlayingState()
     elseif eval and scPreview then
         love.graphics.setFont(UI.fonts.small)
         love.graphics.setColor(UI.COLORS.goldYellow)
-        love.graphics.printf(eval.type.vnName, sbX, sbY + 30, sbW, "center")
+        if juice.handRankBounce and juice.handRankBounce > 1.01 then
+            local bCX = sbX + sbW / 2
+            local bCY = sbY + 36
+            love.graphics.push()
+            love.graphics.translate(bCX, bCY)
+            love.graphics.scale(juice.handRankBounce, juice.handRankBounce)
+            love.graphics.translate(-bCX, -bCY)
+            love.graphics.printf(eval.type.vnName, sbX, sbY + 30, sbW, "center")
+            love.graphics.pop()
+        else
+            love.graphics.printf(eval.type.vnName, sbX, sbY + 30, sbW, "center")
+        end
 
         -- Chips box (Blue)
         local cbX = sbX + 12
@@ -1784,7 +2066,7 @@ local function drawPlayingState()
 
         love.graphics.setFont(UI.fonts.tiny)
         love.graphics.setColor(UI.COLORS.goldYellow)
-        love.graphics.printf("⚡ Buff Bỏ Bài: " .. table.concat(parts, " | "), sbX, sbY + 126, sbW, "center")
+        love.graphics.printf("Buff Bỏ Bài: " .. table.concat(parts, " | "), sbX, sbY + 126, sbW, "center")
     end
 
     -- C. Player HP Bar
@@ -2507,7 +2789,7 @@ local function drawMap()
         love.graphics.setLineWidth(2.5)
         UI.drawRoundedRect("line", mx0, my0, mw, mh, 12)
 
-        local bannerText = (pendingCombatNode.type == "elite" and "⚠️ QUÁI TINH ANH TẦNG " or "⚔️ GIAO CHIẾN TẦNG ") .. pendingCombatNode.floor
+        local bannerText = (pendingCombatNode.type == "elite" and "[!] QUÁI TINH ANH TẦNG " or "GIAO CHIẾN TẦNG ") .. pendingCombatNode.floor
         love.graphics.setFont(UI.fonts.large)
         love.graphics.setColor(borderCol)
         love.graphics.printf(bannerText, mx0, my0 + 20, mw, "center")
@@ -2521,7 +2803,7 @@ local function drawMap()
 
         love.graphics.setFont(UI.fonts.small)
         love.graphics.setColor(UI.COLORS.hpRed)
-        love.graphics.printf("Mục tiêu HP: " .. nextHp .. " HP   |   Phản công: ⚔️ " .. nextAtk .. " HP/lượt", mx0, my0 + 95, mw, "center")
+        love.graphics.printf("Mục tiêu HP: " .. nextHp .. " HP   |   Phản công: " .. nextAtk .. " HP/lượt", mx0, my0 + 95, mw, "center")
 
         -- Divider
         love.graphics.setColor(0.30, 0.38, 0.45, 0.8)
@@ -2532,7 +2814,7 @@ local function drawMap()
         if tag then
             love.graphics.setFont(UI.fonts.regular)
             love.graphics.setColor(tag.color or UI.COLORS.goldYellow)
-            love.graphics.printf("🎁 Thẻ Thưởng Bỏ Qua (Skip Tag): " .. (tag.icon or "") .. " " .. tag.name, mx0 + 20, my0 + 144, mw - 40, "center")
+            love.graphics.printf("Thẻ Thưởng Bỏ Qua (Skip Tag): " .. tag.name, mx0 + 20, my0 + 144, mw - 40, "center")
 
             love.graphics.setFont(UI.fonts.small)
             love.graphics.setColor(UI.COLORS.textLight)
@@ -2542,7 +2824,7 @@ local function drawMap()
         -- Action Buttons
         local btnFight = {
             id = "modal_fight_node",
-            text = "⚔️ VÀO CHIẾN ĐẤU",
+            text = "VÀO CHIẾN ĐẤU",
             x = mx0 + 40,
             y = my0 + 245,
             w = 260,
@@ -2552,7 +2834,7 @@ local function drawMap()
         }
         local btnSkip = {
             id = "modal_skip_node",
-            text = "⏩ BỎ QUA NHẬN THƯỞNG",
+            text = ">> BỎ QUA NHẬN THƯỞNG",
             x = mx0 + mw - 300,
             y = my0 + 245,
             w = 260,
@@ -2865,16 +3147,16 @@ local function drawDeckViewerModal()
     -- Left Column: Cards (Width 680)
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(UI.COLORS.textLight)
-    love.graphics.print("Tổng cộng: " .. #allCards .. " lá  (☀️ Aurelia: " .. suitCounts.aurelia .. " | 🌲 Elaris: " .. suitCounts.elaris .. " | 🔥 Vharos: " .. suitCounts.vharos .. " | ⚔️ Valoria: " .. suitCounts.valoria .. " | Đã khảm: " .. equippedCount .. " lá)", modalX + 24, modalY + 58)
+    love.graphics.print("Tổng cộng: " .. #allCards .. " lá  (Aurelia ♦: " .. suitCounts.aurelia .. " | Elaris ♣: " .. suitCounts.elaris .. " | Vharos ♠: " .. suitCounts.vharos .. " | Valoria ♥: " .. suitCounts.valoria .. " | Đã khảm: " .. equippedCount .. " lá)", modalX + 24, modalY + 58)
 
     -- Filter Tabs
     local filterTabs = {
         { id = "all", text = "Tất cả (" .. #allCards .. ")" },
-        { id = "aurelia", text = "☀️ Aurelia (" .. suitCounts.aurelia .. ")" },
-        { id = "elaris", text = "🌲 Elaris (" .. suitCounts.elaris .. ")" },
-        { id = "vharos", text = "🔥 Vharos (" .. suitCounts.vharos .. ")" },
-        { id = "valoria", text = "⚔️ Valoria (" .. suitCounts.valoria .. ")" },
-        { id = "equipped", text = "💎 Đã Khảm (" .. equippedCount .. ")" },
+        { id = "aurelia", text = "Aurelia ♦ (" .. suitCounts.aurelia .. ")" },
+        { id = "elaris", text = "Elaris ♣ (" .. suitCounts.elaris .. ")" },
+        { id = "vharos", text = "Vharos ♠ (" .. suitCounts.vharos .. ")" },
+        { id = "valoria", text = "Valoria ♥ (" .. suitCounts.valoria .. ")" },
+        { id = "equipped", text = "Đã Khảm (" .. equippedCount .. ")" },
     }
     local tabStartX = modalX + 24
     local tabY = modalY + 86
@@ -3792,6 +4074,128 @@ local function drawHandbookModal()
     end
 end
 
+local function drawPauseMenuModal()
+    local winW, winH = love.graphics.getDimensions()
+    love.graphics.setColor(0, 0, 0, 0.72)
+    love.graphics.rectangle("fill", -offsetX / scale, -offsetY / scale, winW / scale, winH / scale)
+
+    local mx, my = toVirtual(love.mouse.getPosition())
+    local modalW = 380
+    local modalH = 430
+    local modalX = (V_WIDTH - modalW) / 2
+    local modalY = (V_HEIGHT - modalH) / 2
+
+    -- Modal Box
+    love.graphics.setColor(UI.COLORS.panelBg)
+    UI.drawRoundedRect("fill", modalX, modalY, modalW, modalH, 12)
+    love.graphics.setColor(UI.COLORS.panelBorder)
+    love.graphics.setLineWidth(2)
+    UI.drawRoundedRect("line", modalX, modalY, modalW, modalH, 12)
+
+    -- Header
+    love.graphics.setFont(UI.fonts.large)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.printf("TẠM DỪNG", modalX, modalY + 24, modalW, "center")
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(UI.COLORS.textMuted)
+    love.graphics.printf("Nhấn [ESC] để quay lại ván đấu", modalX, modalY + 58, modalW, "center")
+
+    -- Buttons inside Pause Modal
+    local btnW = 300
+    local btnH = 44
+    local startY = modalY + 95
+    local spacing = 58
+    local cx = modalX + (modalW - btnW) / 2
+
+    local pauseButtons = {
+        { id = "pause_resume", text = "TIẾP TỤC TRẬN ĐẤU", color = UI.COLORS.btnPlay, y = startY },
+        { id = "pause_handbook", text = "SỔ TAY CHIẾN THUẬT", color = UI.COLORS.btnNormal, y = startY + spacing },
+        { id = "pause_settings", text = "CÀI ĐẶT TRÒ CHƠI", color = UI.COLORS.btnNormal, y = startY + spacing * 2 },
+        { id = "pause_abandon", text = "TỪ BỎ VÁN ĐẤU (VỀ MENU)", color = { 0.45, 0.22, 0.24, 1 }, y = startY + spacing * 3 },
+        { id = "pause_quit", text = "THOÁT RA DESKTOP", color = { 0.32, 0.16, 0.18, 1 }, y = startY + spacing * 4 },
+    }
+
+    for _, pb in ipairs(pauseButtons) do
+        pb.x = cx
+        pb.w = btnW
+        pb.h = btnH
+        pb.font = UI.fonts.regular
+        table.insert(buttons, pb)
+        local isH = (mx >= pb.x and mx <= pb.x + pb.w and my >= pb.y and my <= pb.y + pb.h)
+        local isP = (juice.buttonPressedId == pb.id)
+        UI.drawButton(pb, isH, isP)
+    end
+end
+
+local function drawSettingsModal()
+    local winW, winH = love.graphics.getDimensions()
+    love.graphics.setColor(0, 0, 0, 0.75)
+    love.graphics.rectangle("fill", -offsetX / scale, -offsetY / scale, winW / scale, winH / scale)
+
+    local mx, my = toVirtual(love.mouse.getPosition())
+    local modalW = 500
+    local modalH = 380
+    local modalX = (V_WIDTH - modalW) / 2
+    local modalY = (V_HEIGHT - modalH) / 2
+
+    -- Modal Box
+    love.graphics.setColor(UI.COLORS.panelBg)
+    UI.drawRoundedRect("fill", modalX, modalY, modalW, modalH, 12)
+    love.graphics.setColor(UI.COLORS.panelBorder)
+    love.graphics.setLineWidth(2)
+    UI.drawRoundedRect("line", modalX, modalY, modalW, modalH, 12)
+
+    -- Header
+    love.graphics.setFont(UI.fonts.large)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.printf("CÀI ĐẶT TRÒ CHƠI", modalX, modalY + 24, modalW, "center")
+
+    -- 1. SFX Volume Option
+    local row1Y = modalY + 85
+    love.graphics.setFont(UI.fonts.regular)
+    love.graphics.setColor(UI.COLORS.textLight)
+    love.graphics.print("Âm Lượng Hiệu Ứng (SFX):", modalX + 35, row1Y + 6)
+
+    local volPct = math.floor(settings.sfxVolume * 100 + 0.5) .. "%"
+    local btnVolDown = { id = "setting_voldown", text = "-", x = modalX + 300, y = row1Y, w = 40, h = 34, font = UI.fonts.medium }
+    local btnVolUp = { id = "setting_volup", text = "+", x = modalX + 410, y = row1Y, w = 40, h = 34, font = UI.fonts.medium }
+    table.insert(buttons, btnVolDown)
+    table.insert(buttons, btnVolUp)
+    UI.drawButton(btnVolDown, mx >= btnVolDown.x and mx <= btnVolDown.x + btnVolDown.w and my >= btnVolDown.y and my <= btnVolDown.y + btnVolDown.h, juice.buttonPressedId == btnVolDown.id)
+    UI.drawButton(btnVolUp, mx >= btnVolUp.x and mx <= btnVolUp.x + btnVolUp.w and my >= btnVolUp.y and my <= btnVolUp.y + btnVolUp.h, juice.buttonPressedId == btnVolUp.id)
+
+    love.graphics.setFont(UI.fonts.regular)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.printf(volPct, modalX + 340, row1Y + 7, 70, "center")
+
+    -- 2. Fast Scoring Speed Option
+    local row2Y = modalY + 145
+    love.graphics.setFont(UI.fonts.regular)
+    love.graphics.setColor(UI.COLORS.textLight)
+    love.graphics.print("Tốc Độ Tính Điểm:", modalX + 35, row2Y + 6)
+
+    local speedText = settings.fastScoring and "Siêu Tốc (2x)" or "Bình Thường (1x)"
+    local btnSpeed = { id = "setting_speed", text = speedText, x = modalX + 300, y = row2Y, w = 150, h = 34, color = settings.fastScoring and UI.COLORS.xmultGold or UI.COLORS.btnNormal, font = UI.fonts.small }
+    table.insert(buttons, btnSpeed)
+    UI.drawButton(btnSpeed, mx >= btnSpeed.x and mx <= btnSpeed.x + btnSpeed.w and my >= btnSpeed.y and my <= btnSpeed.y + btnSpeed.h, juice.buttonPressedId == btnSpeed.id)
+
+    -- 3. Fullscreen Option
+    local row3Y = modalY + 205
+    love.graphics.setFont(UI.fonts.regular)
+    love.graphics.setColor(UI.COLORS.textLight)
+    love.graphics.print("Chế Độ Hiển Thị:", modalX + 35, row3Y + 6)
+
+    local fsText = settings.fullscreen and "Toàn Màn Hình" or "Cửa Sổ"
+    local btnFs = { id = "setting_fullscreen", text = fsText, x = modalX + 300, y = row3Y, w = 150, h = 34, color = settings.fullscreen and UI.COLORS.btnPlay or UI.COLORS.btnNormal, font = UI.fonts.small }
+    table.insert(buttons, btnFs)
+    UI.drawButton(btnFs, mx >= btnFs.x and mx <= btnFs.x + btnFs.w and my >= btnFs.y and my <= btnFs.y + btnFs.h, juice.buttonPressedId == btnFs.id)
+
+    -- Close Button
+    local btnClose = { id = "close_settings", text = "LƯU & ĐÓNG", x = modalX + (modalW - 180) / 2, y = modalY + modalH - 58, w = 180, h = 42, color = UI.COLORS.btnPlay, font = UI.fonts.regular }
+    table.insert(buttons, btnClose)
+    UI.drawButton(btnClose, mx >= btnClose.x and mx <= btnClose.x + btnClose.w and my >= btnClose.y and my <= btnClose.y + btnClose.h, juice.buttonPressedId == btnClose.id)
+end
+
 local function drawShopState()
     local winW, winH = love.graphics.getDimensions()
     love.graphics.setColor(0.09, 0.11, 0.14, 1)
@@ -4321,6 +4725,44 @@ function love.draw()
         drawCardInspectorModal(inspectCardModal)
     end
 
+    if isSettingsOpen then
+        drawSettingsModal()
+    end
+
+    if isPauseMenuOpen then
+        drawPauseMenuModal()
+    end
+
+    -- In-game sleek Pause / Menu button at top right
+    if state ~= "menu" and not isPauseMenuOpen and not isSettingsOpen and not isDeckViewerOpen and not isHandbookOpen and not inspectCardModal then
+        local mx, my = toVirtual(love.mouse.getPosition())
+        local btnMenu = {
+            id = "open_pause_menu",
+            text = "MENU",
+            x = V_WIDTH - 86,
+            y = 14,
+            w = 72,
+            h = 30,
+            color = UI.COLORS.panelBg,
+            font = UI.fonts.small,
+        }
+        table.insert(buttons, btnMenu)
+        local isH = (mx >= btnMenu.x and mx <= btnMenu.x + btnMenu.w and my >= btnMenu.y and my <= btnMenu.y + btnMenu.h)
+        UI.drawButton(btnMenu, isH, juice.buttonPressedId == btnMenu.id)
+    end
+
+    -- Floating juice notifications
+    if juice.floatingTexts and #juice.floatingTexts > 0 then
+        for _, ft in ipairs(juice.floatingTexts) do
+            local alpha = math.max(0, math.min(1.0, ft.life / 0.35))
+            love.graphics.setColor(ft.color[1], ft.color[2], ft.color[3], (ft.color[4] or 1) * alpha)
+            love.graphics.setFont(UI.fonts.medium)
+            local cleanStr = UI.sanitizeText(ft.text)
+            local tw = UI.fonts.medium:getWidth(cleanStr)
+            love.graphics.print(cleanStr, ft.x - tw / 2, ft.y)
+        end
+    end
+
     love.graphics.pop()
 end
 
@@ -4331,7 +4773,101 @@ end
 function love.mousepressed(x, y, button)
     local mx, my = toVirtual(x, y)
 
-    -- 0. Handbook Modal Dismissal
+    -- Track pressed button id for juice animation
+    for _, btn in ipairs(buttons or {}) do
+        if not btn.disabled and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+            juice.buttonPressedId = btn.id
+            break
+        end
+    end
+
+    -- 0. Settings Modal Handling
+    if isSettingsOpen then
+        if button == 1 then
+            for _, btn in ipairs(buttons) do
+                if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+                    if btn.id == "close_settings" then
+                        isSettingsOpen = false
+                        Sound.play("ui_click")
+                        return
+                    elseif btn.id == "setting_voldown" then
+                        settings.sfxVolume = math.max(0, settings.sfxVolume - 0.1)
+                        Sound.setVolume(settings.sfxVolume)
+                        Sound.play("ui_click")
+                        return
+                    elseif btn.id == "setting_volup" then
+                        settings.sfxVolume = math.min(1.0, settings.sfxVolume + 0.1)
+                        Sound.setVolume(settings.sfxVolume)
+                        Sound.play("ui_click")
+                        return
+                    elseif btn.id == "setting_speed" then
+                        settings.fastScoring = not settings.fastScoring
+                        Sound.play("ui_click")
+                        return
+                    elseif btn.id == "setting_fullscreen" then
+                        settings.fullscreen = not settings.fullscreen
+                        love.window.setFullscreen(settings.fullscreen, "desktop")
+                        updateScale()
+                        Sound.play("ui_click")
+                        return
+                    end
+                end
+            end
+            local modalW = 500
+            local modalH = 380
+            local modalX = (V_WIDTH - modalW) / 2
+            local modalY = (V_HEIGHT - modalH) / 2
+            if mx < modalX or mx > modalX + modalW or my < modalY or my > modalY + modalH then
+                isSettingsOpen = false
+                Sound.play("ui_click")
+            end
+            return
+        end
+    end
+
+    -- 0b. Pause Menu Modal Handling
+    if isPauseMenuOpen then
+        if button == 1 then
+            for _, btn in ipairs(buttons) do
+                if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+                    if btn.id == "pause_resume" then
+                        isPauseMenuOpen = false
+                        Sound.play("ui_click")
+                        return
+                    elseif btn.id == "pause_handbook" then
+                        isHandbookOpen = true
+                        Sound.play("ui_click")
+                        return
+                    elseif btn.id == "pause_settings" then
+                        isSettingsOpen = true
+                        Sound.play("ui_click")
+                        return
+                    elseif btn.id == "pause_abandon" then
+                        isPauseMenuOpen = false
+                        state = "menu"
+                        menuMode = "title"
+                        hasRunStarted = false
+                        Sound.play("ui_click")
+                        return
+                    elseif btn.id == "pause_quit" then
+                        love.event.quit()
+                        return
+                    end
+                end
+            end
+            local modalW = 380
+            local modalH = 430
+            local modalX = (V_WIDTH - modalW) / 2
+            local modalY = (V_HEIGHT - modalH) / 2
+            if mx < modalX or mx > modalX + modalW or my < modalY or my > modalY + modalH then
+                isPauseMenuOpen = false
+                Sound.play("ui_click")
+            end
+            return
+        end
+    end
+
+    -- 0c. Handbook Modal Dismissal
     if isHandbookOpen then
         if button == 1 then
             for _, btn in ipairs(buttons) do
@@ -4450,6 +4986,17 @@ function love.mousepressed(x, y, button)
 
     if button ~= 1 then return end
 
+    -- Check in-game Pause Menu button at top right
+    if state ~= "menu" then
+        for _, btn in ipairs(buttons) do
+            if btn.id == "open_pause_menu" and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+                isPauseMenuOpen = true
+                Sound.play("ui_click")
+                return
+            end
+        end
+    end
+
     -- Intercept all clicks when Deck Viewer Modal is open
     if isDeckViewerOpen then
         local modalW = 1180
@@ -4492,18 +5039,58 @@ function love.mousepressed(x, y, button)
     end
 
     if state == "menu" then
-        local cardW = 240
-        local cardH = 370
-        local startX = (V_WIDTH - (4 * cardW + 3 * 24)) / 2
-        local cardY = 140
-        local factionKeys = { "aurelia", "elaris", "vharos", "valoria" }
-
-        for i, fkey in ipairs(factionKeys) do
-            local cx = startX + (i - 1) * (cardW + 24)
-            if mx >= cx and mx <= cx + cardW and my >= cardY and my <= cardY + cardH then
-                startNewGame(fkey)
-                return
+        if menuMode == "title" then
+            for _, btn in ipairs(buttons) do
+                if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+                    if btn.id == "menu_new_run" then
+                        menuMode = "faction_select"
+                        Sound.play("ui_click")
+                        return
+                    elseif btn.id == "menu_continue" and hasRunStarted then
+                        state = lastActiveState or "map"
+                        Sound.play("ui_click")
+                        return
+                    elseif btn.id == "menu_handbook" then
+                        isHandbookOpen = true
+                        Sound.play("ui_click")
+                        return
+                    elseif btn.id == "menu_settings" then
+                        isSettingsOpen = true
+                        Sound.play("ui_click")
+                        return
+                    elseif btn.id == "menu_quit" then
+                        love.event.quit()
+                        return
+                    end
+                end
             end
+            return
+        else -- menuMode == "faction_select"
+            for _, btn in ipairs(buttons) do
+                if btn.id == "back_to_title" and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+                    menuMode = "title"
+                    Sound.play("ui_click")
+                    return
+                elseif btn.id and btn.id:sub(1, 8) == "faction_" and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+                    startNewGame(btn.factionId)
+                    return
+                end
+            end
+
+            local cardW = 240
+            local cardH = 370
+            local startX = (V_WIDTH - (4 * cardW + 3 * 24)) / 2
+            local cardY = 140
+            local factionKeys = { "aurelia", "elaris", "vharos", "valoria" }
+
+            for i, fkey in ipairs(factionKeys) do
+                local cx = startX + (i - 1) * (cardW + 24)
+                if mx >= cx and mx <= cx + cardW and my >= cardY and my <= cardY + cardH then
+                    startNewGame(fkey)
+                    return
+                end
+            end
+            return
         end
 
     elseif state == "map" then
@@ -5022,6 +5609,8 @@ function love.mousepressed(x, y, button)
             if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
                 if btn.id == "retry" then
                     state = "menu"
+                    menuMode = "title"
+                    hasRunStarted = false
                     return
                 end
             end
@@ -5032,7 +5621,8 @@ end
 function love.keypressed(key)
     -- Global Fullscreen Toggle
     if key == "f11" then
-        love.window.setFullscreen(not love.window.getFullscreen())
+        settings.fullscreen = not settings.fullscreen
+        love.window.setFullscreen(settings.fullscreen, "desktop")
         updateScale()
         return
     end
@@ -5051,8 +5641,13 @@ function love.keypressed(key)
         return
     end
 
-    -- Escape closes Inspector, Handbook, Shop Transfer or Deck Viewer
+    -- Escape closes Modals or toggles In-Game Pause Menu
     if key == "escape" then
+        if isSettingsOpen then
+            isSettingsOpen = false
+            Sound.play("ui_click")
+            return
+        end
         if inspectCardModal then
             inspectCardModal = nil
             Sound.play("card_deal")
@@ -5071,6 +5666,17 @@ function love.keypressed(key)
         if isDeckViewerOpen then
             isDeckViewerOpen = false
             Sound.play("card_deal")
+            return
+        end
+        if state == "menu" then
+            if menuMode == "faction_select" then
+                menuMode = "title"
+                Sound.play("ui_click")
+                return
+            end
+        else
+            isPauseMenuOpen = not isPauseMenuOpen
+            Sound.play("ui_click")
             return
         end
     end
@@ -5113,6 +5719,20 @@ end
 
 function love.mousemoved(x, y, dx, dy)
     local mx, my = toVirtual(x, y)
+
+    -- Button hover sound tracking
+    local currentHoveredBtn = nil
+    for _, btn in ipairs(buttons or {}) do
+        if not btn.disabled and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+            currentHoveredBtn = btn.id
+            break
+        end
+    end
+    if currentHoveredBtn and currentHoveredBtn ~= juice.lastHoveredButtonId then
+        Sound.play("ui_hover")
+    end
+    juice.lastHoveredButtonId = currentHoveredBtn
+
     if handDrag.active and handDrag.cardIndex and state == "playing" then
         handDrag.currentX = mx
         handDrag.currentY = my
@@ -5149,10 +5769,19 @@ function love.mousemoved(x, y, dx, dy)
 end
 
 function love.mousereleased(x, y, button)
+    juice.buttonPressedId = nil
     if button == 1 and handDrag.active then
         if not handDrag.isDragging and handDrag.cardIndex then
+            local card = game.hand[handDrag.cardIndex]
+            if card then
+                card.visualScale = 1.15
+            end
             toggleCardSelection(handDrag.cardIndex)
-            Sound.play("card_deal")
+            if card and card.selected then
+                Sound.play("card_select")
+            else
+                Sound.play("card_deselect")
+            end
         elseif handDrag.isDragging then
             Sound.play("card_slide")
         end

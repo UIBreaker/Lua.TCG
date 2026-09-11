@@ -26,14 +26,30 @@ UI.COLORS = {
 
 UI.fonts = {}
 
+function UI.sanitizeText(str)
+    if type(str) ~= "string" then return str end
+    -- Strip UTF-8 variation selectors U+FE0E and U+FE0F that cause tofu squares in Love2D FreeType
+    local s = str:gsub("\239\184\142", ""):gsub("\239\184\143", "")
+    return s
+end
+
 function UI.initFonts()
     local fontPath = "fonts/arial.ttf"
     local function loadFont(size)
         local ok, font = pcall(love.graphics.newFont, fontPath, size)
-        if ok and font then
-            return font
+        if not (ok and font) then
+            font = love.graphics.newFont(size)
         end
-        return love.graphics.newFont(size)
+        -- Setup fallback fonts for symbols & emoji
+        local okSym, symFont = pcall(love.graphics.newFont, "fonts/seguisym.ttf", size)
+        local okEmj, emjFont = pcall(love.graphics.newFont, "C:/Windows/Fonts/seguiemj.ttf", size)
+        local fallbacks = {}
+        if okSym and symFont then table.insert(fallbacks, symFont) end
+        if okEmj and emjFont then table.insert(fallbacks, emjFont) end
+        if #fallbacks > 0 and font.setFallbacks then
+            pcall(function() font:setFallbacks(unpack(fallbacks)) end)
+        end
+        return font
     end
 
     UI.fonts.tiny = loadFont(12)
@@ -192,14 +208,39 @@ function UI.drawSuitSymbol(suit, cx, cy, size, customColor)
     love.graphics.pop()
 end
 
-function UI.drawButton(btn, isHovered)
+function UI.drawButton(btn, isHovered, isPressed)
+    btn.animScale = btn.animScale or 1.0
+    local targetScale = 1.0
+    if btn.disabled then
+        targetScale = 1.0
+    elseif isPressed then
+        targetScale = 0.94
+    elseif isHovered then
+        targetScale = 1.04
+    end
+    btn.animScale = btn.animScale + (targetScale - btn.animScale) * 0.25
+
+    local cx = btn.x + btn.w / 2
+    local cy = btn.y + btn.h / 2
+
+    love.graphics.push()
+    love.graphics.translate(cx, cy)
+    love.graphics.scale(btn.animScale, btn.animScale)
+    love.graphics.translate(-cx, -cy)
+
     local col = btn.color or UI.COLORS.btnNormal
     if btn.disabled then
         love.graphics.setColor(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.7)
     elseif isHovered then
-        love.graphics.setColor(math.min(1, col[1] * 1.2), math.min(1, col[2] * 1.2), math.min(1, col[3] * 1.2), 1)
+        love.graphics.setColor(math.min(1, col[1] * 1.25), math.min(1, col[2] * 1.25), math.min(1, col[3] * 1.25), 1)
     else
         love.graphics.setColor(col[1], col[2], col[3], col[4] or 1)
+    end
+
+    if isHovered and not btn.disabled then
+        love.graphics.setColor(0, 0, 0, 0.35)
+        UI.drawRoundedRect("fill", btn.x + 2, btn.y + 4, btn.w, btn.h, 8)
+        love.graphics.setColor(math.min(1, col[1] * 1.25), math.min(1, col[2] * 1.25), math.min(1, col[3] * 1.25), 1)
     end
 
     UI.drawRoundedRect("fill", btn.x, btn.y, btn.w, btn.h, 8)
@@ -207,7 +248,7 @@ function UI.drawButton(btn, isHovered)
     -- Border
     love.graphics.setLineWidth(2)
     if isHovered and not btn.disabled then
-        love.graphics.setColor(1, 1, 1, 0.9)
+        love.graphics.setColor(1, 1, 1, 0.95)
     else
         love.graphics.setColor(0, 0, 0, 0.35)
     end
@@ -221,9 +262,12 @@ function UI.drawButton(btn, isHovered)
     else
         love.graphics.setColor(1, 1, 1, 1)
     end
-    local textW = font:getWidth(btn.text)
+    local cleanText = UI.sanitizeText(btn.text or "")
+    local textW = font:getWidth(cleanText)
     local textH = font:getHeight()
-    love.graphics.print(btn.text, btn.x + (btn.w - textW) / 2, btn.y + (btn.h - textH) / 2)
+    love.graphics.print(cleanText, btn.x + (btn.w - textW) / 2, btn.y + (btn.h - textH) / 2)
+
+    love.graphics.pop()
 end
 
 function UI.drawCard(card, x, y, w, h)
@@ -232,8 +276,9 @@ function UI.drawCard(card, x, y, w, h)
     if card.rotation and card.rotation ~= 0 then
         love.graphics.rotate(card.rotation)
     end
-    local sx = card.scaleX or card.scale or 1
-    local sy = card.scaleY or card.scale or 1
+    local s = card.visualScale or 1
+    local sx = (card.scaleX or card.scale or 1) * s
+    local sy = (card.scaleY or card.scale or 1) * s
     love.graphics.scale(sx, sy)
     love.graphics.translate(-w / 2, -h / 2)
 
@@ -530,7 +575,7 @@ function UI.drawCardHoverBadge(card, cx, cy, cardW, cardH)
     local sColor = UI.COLORS[card.suit] or UI.COLORS.goldYellow
     love.graphics.setColor(sColor)
     local suitShort = (card.suit == "aurelia") and "Thánh" or ((card.suit == "elaris") and "Mộc" or ((card.suit == "vharos") and "Quỷ" or "Thép"))
-    local titleStr = card.rankName .. " " .. card.suitSymbol .. " " .. suitShort
+    local titleStr = UI.sanitizeText(card.rankName .. " " .. (card.suitSymbol or "") .. " (" .. suitShort .. ")")
     love.graphics.printf(titleStr, bx, by + 4, bw, "center")
 
     -- Divider

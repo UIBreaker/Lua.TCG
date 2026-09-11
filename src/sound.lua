@@ -102,12 +102,43 @@ function Sound.init()
             local chime = math.sin(2 * math.pi * note * t) + 0.35 * math.sin(2 * math.pi * note * 2 * t)
             return env * 0.55 * chime
         end)
+
+        -- 10. UI Button Hover (Subtle soft blip)
+        sounds.ui_hover = generateSound(0.025, rate, function(t, d)
+            local env = (1 - t / d) ^ 2
+            local freq = 620 + (t / d) * 180
+            return env * 0.18 * math.sin(2 * math.pi * freq * t)
+        end)
+
+        -- 11. UI Button Click (Snappy tactile mechanical click)
+        sounds.ui_click = generateSound(0.04, rate, function(t, d)
+            local env = math.exp(-t * 45)
+            local click = (love.math.random() * 2 - 1) * math.exp(-t * 60) * 0.3
+            local tone = math.sin(2 * math.pi * 840 * t) * 0.7
+            return env * 0.45 * (tone + click)
+        end)
     end)
 
     if not success then
         print("[Sound] Init warning: audio synthesizer disabled (" .. tostring(err) .. ")")
         enabled = false
     end
+end
+
+local masterVolume = 0.8
+if love.audio and love.audio.setVolume then
+    love.audio.setVolume(masterVolume)
+end
+
+function Sound.setVolume(vol)
+    masterVolume = math.max(0, math.min(1.0, vol or 0.8))
+    if love.audio and love.audio.setVolume then
+        love.audio.setVolume(masterVolume)
+    end
+end
+
+function Sound.getVolume()
+    return masterVolume
 end
 
 function Sound.play(name, pitch)

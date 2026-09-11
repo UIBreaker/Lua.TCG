@@ -552,6 +552,22 @@ testHand[2], testHand[3] = testHand[3], testHand[2]
 assert(testHand[1].rank == 5 and testHand[2].rank == 10 and testHand[3].rank == 2, "Hand swap 2 & 3 verified: [5, 10, 2]")
 log("[PASS] 33. Hand Drag Reordering verified: cards swap indices cleanly without data loss")
 
+-- 34. Test Text Sanitization, Audio Volume, and Settings Structure
+local Sound = require("src.sound")
+local dirtyStr = "Chiến Thần\239\184\143 Vĩ Đại\239\184\142!"
+local cleanStr = UI.sanitizeText(dirtyStr)
+assert(cleanStr == "Chiến Thần Vĩ Đại!", "UI.sanitizeText must strip invisible unicode variation selectors FE0F and FE0E")
+
+Sound.setVolume(0.5)
+assert(math.abs(Sound.getVolume() - 0.5) < 0.01, "Sound.setVolume / getVolume sets volume to 0.5")
+Sound.setVolume(1.5)
+assert(Sound.getVolume() == 1.0, "Sound.setVolume clamps max volume to 1.0")
+Sound.setVolume(-0.2)
+assert(Sound.getVolume() == 0.0, "Sound.setVolume clamps min volume to 0.0")
+Sound.setVolume(0.8) -- Reset to default
+
+log("[PASS] 34. Text Sanitization (variation selector stripping) & Audio Volume Clamping verified")
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then
