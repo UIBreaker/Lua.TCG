@@ -117,6 +117,50 @@ function Sound.init()
             local tone = math.sin(2 * math.pi * 840 * t) * 0.7
             return env * 0.45 * (tone + click)
         end)
+
+        -- 12. Shop Buy (Crystal coin chimes + paper grab snap)
+        sounds.shop_buy = generateSound(0.38, rate, function(t, d)
+            local env = math.exp(-t * 12)
+            -- Ascending bell arpeggio notes
+            local note = 1318.51 -- E6
+            if t > 0.18 then note = 2637.02 -- E7
+            elseif t > 0.11 then note = 1975.53 -- B6
+            elseif t > 0.05 then note = 1661.22 -- G#6
+            end
+            local bell = math.sin(2 * math.pi * note * t) + 0.4 * math.sin(2 * math.pi * note * 2.75 * t)
+            local grabSnap = (t < 0.04) and ((love.math.random() * 2 - 1) * 0.35) or 0
+            return env * 0.5 * bell + grabSnap
+        end)
+
+        -- 13. Shop Reroll (Crisp card riffle shuffle & deck slide)
+        sounds.shop_reroll = generateSound(0.26, rate, function(t, d)
+            local progress = t / d
+            local env = math.sin(progress * math.pi) ^ 0.7
+            -- Rapid riffle tick bursts
+            local tickPhase = (t * 65) % 1.0
+            local tick = (tickPhase < 0.3) and 1.0 or 0.15
+            local noise = (love.math.random() * 2 - 1) * tick
+            local freq = 380 + progress * 720
+            local swoosh = math.sin(2 * math.pi * freq * t) * 0.4
+            return env * 0.5 * (noise * 0.6 + swoosh * 0.4)
+        end)
+
+        -- 14. Can't Afford (Dull error thock)
+        sounds.cant_afford = generateSound(0.12, rate, function(t, d)
+            local env = math.exp(-t * 32)
+            local freq = 160 - (t / d) * 70
+            local thock = math.sin(2 * math.pi * freq * t) + 0.3 * math.sin(2 * math.pi * (freq * 0.5) * t)
+            return env * 0.45 * thock
+        end)
+
+        -- 15. Booster Pack Open (Foil tear + magic shimmer)
+        sounds.pack_open = generateSound(0.42, rate, function(t, d)
+            local env = math.exp(-t * 9)
+            local tearNoise = (t < 0.09) and ((love.math.random() * 2 - 1) * (1 - t / 0.09)) or 0
+            local shimmerFreq = 1200 + (t / d) * 1600
+            local shimmer = math.sin(2 * math.pi * shimmerFreq * t) * 0.5 + 0.25 * math.sin(2 * math.pi * (shimmerFreq * 1.5) * t)
+            return env * 0.45 * (tearNoise * 0.7 + shimmer * 0.5)
+        end)
     end)
 
     if not success then

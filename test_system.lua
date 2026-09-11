@@ -568,6 +568,57 @@ Sound.setVolume(0.8) -- Reset to default
 
 log("[PASS] 34. Text Sanitization (variation selector stripping) & Audio Volume Clamping verified")
 
+-- 35. Test Balatro Shop Structure, Incremental Reroll Cost, and Pack Opening
+local testShop = Shop.new()
+assert(testShop.rerollCost == 5, "Initial shop reroll cost must be $5")
+
+local testGs = { gold = 20, unlockedHands = { high_card = true }, deities = {} }
+Shop.refresh(testShop, testGs)
+
+local hasUpper = false
+local hasVoucher = false
+local hasPack = false
+for _, it in ipairs(testShop.items) do
+    if it.section == "upper" then hasUpper = true end
+    if it.section == "lower_voucher" or it.category == "book" then hasVoucher = true end
+    if it.section == "lower_pack" or it.category == "pack" then hasPack = true end
+end
+assert(hasUpper, "Shop must generate upper section cards (Deity, Equipment, Card)")
+assert(hasVoucher, "Shop must generate lower voucher / skill book card")
+assert(hasPack, "Shop must generate lower booster packs")
+
+-- Test incremental reroll cost
+assert(testShop.rerollCost == 5, "Reroll cost starts at 5")
+local rerollOk = Shop.reroll(testShop, testGs)
+assert(rerollOk == true, "Reroll must succeed with $20 gold")
+assert(testShop.rerollCost == 6, "Reroll cost must increase to $6 after 1st reroll")
+assert(testGs.gold == 15, "Gold must be deducted by $5")
+
+Shop.reroll(testShop, testGs)
+assert(testShop.rerollCost == 7, "Reroll cost must increase to $7 after 2nd reroll")
+assert(testGs.gold == 9, "Gold must be deducted by $6 (15 - 6 = 9)")
+
+-- Test reset reroll
+Shop.resetReroll(testShop)
+assert(testShop.rerollCost == 5, "Shop.resetReroll must reset reroll cost back to $5")
+
+-- Test pack opening
+local buffoonPack = { packType = "buffoon", name = "Gói Thần Bài" }
+local packRes = Shop.openPack(buffoonPack, testGs)
+assert(packRes.cards and #packRes.cards == 3, "Buffoon pack must open 3 deity candidates")
+
+local standardPack = { packType = "standard", name = "Gói Quân Bài" }
+local stdRes = Shop.openPack(standardPack, testGs)
+assert(stdRes.cards and #stdRes.cards == 3, "Standard pack must open 3 card candidates")
+
+-- Test sound triggers
+Sound.play("shop_buy")
+Sound.play("shop_reroll")
+Sound.play("cant_afford")
+Sound.play("pack_open")
+
+log("[PASS] 35. Balatro Shop Structure (Upper/Voucher/Packs), Incremental Reroll ($5 -> $6 -> $7 -> reset $5), & Pack Opening verified")
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then

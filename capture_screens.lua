@@ -62,13 +62,15 @@ function Capture.update(gameRef, callbacks)
     elseif frame == 64 then
         callbacks.closeHandbook()
         callbacks.openShop()
+
+    elseif frame == 68 then
         saveImage("shot_shop.png")
 
-    elseif frame == 72 then
+    elseif frame == 76 then
         callbacks.openShopTransfer()
         saveImage("shot_shop_transfer.png")
 
-    elseif frame == 82 then
+    elseif frame == 86 then
         callbacks.closeShopTransfer()
         callbacks.openRest()
         saveImage("shot_rest.png")
