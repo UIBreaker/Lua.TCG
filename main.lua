@@ -32,6 +32,17 @@ local scale = 1
 local offsetX = 0
 local offsetY = 0
 
+-- Graphics Pipeline: Canvas & Shaders
+local mainCanvas = nil
+local bgShader = nil
+local crtShader = nil
+
+local bgCurrentColors = {
+    a = { 0.06, 0.16, 0.12 },
+    b = { 0.10, 0.32, 0.22 },
+    c = { 0.18, 0.48, 0.30 },
+}
+
 -- Run data
 local game = {
     selectedSuit = "hearts",
@@ -106,6 +117,43 @@ local settings = {
     sfxVolume = 0.8,
     fastScoring = false,
     fullscreen = false,
+    crtEnabled = true,
+}
+
+-- Shop Drag & Drop State
+local shopDrag = {
+    active = false,
+    isDragging = false,
+    itemIndex = nil,
+    item = nil,
+    startX = 0,
+    startY = 0,
+    currentX = 0,
+    currentY = 0,
+    visualX = 0,
+    visualY = 0,
+    origX = 0,
+    origY = 0,
+    cardW = 124,
+    cardH = 186,
+    tiltX = 0,
+    tiltY = 0,
+    category = nil,
+}
+
+-- Top Bar Deity Drag & Drop State (Reordering)
+local deityDrag = {
+    active = false,
+    isDragging = false,
+    deityIndex = nil,
+    startX = 0,
+    startY = 0,
+    currentX = 0,
+    currentY = 0,
+    visualX = 0,
+    visualY = 0,
+    origX = 0,
+    origY = 0,
 }
 
 -- Micro-Animation & Juice System
@@ -836,6 +884,105 @@ local function generateBossChestRewards()
 end
 
 --------------------------------------------------------------------------------
+-- SHADERS & CANVAS PIPELINE
+--------------------------------------------------------------------------------
+
+local bgShaderCode = [[
+extern number u_time;
+extern vec2 u_resolution;
+extern vec3 u_color_a;
+extern vec3 u_color_b;
+extern vec3 u_color_c;
+
+vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
+    vec2 uv = screen_coords / u_resolution;
+    vec2 p = uv * 2.0 - 1.0;
+    p.x *= u_resolution.x / u_resolution.y;
+
+    number t = u_time * 0.35;
+    vec2 q = vec2(
+        sin(p.x * 2.2 + t + sin(p.y * 1.8 - t * 0.5)),
+        cos(p.y * 2.0 - t * 0.8 + cos(p.x * 1.6 + t * 0.4))
+    );
+    vec2 r = vec2(
+        sin(q.x * 3.1 + p.y * 1.5 + t * 0.7),
+        cos(q.y * 2.8 + p.x * 1.4 - t * 0.6)
+    );
+
+    number f = 0.5 + 0.5 * sin(r.x * 3.0 + r.y * 3.0 + t);
+    number f2 = 0.5 + 0.5 * cos(length(q) * 4.0 - t * 1.2);
+
+    vec3 col = mix(u_color_a, u_color_b, clamp(f * 1.2 - 0.1, 0.0, 1.0));
+    col = mix(col, u_color_c, clamp(pow(f2, 3.0) * 0.6, 0.0, 1.0));
+
+    number vignette = clamp(1.0 - length(p * 0.45) * 0.65, 0.0, 1.0);
+    col *= vignette;
+
+    return vec4(col, 1.0) * color;
+}
+]]
+
+local crtShaderCode = [[
+extern vec2 u_resolution;
+extern number u_time;
+extern number u_curvature;
+extern number u_chroma;
+extern number u_scanlines;
+extern number u_vignette;
+
+vec2 curveUV(vec2 uv) {
+    uv = uv * 2.0 - 1.0;
+    vec2 offset = abs(uv.yx) / vec2(6.0, 4.5);
+    uv = uv + uv * offset * offset * (u_curvature / 0.05);
+    return uv * 0.5 + 0.5;
+}
+
+vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
+    vec2 uv = texture_coords;
+    vec2 curved_uv = curveUV(uv);
+
+    if (curved_uv.x < 0.0 || curved_uv.x > 1.0 || curved_uv.y < 0.0 || curved_uv.y > 1.0) {
+        return vec4(0.012, 0.012, 0.018, 1.0);
+    }
+
+    vec2 distFromCenter = curved_uv - 0.5;
+    number aberration = length(distFromCenter) * u_chroma;
+
+    number r = Texel(texture, curved_uv + distFromCenter * aberration).r;
+    number g = Texel(texture, curved_uv).g;
+    number b = Texel(texture, curved_uv - distFromCenter * aberration).b;
+    vec3 sceneColor = vec3(r, g, b);
+
+    number scanline = sin(curved_uv.y * u_resolution.y * 3.14159265);
+    scanline = 1.0 - (1.0 - scanline * 0.5 - 0.5) * u_scanlines;
+    sceneColor *= scanline;
+
+    number roll = sin(curved_uv.y * 18.0 - u_time * 6.0) * 0.012;
+    sceneColor += roll;
+
+    number vig = curved_uv.x * curved_uv.y * (1.0 - curved_uv.x) * (1.0 - curved_uv.y);
+    number vignetteAmount = clamp(pow(16.0 * vig, u_vignette), 0.0, 1.0);
+    sceneColor *= vignetteAmount;
+
+    return vec4(sceneColor, 1.0) * color;
+}
+]]
+
+local function initShadersAndCanvas()
+    if love.graphics and love.graphics.newCanvas then
+        mainCanvas = love.graphics.newCanvas(V_WIDTH, V_HEIGHT)
+        mainCanvas:setFilter("nearest", "nearest")
+    end
+    if love.graphics and love.graphics.newShader then
+        local okBg, shaderBg = pcall(love.graphics.newShader, bgShaderCode)
+        if okBg then bgShader = shaderBg end
+
+        local okCrt, shaderCrt = pcall(love.graphics.newShader, crtShaderCode)
+        if okCrt then crtShader = shaderCrt end
+    end
+end
+
+--------------------------------------------------------------------------------
 -- LÖVE Callbacks
 --------------------------------------------------------------------------------
 
@@ -843,6 +990,7 @@ function love.load()
     UI.initFonts()
     Sound.init()
     updateScale()
+    initShadersAndCanvas()
     shopData = Shop.new()
 end
 
@@ -1053,6 +1201,67 @@ function love.update(dt)
             c.visualY = handDrag.currentY + handDrag.offsetY - 26
             c.rotation = math.max(-0.25, math.min(0.25, (handDrag.currentX - handDrag.startX) * 0.0015))
         end
+    end
+
+    -- Smooth background shader color interpolation based on active state / blind
+    local targetA, targetB, targetC
+    if state == "shop" then
+        targetA = { 0.11, 0.06, 0.18 }
+        targetB = { 0.22, 0.10, 0.32 }
+        targetC = { 0.55, 0.32, 0.12 }
+    elseif (state == "playing" or state == "scoring") and game.monster and game.monster.isBoss then
+        targetA = { 0.18, 0.04, 0.06 }
+        targetB = { 0.38, 0.08, 0.10 }
+        targetC = { 0.70, 0.15, 0.15 }
+    elseif state == "playing" or state == "scoring" then
+        targetA = { 0.05, 0.16, 0.11 }
+        targetB = { 0.10, 0.32, 0.22 }
+        targetC = { 0.18, 0.48, 0.30 }
+    else
+        targetA = { 0.06, 0.08, 0.14 }
+        targetB = { 0.12, 0.15, 0.24 }
+        targetC = { 0.25, 0.35, 0.50 }
+    end
+
+    local colLerp = math.min(1.0, dt * 4.0)
+    for i = 1, 3 do
+        bgCurrentColors.a[i] = bgCurrentColors.a[i] + (targetA[i] - bgCurrentColors.a[i]) * colLerp
+        bgCurrentColors.b[i] = bgCurrentColors.b[i] + (targetB[i] - bgCurrentColors.b[i]) * colLerp
+        bgCurrentColors.c[i] = bgCurrentColors.c[i] + (targetC[i] - bgCurrentColors.c[i]) * colLerp
+    end
+
+    -- Update tilt for hand cards
+    if state == "playing" and game.hand and #game.hand > 0 then
+        local mx, my = toVirtual(love.mouse.getPosition())
+        local cardW = 95
+        local cardH = 142
+        for i, c in ipairs(game.hand) do
+            local cx = c.visualX or 0
+            local cy = c.visualY or 0
+            local targetTiltX, targetTiltY = 0, 0
+            if c.hovered or (handDrag.active and handDrag.cardIndex == i) then
+                targetTiltX, targetTiltY = UI.calculateTilt(mx, my, cx, cy, cardW, cardH)
+            end
+            c.tiltX = (c.tiltX or 0) + (targetTiltX - (c.tiltX or 0)) * math.min(1.0, dt * 16)
+            c.tiltY = (c.tiltY or 0) + (targetTiltY - (c.tiltY or 0)) * math.min(1.0, dt * 16)
+        end
+    end
+
+    -- Update shop card drag position & tilt
+    if shopDrag.active and shopDrag.isDragging then
+        shopDrag.visualX = shopDrag.currentX - shopDrag.cardW / 2
+        shopDrag.visualY = shopDrag.currentY - shopDrag.cardH / 2
+        local mx, my = toVirtual(love.mouse.getPosition())
+        local tX, tY = UI.calculateTilt(mx, my, shopDrag.visualX, shopDrag.visualY, shopDrag.cardW, shopDrag.cardH)
+        shopDrag.tiltX = (shopDrag.tiltX or 0) + (tX - (shopDrag.tiltX or 0)) * math.min(1.0, dt * 16)
+        shopDrag.tiltY = (shopDrag.tiltY or 0) + (tY - (shopDrag.tiltY or 0)) * math.min(1.0, dt * 16)
+        shopDrag.rotation = math.max(-0.2, math.min(0.2, (shopDrag.currentX - shopDrag.startX) * 0.0015))
+    end
+
+    -- Update deity drag position
+    if deityDrag.active and deityDrag.isDragging then
+        deityDrag.visualX = deityDrag.currentX - 49
+        deityDrag.visualY = deityDrag.currentY - 37
     end
 
     -- Smoothly update spark particles
@@ -4135,7 +4344,7 @@ local function drawSettingsModal()
 
     local mx, my = toVirtual(love.mouse.getPosition())
     local modalW = 500
-    local modalH = 380
+    local modalH = 430
     local modalX = (V_WIDTH - modalW) / 2
     local modalY = (V_HEIGHT - modalH) / 2
 
@@ -4152,7 +4361,7 @@ local function drawSettingsModal()
     love.graphics.printf("CÀI ĐẶT TRÒ CHƠI", modalX, modalY + 24, modalW, "center")
 
     -- 1. SFX Volume Option
-    local row1Y = modalY + 85
+    local row1Y = modalY + 80
     love.graphics.setFont(UI.fonts.regular)
     love.graphics.setColor(UI.COLORS.textLight)
     love.graphics.print("Âm Lượng Hiệu Ứng (SFX):", modalX + 35, row1Y + 6)
@@ -4170,7 +4379,7 @@ local function drawSettingsModal()
     love.graphics.printf(volPct, modalX + 340, row1Y + 7, 70, "center")
 
     -- 2. Fast Scoring Speed Option
-    local row2Y = modalY + 145
+    local row2Y = modalY + 138
     love.graphics.setFont(UI.fonts.regular)
     love.graphics.setColor(UI.COLORS.textLight)
     love.graphics.print("Tốc Độ Tính Điểm:", modalX + 35, row2Y + 6)
@@ -4181,7 +4390,7 @@ local function drawSettingsModal()
     UI.drawButton(btnSpeed, mx >= btnSpeed.x and mx <= btnSpeed.x + btnSpeed.w and my >= btnSpeed.y and my <= btnSpeed.y + btnSpeed.h, juice.buttonPressedId == btnSpeed.id)
 
     -- 3. Fullscreen Option
-    local row3Y = modalY + 205
+    local row3Y = modalY + 196
     love.graphics.setFont(UI.fonts.regular)
     love.graphics.setColor(UI.COLORS.textLight)
     love.graphics.print("Chế Độ Hiển Thị:", modalX + 35, row3Y + 6)
@@ -4191,8 +4400,19 @@ local function drawSettingsModal()
     table.insert(buttons, btnFs)
     UI.drawButton(btnFs, mx >= btnFs.x and mx <= btnFs.x + btnFs.w and my >= btnFs.y and my <= btnFs.y + btnFs.h, juice.buttonPressedId == btnFs.id)
 
+    -- 4. CRT Retro Filter Option
+    local row4Y = modalY + 254
+    love.graphics.setFont(UI.fonts.regular)
+    love.graphics.setColor(UI.COLORS.textLight)
+    love.graphics.print("Bộ Lọc CRT Retro:", modalX + 35, row4Y + 6)
+
+    local crtText = settings.crtEnabled and "BẬT (Retro CRT)" or "TẮT (Sắc Nét)"
+    local btnCrt = { id = "setting_crt", text = crtText, x = modalX + 300, y = row4Y, w = 150, h = 34, color = settings.crtEnabled and UI.COLORS.btnPlay or UI.COLORS.btnNormal, font = UI.fonts.small }
+    table.insert(buttons, btnCrt)
+    UI.drawButton(btnCrt, mx >= btnCrt.x and mx <= btnCrt.x + btnCrt.w and my >= btnCrt.y and my <= btnCrt.y + btnCrt.h, juice.buttonPressedId == btnCrt.id)
+
     -- Close Button
-    local btnClose = { id = "close_settings", text = "LƯU & ĐÓNG", x = modalX + (modalW - 180) / 2, y = modalY + modalH - 58, w = 180, h = 42, color = UI.COLORS.btnPlay, font = UI.fonts.regular }
+    local btnClose = { id = "close_settings", text = "LƯU & ĐÓNG", x = modalX + (modalW - 180) / 2, y = modalY + modalH - 52, w = 180, h = 40, color = UI.COLORS.btnPlay, font = UI.fonts.regular }
     table.insert(buttons, btnClose)
     UI.drawButton(btnClose, mx >= btnClose.x and mx <= btnClose.x + btnClose.w and my >= btnClose.y and my <= btnClose.y + btnClose.h, juice.buttonPressedId == btnClose.id)
 end
@@ -4444,8 +4664,25 @@ local function drawShopState()
         local sx = deiStartX + (i - 1) * (deiSlotW + deiGap)
         local sy = hy + 18
         local d = game.deities and game.deities[i]
-        if d then
+        local isDeiDragged = (deityDrag.active and deityDrag.isDragging and deityDrag.deityIndex == i)
+
+        if isDeiDragged then
+            love.graphics.setColor(0.20, 0.25, 0.32, 0.4)
+            UI.drawRoundedRect("line", sx, sy, deiSlotW, deiSlotH, 6)
+        elseif d then
             local isDeiHovered = (mx >= sx and mx <= sx + deiSlotW and my >= sy and my <= sy + deiSlotH)
+            local tX, tY = 0, 0
+            if isDeiHovered then
+                tX, tY = UI.calculateTilt(mx, my, sx, sy, deiSlotW, deiSlotH)
+            end
+
+            love.graphics.push()
+            love.graphics.translate(sx + deiSlotW / 2, sy + deiSlotH / 2)
+            if isDeiHovered then
+                love.graphics.shear(tX * 0.08, tY * 0.08)
+            end
+            love.graphics.translate(-deiSlotW / 2, -deiSlotH / 2)
+
             love.graphics.setColor(0.16, 0.20, 0.26, 0.95)
             UI.drawRoundedRect("fill", sx, sy, deiSlotW, deiSlotH, 6)
             love.graphics.setColor(isDeiHovered and UI.COLORS.goldYellow or { 0.45, 0.55, 0.70, 0.8 })
@@ -4469,6 +4706,21 @@ local function drawShopState()
             }
             table.insert(buttons, btnSell)
             UI.drawButton(btnSell, mx >= btnSell.x and mx <= btnSell.x + btnSell.w and my >= btnSell.y and my <= btnSell.y + btnSell.h, juice.buttonPressedId == btnSell.id)
+
+            -- Drag button covering the card body
+            local btnDei = {
+                id = "deity_" .. i,
+                text = "",
+                x = sx,
+                y = sy,
+                w = deiSlotW,
+                h = deiSlotH - 26,
+                invisible = true,
+                deityIndex = i,
+            }
+            table.insert(buttons, btnDei)
+
+            love.graphics.pop()
 
             if isDeiHovered and not (mx >= btnSell.x and mx <= btnSell.x + btnSell.w and my >= btnSell.y and my <= btnSell.y + btnSell.h) then
                 hoveredShopItem = {
@@ -4591,73 +4843,93 @@ local function drawShopState()
 
         local isCardHovered = (mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH)
         local drawY = isCardHovered and (cy - 12) or cy
+        local isDragged = (shopDrag.active and shopDrag.isDragging and shopDrag.itemIndex == gIdx)
 
-        -- Floating Price Tag Pill above card
-        local priceTagW = 54
-        local priceTagH = 22
-        local priceTagX = cx + (cardW - priceTagW) / 2
-        local priceTagY = drawY - 26
-        love.graphics.setColor(0.18, 0.14, 0.06, 0.98)
-        UI.drawRoundedRect("fill", priceTagX, priceTagY, priceTagW, priceTagH, 4)
-        love.graphics.setColor(UI.COLORS.goldYellow)
-        UI.drawRoundedRect("line", priceTagX, priceTagY, priceTagW, priceTagH, 4)
-        love.graphics.setFont(UI.fonts.small)
-        love.graphics.setColor(UI.COLORS.goldYellow)
-        love.graphics.printf("$" .. it.cost, priceTagX, priceTagY + 2, priceTagW, "center")
+        if isDragged then
+            love.graphics.setColor(0.24, 0.30, 0.38, 0.45)
+            UI.drawRoundedRect("line", cx, cy, cardW, cardH, 8)
+        else
+            local tX, tY = 0, 0
+            if isCardHovered then
+                tX, tY = UI.calculateTilt(mx, my, cx, drawY, cardW, cardH)
+            end
 
-        -- Card Soft Drop Shadow
-        if isCardHovered then
-            love.graphics.setColor(0, 0, 0, 0.4)
-            UI.drawRoundedRect("fill", cx - 4, drawY + 8, cardW + 8, cardH, 8)
-        end
+            love.graphics.push()
+            love.graphics.translate(cx + cardW / 2, drawY + cardH / 2)
+            if isCardHovered then
+                love.graphics.shear(tX * 0.10, tY * 0.10)
+            end
+            love.graphics.translate(-cardW / 2, -cardH / 2)
 
-        -- Card Body
-        local cardColor = it.color or { 0.95, 0.85, 0.35, 1 }
-        love.graphics.setColor(0.18, 0.22, 0.28, 0.98)
-        UI.drawRoundedRect("fill", cx, drawY, cardW, cardH, 8)
-        love.graphics.setColor(isCardHovered and UI.COLORS.goldYellow or { cardColor[1] * 0.7, cardColor[2] * 0.7, cardColor[3] * 0.7, 0.8 })
-        love.graphics.setLineWidth(isCardHovered and 2.5 or 1.5)
-        UI.drawRoundedRect("line", cx, drawY, cardW, cardH, 8)
+            -- Floating Price Tag Pill above card
+            local priceTagW = 54
+            local priceTagH = 22
+            local priceTagX = (cardW - priceTagW) / 2
+            local priceTagY = -26
+            love.graphics.setColor(0.18, 0.14, 0.06, 0.98)
+            UI.drawRoundedRect("fill", priceTagX, priceTagY, priceTagW, priceTagH, 4)
+            love.graphics.setColor(UI.COLORS.goldYellow)
+            UI.drawRoundedRect("line", priceTagX, priceTagY, priceTagW, priceTagH, 4)
+            love.graphics.setFont(UI.fonts.small)
+            love.graphics.setColor(UI.COLORS.goldYellow)
+            love.graphics.printf("$" .. it.cost, priceTagX, priceTagY + 2, priceTagW, "center")
 
-        -- Top subtitle banner
-        love.graphics.setFont(UI.fonts.tiny)
-        love.graphics.setColor(cardColor)
-        love.graphics.printf(it.subtitle or "THẺ BÀI", cx + 4, drawY + 8, cardW - 8, "center")
+            -- Card Soft Drop Shadow
+            if isCardHovered then
+                love.graphics.setColor(0, 0, 0, 0.4)
+                UI.drawRoundedRect("fill", -4 + tX * 8, 8 + tY * 8, cardW + 8, cardH, 8)
+            end
 
-        -- Card Icon / Art
-        love.graphics.setFont(UI.fonts.large)
-        love.graphics.printf(it.icon or "🃏", cx, drawY + 40, cardW, "center")
+            -- Card Body
+            local cardColor = it.color or { 0.95, 0.85, 0.35, 1 }
+            love.graphics.setColor(0.18, 0.22, 0.28, 0.98)
+            UI.drawRoundedRect("fill", 0, 0, cardW, cardH, 8)
+            love.graphics.setColor(isCardHovered and UI.COLORS.goldYellow or { cardColor[1] * 0.7, cardColor[2] * 0.7, cardColor[3] * 0.7, 0.8 })
+            love.graphics.setLineWidth(isCardHovered and 2.5 or 1.5)
+            UI.drawRoundedRect("line", 0, 0, cardW, cardH, 8)
 
-        -- Card Title
-        love.graphics.setFont(UI.fonts.small)
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.printf(it.name or "Vật Phẩm", cx + 4, drawY + 85, cardW - 8, "center")
+            -- Top subtitle banner
+            love.graphics.setFont(UI.fonts.tiny)
+            love.graphics.setColor(cardColor)
+            love.graphics.printf(it.subtitle or "THẺ BÀI", 4, 8, cardW - 8, "center")
 
-        -- Bottom effect bar
-        love.graphics.setColor(0.12, 0.15, 0.19, 0.9)
-        UI.drawRoundedRect("fill", cx + 6, drawY + cardH - 46, cardW - 12, 38, 4)
-        love.graphics.setFont(UI.fonts.tiny)
-        love.graphics.setColor(UI.COLORS.textLight)
-        local shortDesc = it.desc or ""
-        if #shortDesc > 38 then shortDesc = shortDesc:sub(1, 35) .. "..." end
-        love.graphics.printf(shortDesc, cx + 8, drawY + cardH - 42, cardW - 16, "center")
+            -- Card Icon / Art
+            love.graphics.setFont(UI.fonts.large)
+            love.graphics.printf(it.icon or "🃏", 0, 40, cardW, "center")
 
-        -- Buy button covering the card
-        local btnCard = {
-            id = "buy_" .. gIdx,
-            text = "",
-            x = cx,
-            y = drawY - 26,
-            w = cardW,
-            h = cardH + 26,
-            invisible = true,
-            itemIndex = gIdx,
-        }
-        table.insert(buttons, btnCard)
+            -- Card Title
+            love.graphics.setFont(UI.fonts.small)
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.printf(it.name or "Vật Phẩm", 4, 85, cardW - 8, "center")
 
-        if isCardHovered then
-            hoveredShopItem = it
-            hoveredItemPos = { x = cx + cardW + 12, y = drawY - 10 }
+            -- Bottom effect bar
+            love.graphics.setColor(0.12, 0.15, 0.19, 0.9)
+            UI.drawRoundedRect("fill", 6, cardH - 46, cardW - 12, 38, 4)
+            love.graphics.setFont(UI.fonts.tiny)
+            love.graphics.setColor(UI.COLORS.textLight)
+            local shortDesc = it.desc or ""
+            if #shortDesc > 38 then shortDesc = shortDesc:sub(1, 35) .. "..." end
+            love.graphics.printf(shortDesc, 8, cardH - 42, cardW - 16, "center")
+
+            love.graphics.pop()
+
+            -- Buy button covering the card
+            local btnCard = {
+                id = "buy_" .. gIdx,
+                text = "",
+                x = cx,
+                y = drawY - 26,
+                w = cardW,
+                h = cardH + 26,
+                invisible = true,
+                itemIndex = gIdx,
+            }
+            table.insert(buttons, btnCard)
+
+            if isCardHovered and not (shopDrag.active and shopDrag.isDragging) then
+                hoveredShopItem = it
+                hoveredItemPos = { x = cx + cardW + 12, y = drawY - 10 }
+            end
         end
     end
 
@@ -4699,61 +4971,81 @@ local function drawShopState()
 
         local isVHovered = (mx >= vx and mx <= vx + vw and my >= vy and my <= vy + vh)
         local drawVY = isVHovered and (vy - 10) or vy
+        local isVDragged = (shopDrag.active and shopDrag.isDragging and shopDrag.itemIndex == gIdx)
 
-        -- Floating Price Tag
-        local pw = 52
-        local ph = 22
-        local px = vx + (vw - pw) / 2
-        local py = drawVY - 24
-        love.graphics.setColor(0.18, 0.14, 0.06, 0.98)
-        UI.drawRoundedRect("fill", px, py, pw, ph, 4)
-        love.graphics.setColor(UI.COLORS.goldYellow)
-        UI.drawRoundedRect("line", px, py, pw, ph, 4)
-        love.graphics.setFont(UI.fonts.small)
-        love.graphics.setColor(UI.COLORS.goldYellow)
-        love.graphics.printf("$" .. it.cost, px, py + 2, pw, "center")
+        if isVDragged then
+            love.graphics.setColor(0.24, 0.30, 0.38, 0.45)
+            UI.drawRoundedRect("line", vx, vy, vw, vh, 8)
+        else
+            local tX, tY = 0, 0
+            if isVHovered then
+                tX, tY = UI.calculateTilt(mx, my, vx, drawVY, vw, vh)
+            end
 
-        -- Voucher Card Body
-        love.graphics.setColor(0.15, 0.28, 0.42, 0.98)
-        UI.drawRoundedRect("fill", vx, drawVY, vw, vh, 8)
-        love.graphics.setColor(isVHovered and UI.COLORS.goldYellow or { 0.35, 0.65, 0.95, 0.9 })
-        love.graphics.setLineWidth(isVHovered and 2.5 or 1.5)
-        UI.drawRoundedRect("line", vx, drawVY, vw, vh, 8)
+            love.graphics.push()
+            love.graphics.translate(vx + vw / 2, drawVY + vh / 2)
+            if isVHovered then
+                love.graphics.shear(tX * 0.10, tY * 0.10)
+            end
+            love.graphics.translate(-vw / 2, -vh / 2)
 
-        -- Ticket notches
-        love.graphics.setColor(0.13, 0.16, 0.20, 1)
-        love.graphics.circle("fill", vx, drawVY + vh / 2, 7)
-        love.graphics.circle("fill", vx + vw, drawVY + vh / 2, 7)
+            -- Floating Price Tag
+            local pw = 52
+            local ph = 22
+            local px = (vw - pw) / 2
+            local py = -24
+            love.graphics.setColor(0.18, 0.14, 0.06, 0.98)
+            UI.drawRoundedRect("fill", px, py, pw, ph, 4)
+            love.graphics.setColor(UI.COLORS.goldYellow)
+            UI.drawRoundedRect("line", px, py, pw, ph, 4)
+            love.graphics.setFont(UI.fonts.small)
+            love.graphics.setColor(UI.COLORS.goldYellow)
+            love.graphics.printf("$" .. it.cost, px, py + 2, pw, "center")
 
-        -- Header
-        love.graphics.setFont(UI.fonts.tiny)
-        love.graphics.setColor({ 0.65, 0.85, 1.0, 1 })
-        love.graphics.printf(it.subtitle or "VOUCHER", vx + 4, drawVY + 10, vw - 8, "center")
+            -- Voucher Card Body
+            love.graphics.setColor(0.15, 0.28, 0.42, 0.98)
+            UI.drawRoundedRect("fill", 0, 0, vw, vh, 8)
+            love.graphics.setColor(isVHovered and UI.COLORS.goldYellow or { 0.35, 0.65, 0.95, 0.9 })
+            love.graphics.setLineWidth(isVHovered and 2.5 or 1.5)
+            UI.drawRoundedRect("line", 0, 0, vw, vh, 8)
 
-        -- Icon
-        love.graphics.setFont(UI.fonts.huge)
-        love.graphics.printf(it.icon or "📜", vx, drawVY + 42, vw, "center")
+            -- Ticket notches
+            love.graphics.setColor(0.13, 0.16, 0.20, 1)
+            love.graphics.circle("fill", 0, vh / 2, 7)
+            love.graphics.circle("fill", vw, vh / 2, 7)
 
-        -- Name
-        love.graphics.setFont(UI.fonts.small)
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.printf(it.name or "Bí Tịch", vx + 6, drawVY + 110, vw - 12, "center")
+            -- Header
+            love.graphics.setFont(UI.fonts.tiny)
+            love.graphics.setColor({ 0.65, 0.85, 1.0, 1 })
+            love.graphics.printf(it.subtitle or "VOUCHER", 4, 10, vw - 8, "center")
 
-        local btnVoucher = {
-            id = "buy_" .. gIdx,
-            text = "",
-            x = vx,
-            y = drawVY - 24,
-            w = vw,
-            h = vh + 24,
-            invisible = true,
-            itemIndex = gIdx,
-        }
-        table.insert(buttons, btnVoucher)
+            -- Icon
+            love.graphics.setFont(UI.fonts.huge)
+            love.graphics.printf(it.icon or "📜", 0, 42, vw, "center")
 
-        if isVHovered then
-            hoveredShopItem = it
-            hoveredItemPos = { x = vx + vw + 12, y = drawVY - 10 }
+            -- Name
+            love.graphics.setFont(UI.fonts.small)
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.printf(it.name or "Bí Tịch", 6, 110, vw - 12, "center")
+
+            love.graphics.pop()
+
+            local btnVoucher = {
+                id = "buy_" .. gIdx,
+                text = "",
+                x = vx,
+                y = drawVY - 24,
+                w = vw,
+                h = vh + 24,
+                invisible = true,
+                itemIndex = gIdx,
+            }
+            table.insert(buttons, btnVoucher)
+
+            if isVHovered and not (shopDrag.active and shopDrag.isDragging) then
+                hoveredShopItem = it
+                hoveredItemPos = { x = vx + vw + 12, y = drawVY - 10 }
+            end
         end
     else
         local vx = vSlotX + 30
@@ -4788,70 +5080,90 @@ local function drawShopState()
 
         local isPackHovered = (mx >= px and mx <= px + packW and my >= py and my <= py + packH)
         local drawPY = isPackHovered and (py - 10) or py
+        local isPackDragged = (shopDrag.active and shopDrag.isDragging and shopDrag.itemIndex == gIdx)
 
-        -- Floating Price Tag
-        local pw = 52
-        local ph = 22
-        local tagX = px + (packW - pw) / 2
-        local tagY = drawPY - 24
-        love.graphics.setColor(0.18, 0.14, 0.06, 0.98)
-        UI.drawRoundedRect("fill", tagX, tagY, pw, ph, 4)
-        love.graphics.setColor(UI.COLORS.goldYellow)
-        UI.drawRoundedRect("line", tagX, tagY, pw, ph, 4)
-        love.graphics.setFont(UI.fonts.small)
-        love.graphics.setColor(UI.COLORS.goldYellow)
-        love.graphics.printf("$" .. it.cost, tagX, tagY + 2, pw, "center")
+        if isPackDragged then
+            love.graphics.setColor(0.24, 0.30, 0.38, 0.45)
+            UI.drawRoundedRect("line", px, py, packW, packH, 8)
+        else
+            local tX, tY = 0, 0
+            if isPackHovered then
+                tX, tY = UI.calculateTilt(mx, my, px, drawPY, packW, packH)
+            end
 
-        -- Metallic Foil Pack Body
-        local packColor = it.color or { 0.88, 0.35, 0.35, 1 }
-        love.graphics.setColor(packColor[1] * 0.4, packColor[2] * 0.4, packColor[3] * 0.4, 0.98)
-        UI.drawRoundedRect("fill", px, drawPY, packW, packH, 8)
-        love.graphics.setColor(isPackHovered and UI.COLORS.goldYellow or packColor)
-        love.graphics.setLineWidth(isPackHovered and 2.5 or 1.5)
-        UI.drawRoundedRect("line", px, drawPY, packW, packH, 8)
+            love.graphics.push()
+            love.graphics.translate(px + packW / 2, drawPY + packH / 2)
+            if isPackHovered then
+                love.graphics.shear(tX * 0.10, tY * 0.10)
+            end
+            love.graphics.translate(-packW / 2, -packH / 2)
 
-        -- Crimped Foil Ridges (Top & Bottom)
-        love.graphics.setColor(0.9, 0.9, 0.9, 0.5)
-        for ridge = 0, 11 do
-            local rx = px + 6 + ridge * 11
-            love.graphics.line(rx, drawPY + 3, rx + 4, drawPY + 10)
-            love.graphics.line(rx, drawPY + packH - 10, rx + 4, drawPY + packH - 3)
-        end
+            -- Floating Price Tag
+            local pw = 52
+            local ph = 22
+            local tagX = (packW - pw) / 2
+            local tagY = -24
+            love.graphics.setColor(0.18, 0.14, 0.06, 0.98)
+            UI.drawRoundedRect("fill", tagX, tagY, pw, ph, 4)
+            love.graphics.setColor(UI.COLORS.goldYellow)
+            UI.drawRoundedRect("line", tagX, tagY, pw, ph, 4)
+            love.graphics.setFont(UI.fonts.small)
+            love.graphics.setColor(UI.COLORS.goldYellow)
+            love.graphics.printf("$" .. it.cost, tagX, tagY + 2, pw, "center")
 
-        -- Metallic Shimmer Band in center
-        love.graphics.setColor(packColor[1], packColor[2], packColor[3], 0.25)
-        UI.drawRoundedRect("fill", px + 8, drawPY + 36, packW - 16, 120, 6)
+            -- Metallic Foil Pack Body
+            local packColor = it.color or { 0.88, 0.35, 0.35, 1 }
+            love.graphics.setColor(packColor[1] * 0.4, packColor[2] * 0.4, packColor[3] * 0.4, 0.98)
+            UI.drawRoundedRect("fill", 0, 0, packW, packH, 8)
+            love.graphics.setColor(isPackHovered and UI.COLORS.goldYellow or packColor)
+            love.graphics.setLineWidth(isPackHovered and 2.5 or 1.5)
+            UI.drawRoundedRect("line", 0, 0, packW, packH, 8)
 
-        -- Icon
-        love.graphics.setFont(UI.fonts.huge)
-        love.graphics.printf(it.icon or "📦", px, drawPY + 50, packW, "center")
+            -- Crimped Foil Ridges (Top & Bottom)
+            love.graphics.setColor(0.9, 0.9, 0.9, 0.5)
+            for ridge = 0, 11 do
+                local rx = 6 + ridge * 11
+                love.graphics.line(rx, 3, rx + 4, 10)
+                love.graphics.line(rx, packH - 10, rx + 4, packH - 3)
+            end
 
-        -- Pack Title
-        love.graphics.setFont(UI.fonts.small)
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.printf(it.name or "Gói Bài", px + 4, drawPY + 116, packW - 8, "center")
+            -- Metallic Shimmer Band in center
+            love.graphics.setColor(packColor[1], packColor[2], packColor[3], 0.25)
+            UI.drawRoundedRect("fill", 8, 36, packW - 16, 120, 6)
 
-        -- Subtitle
-        love.graphics.setFont(UI.fonts.tiny)
-        love.graphics.setColor(packColor)
-        love.graphics.printf(it.subtitle or "BOOSTER", px + 4, drawPY + 138, packW - 8, "center")
+            -- Icon
+            love.graphics.setFont(UI.fonts.huge)
+            love.graphics.printf(it.icon or "📦", 0, 50, packW, "center")
 
-        -- Invisible buy button
-        local btnPack = {
-            id = "buy_" .. gIdx,
-            text = "",
-            x = px,
-            y = drawPY - 24,
-            w = packW,
-            h = packH + 24,
-            invisible = true,
-            itemIndex = gIdx,
-        }
-        table.insert(buttons, btnPack)
+            -- Pack Title
+            love.graphics.setFont(UI.fonts.small)
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.printf(it.name or "Gói Bài", 4, 116, packW - 8, "center")
 
-        if isPackHovered then
-            hoveredShopItem = it
-            hoveredItemPos = { x = px - 260, y = drawPY - 10 }
+            -- Subtitle
+            love.graphics.setFont(UI.fonts.tiny)
+            love.graphics.setColor(packColor)
+            love.graphics.printf(it.subtitle or "BOOSTER", 4, 138, packW - 8, "center")
+
+            love.graphics.pop()
+
+            -- Invisible buy button
+            local btnPack = {
+                id = "buy_" .. gIdx,
+                text = "",
+                x = px,
+                y = drawPY - 24,
+                w = packW,
+                h = packH + 24,
+                invisible = true,
+                itemIndex = gIdx,
+            }
+            table.insert(buttons, btnPack)
+
+            if isPackHovered and not (shopDrag.active and shopDrag.isDragging) then
+                hoveredShopItem = it
+                hoveredItemPos = { x = px - 260, y = drawPY - 10 }
+            end
         end
     end
 
@@ -4912,6 +5224,123 @@ local function drawShopState()
         love.graphics.setFont(UI.fonts.tiny)
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.printf("Xem Toàn Bộ Bài [Tab]", tipX, tipY + 9, tipW, "center")
+    end
+
+    ----------------------------------------------------------------------------
+    -- 4b. DRAGGED SHOP ITEM & DEITY ON TOP WITH 3D TILT & DROP ZONE
+    ----------------------------------------------------------------------------
+    if shopDrag.active and shopDrag.isDragging and shopDrag.item then
+        -- Drop purchase zone indicator at the top
+        local dropZoneX = shopX + 20
+        local dropZoneY = shopY + 12
+        local dropZoneW = shopW - 40
+        local dropZoneH = 46
+        local isOverDropZone = (my < 380 or my < (shopDrag.origY - 40))
+        local canAfford = (game.gold or 0) >= (shopDrag.item.cost or 0)
+
+        if isOverDropZone then
+            love.graphics.setColor(canAfford and { 0.15, 0.65, 0.35, 0.95 } or { 0.75, 0.18, 0.18, 0.95 })
+        else
+            love.graphics.setColor(0.12, 0.16, 0.22, 0.85)
+        end
+        UI.drawRoundedRect("fill", dropZoneX, dropZoneY, dropZoneW, dropZoneH, 8)
+        love.graphics.setColor(isOverDropZone and (canAfford and UI.COLORS.btnPlay or UI.COLORS.multRed) or UI.COLORS.goldYellow)
+        love.graphics.setLineWidth(2)
+        UI.drawRoundedRect("line", dropZoneX, dropZoneY, dropZoneW, dropZoneH, 8)
+
+        love.graphics.setFont(UI.fonts.medium)
+        love.graphics.setColor(1, 1, 1, 1)
+        local dropText
+        if not canAfford then
+            dropText = "KHÔNG ĐỦ TIỀN - $" .. shopDrag.item.cost
+        elseif isOverDropZone then
+            dropText = "THẢ TẠI ĐÂY ĐỂ MUA - $" .. shopDrag.item.cost
+        else
+            dropText = "KÉO LÊN TRÊN ĐỂ MUA - $" .. shopDrag.item.cost
+        end
+        love.graphics.printf(dropText, dropZoneX, dropZoneY + 10, dropZoneW, "center")
+
+        -- Draw the dragged card floating on top with 3D tilt & elevation
+        local dcw = shopDrag.cardW or 124
+        local dch = shopDrag.cardH or 186
+        local dcx = shopDrag.visualX
+        local dcy = shopDrag.visualY
+        local dItem = shopDrag.item
+
+        love.graphics.push()
+        love.graphics.translate(dcx + dcw / 2, dcy + dch / 2)
+        if shopDrag.rotation and shopDrag.rotation ~= 0 then
+            love.graphics.rotate(shopDrag.rotation)
+        end
+        if shopDrag.tiltX or shopDrag.tiltY then
+            love.graphics.shear((shopDrag.tiltX or 0) * 0.12, (shopDrag.tiltY or 0) * 0.12)
+        end
+        love.graphics.scale(1.15, 1.15)
+        love.graphics.translate(-dcw / 2, -dch / 2)
+
+        -- Elevation drop shadow
+        love.graphics.setColor(0, 0, 0, 0.5)
+        UI.drawRoundedRect("fill", 10 + (shopDrag.tiltX or 0) * 12, 16 + (shopDrag.tiltY or 0) * 12, dcw, dch, 10)
+
+        -- Card Body
+        local dColor = dItem.color or { 0.95, 0.85, 0.35, 1 }
+        love.graphics.setColor(0.18, 0.22, 0.28, 1)
+        UI.drawRoundedRect("fill", 0, 0, dcw, dch, 8)
+        love.graphics.setColor(UI.COLORS.goldYellow)
+        love.graphics.setLineWidth(2.5)
+        UI.drawRoundedRect("line", 0, 0, dcw, dch, 8)
+
+        -- Subtitle banner
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(dColor)
+        love.graphics.printf(dItem.subtitle or "THẺ BÀI", 4, 8, dcw - 8, "center")
+
+        -- Icon
+        love.graphics.setFont(UI.fonts.large)
+        love.graphics.printf(dItem.icon or "🃏", 0, 40, dcw, "center")
+
+        -- Name
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf(dItem.name or "Vật Phẩm", 4, 85, dcw - 8, "center")
+
+        -- Price badge
+        love.graphics.setColor(0.12, 0.15, 0.19, 0.9)
+        UI.drawRoundedRect("fill", 6, dch - 40, dcw - 12, 32, 4)
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(UI.COLORS.goldYellow)
+        love.graphics.printf("$" .. dItem.cost, 6, dch - 34, dcw - 12, "center")
+
+        love.graphics.pop()
+    end
+
+    if deityDrag.active and deityDrag.isDragging and game.deities and game.deities[deityDrag.deityIndex] then
+        local d = game.deities[deityDrag.deityIndex]
+        local dw = 98
+        local dh = 74
+        love.graphics.push()
+        love.graphics.translate(deityDrag.visualX + dw / 2, deityDrag.visualY + dh / 2)
+        love.graphics.scale(1.15, 1.15)
+        love.graphics.translate(-dw / 2, -dh / 2)
+
+        love.graphics.setColor(0, 0, 0, 0.45)
+        UI.drawRoundedRect("fill", 8, 12, dw, dh, 6)
+
+        love.graphics.setColor(0.20, 0.25, 0.32, 1)
+        UI.drawRoundedRect("fill", 0, 0, dw, dh, 6)
+        love.graphics.setColor(UI.COLORS.goldYellow)
+        love.graphics.setLineWidth(2.5)
+        UI.drawRoundedRect("line", 0, 0, dw, dh, 6)
+
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf(d.name, 4, 8, dw - 8, "center")
+
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(UI.COLORS.goldYellow)
+        love.graphics.printf("ĐANG DI CHUYỂN", 4, 38, dw - 8, "center")
+
+        love.graphics.pop()
     end
 
     ----------------------------------------------------------------------------
@@ -5093,10 +5522,30 @@ local function drawGameOverState()
 end
 
 function love.draw()
-    love.graphics.push()
-    love.graphics.translate(offsetX, offsetY)
-    love.graphics.scale(scale, scale)
+    -- 1. If Canvas is enabled, render the game into mainCanvas
+    if mainCanvas then
+        love.graphics.setCanvas(mainCanvas)
+        love.graphics.clear(0, 0, 0, 1)
+    else
+        love.graphics.push()
+        love.graphics.translate(offsetX, offsetY)
+        love.graphics.scale(scale, scale)
+    end
 
+    -- Psychedelic dynamic domain-warping background shader
+    if bgShader then
+        love.graphics.setShader(bgShader)
+        if bgShader:hasUniform("u_time") then bgShader:send("u_time", juice.ambientTimer or 0) end
+        if bgShader:hasUniform("u_resolution") then bgShader:send("u_resolution", { V_WIDTH, V_HEIGHT }) end
+        if bgShader:hasUniform("u_color_a") then bgShader:send("u_color_a", bgCurrentColors.a) end
+        if bgShader:hasUniform("u_color_b") then bgShader:send("u_color_b", bgCurrentColors.b) end
+        if bgShader:hasUniform("u_color_c") then bgShader:send("u_color_c", bgCurrentColors.c) end
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.rectangle("fill", 0, 0, V_WIDTH, V_HEIGHT)
+        love.graphics.setShader()
+    end
+
+    love.graphics.push()
     if screenShake > 0 then
         local sx = (love.math.random() * 2 - 1) * screenShake
         local sy = (love.math.random() * 2 - 1) * screenShake
@@ -5180,6 +5629,32 @@ function love.draw()
     end
 
     love.graphics.pop()
+
+    -- 2. If Canvas is enabled, present to screen via CRT Post-Processing Shader
+    if mainCanvas then
+        love.graphics.setCanvas()
+        local winW, winH = love.graphics.getDimensions()
+        love.graphics.setColor(0.02, 0.02, 0.03, 1)
+        love.graphics.rectangle("fill", 0, 0, winW, winH)
+
+        if settings.crtEnabled and crtShader then
+            love.graphics.setShader(crtShader)
+            if crtShader:hasUniform("u_resolution") then crtShader:send("u_resolution", { V_WIDTH, V_HEIGHT }) end
+            if crtShader:hasUniform("u_time") then crtShader:send("u_time", juice.ambientTimer or 0) end
+            if crtShader:hasUniform("u_curvature") then crtShader:send("u_curvature", 0.055) end
+            if crtShader:hasUniform("u_chroma") then crtShader:send("u_chroma", 0.0028) end
+            if crtShader:hasUniform("u_scanlines") then crtShader:send("u_scanlines", 0.22) end
+            if crtShader:hasUniform("u_vignette") then crtShader:send("u_vignette", 0.28) end
+        else
+            love.graphics.setShader()
+        end
+
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(mainCanvas, offsetX, offsetY, 0, scale, scale)
+        love.graphics.setShader()
+    else
+        love.graphics.pop()
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -5226,11 +5701,15 @@ function love.mousepressed(x, y, button)
                         updateScale()
                         Sound.play("ui_click")
                         return
+                    elseif btn.id == "setting_crt" then
+                        settings.crtEnabled = not settings.crtEnabled
+                        Sound.play("ui_click")
+                        return
                     end
                 end
             end
             local modalW = 500
-            local modalH = 380
+            local modalH = 430
             local modalX = (V_WIDTH - modalW) / 2
             local modalY = (V_HEIGHT - modalH) / 2
             if mx < modalX or mx > modalX + modalW or my < modalY or my > modalY + modalH then
@@ -6003,13 +6482,43 @@ function love.mousepressed(x, y, button)
         for _, btn in ipairs(buttons) do
             if not btn.disabled and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
                 if btn.id:sub(1, 4) == "buy_" then
-                    local success, msg, eq = Shop.buyItem(shopData, btn.itemIndex, game)
-                    if success and msg == "open_socketing" and eq then
-                        pendingEquipment = eq
-                        socketingReturnState = "shop"
-                        state = "socketing"
+                    local gIdx = btn.itemIndex
+                    local it = shopData.items and shopData.items[gIdx]
+                    if it then
+                        shopDrag.active = true
+                        shopDrag.isDragging = false
+                        shopDrag.itemIndex = gIdx
+                        shopDrag.item = it
+                        shopDrag.startX = mx
+                        shopDrag.startY = my
+                        shopDrag.currentX = mx
+                        shopDrag.currentY = my
+                        shopDrag.origX = btn.x
+                        shopDrag.origY = btn.y
+                        shopDrag.visualX = btn.x
+                        shopDrag.visualY = btn.y
+                        shopDrag.cardW = btn.w
+                        shopDrag.cardH = btn.h
+                        shopDrag.tiltX = 0
+                        shopDrag.tiltY = 0
+                        return
                     end
-                    return
+                elseif btn.id:sub(1, 6) == "deity_" then
+                    local dIdx = btn.deityIndex
+                    if game.deities and game.deities[dIdx] then
+                        deityDrag.active = true
+                        deityDrag.isDragging = false
+                        deityDrag.deityIndex = dIdx
+                        deityDrag.startX = mx
+                        deityDrag.startY = my
+                        deityDrag.currentX = mx
+                        deityDrag.currentY = my
+                        deityDrag.origX = btn.x
+                        deityDrag.origY = btn.y
+                        deityDrag.visualX = btn.x
+                        deityDrag.visualY = btn.y
+                        return
+                    end
                 elseif btn.id:sub(1, 5) == "sell_" then
                     Shop.sellDeity(game, btn.deityIndex)
                     return
@@ -6208,10 +6717,54 @@ function love.mousemoved(x, y, dx, dy)
             end
         end
     end
+
+    if shopDrag.active and state == "shop" then
+        shopDrag.currentX = mx
+        shopDrag.currentY = my
+        local dist = math.sqrt((mx - shopDrag.startX)^2 + (my - shopDrag.startY)^2)
+        if dist > 6 then
+            shopDrag.isDragging = true
+        end
+    end
+
+    if deityDrag.active and state == "shop" then
+        deityDrag.currentX = mx
+        deityDrag.currentY = my
+        local dist = math.sqrt((mx - deityDrag.startX)^2 + (my - deityDrag.startY)^2)
+        if dist > 6 then
+            deityDrag.isDragging = true
+            local deiSlotW = 98
+            local deiGap = 10
+            local deiStartX = 295
+            local dIdx = deityDrag.deityIndex
+            if dIdx and game.deities then
+                -- Check left neighbor
+                if dIdx > 1 then
+                    local prevSlotX = deiStartX + (dIdx - 2) * (deiSlotW + deiGap)
+                    if mx < prevSlotX + deiSlotW * 0.6 then
+                        game.deities[dIdx], game.deities[dIdx - 1] = game.deities[dIdx - 1], game.deities[dIdx]
+                        deityDrag.deityIndex = dIdx - 1
+                        Sound.play("card_slide")
+                    end
+                end
+                -- Check right neighbor
+                if dIdx < #game.deities then
+                    local nextSlotX = deiStartX + dIdx * (deiSlotW + deiGap)
+                    if mx > nextSlotX + deiSlotW * 0.4 then
+                        game.deities[dIdx], game.deities[dIdx + 1] = game.deities[dIdx + 1], game.deities[dIdx]
+                        deityDrag.deityIndex = dIdx + 1
+                        Sound.play("card_slide")
+                    end
+                end
+            end
+        end
+    end
 end
 
 function love.mousereleased(x, y, button)
+    local mx, my = toVirtual(x, y)
     juice.buttonPressedId = nil
+
     if button == 1 and handDrag.active then
         if not handDrag.isDragging and handDrag.cardIndex then
             local card = game.hand[handDrag.cardIndex]
@@ -6230,5 +6783,53 @@ function love.mousereleased(x, y, button)
         handDrag.active = false
         handDrag.cardIndex = nil
         handDrag.isDragging = false
+    end
+
+    if button == 1 and shopDrag.active then
+        if not shopDrag.isDragging and shopDrag.itemIndex then
+            local success, msg, eq = Shop.buyItem(shopData, shopDrag.itemIndex, game)
+            if success and msg == "open_socketing" and eq then
+                pendingEquipment = eq
+                socketingReturnState = "shop"
+                state = "socketing"
+            end
+        elseif shopDrag.isDragging and shopDrag.item then
+            if my < 380 or my < (shopDrag.origY - 40) then
+                if (game.gold or 0) >= (shopDrag.item.cost or 0) then
+                    local success, msg, eq = Shop.buyItem(shopData, shopDrag.itemIndex, game)
+                    if success and msg == "open_socketing" and eq then
+                        pendingEquipment = eq
+                        socketingReturnState = "shop"
+                        state = "socketing"
+                    end
+                else
+                    Sound.play("cant_afford")
+                    screenShake = 7
+                    table.insert(juice.floatingTexts, {
+                        text = "Không đủ tiền!",
+                        color = UI.COLORS.multRed,
+                        x = mx,
+                        y = my - 20,
+                        vy = -45,
+                        life = 1.0,
+                    })
+                end
+            else
+                Sound.play("card_slide")
+            end
+        end
+        shopDrag.active = false
+        shopDrag.isDragging = false
+        shopDrag.itemIndex = nil
+        shopDrag.item = nil
+    end
+
+    if button == 1 and deityDrag.active then
+        if deityDrag.isDragging then
+            Sound.play("card_slide")
+        end
+        deityDrag.active = false
+        deityDrag.isDragging = false
+        deityDrag.deityIndex = nil
     end
 end

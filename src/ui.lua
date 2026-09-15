@@ -276,15 +276,23 @@ function UI.drawCard(card, x, y, w, h)
     if card.rotation and card.rotation ~= 0 then
         love.graphics.rotate(card.rotation)
     end
+    -- Pseudo-3D perspective tilt
+    if (card.tiltX and card.tiltX ~= 0) or (card.tiltY and card.tiltY ~= 0) then
+        love.graphics.shear((card.tiltX or 0) * 0.12, (card.tiltY or 0) * 0.12)
+    end
     local s = card.visualScale or 1
     local sx = (card.scaleX or card.scale or 1) * s
     local sy = (card.scaleY or card.scale or 1) * s
     love.graphics.scale(sx, sy)
     love.graphics.translate(-w / 2, -h / 2)
 
-    -- Shadow
-    love.graphics.setColor(0, 0, 0, 0.35)
-    UI.drawRoundedRect("fill", 3, 4, w, h, 8)
+    -- Dynamic Drop Shadow based on tilt & elevation
+    local isLifted = (s > 1.05) or (card.isLifted == true)
+    local shOffX = 4 + (card.tiltX or 0) * 10
+    local shOffY = (isLifted and 14 or 6) + (card.tiltY or 0) * 10
+    local shAlpha = isLifted and 0.45 or 0.32
+    love.graphics.setColor(0, 0, 0, shAlpha)
+    UI.drawRoundedRect("fill", shOffX, shOffY, w, h, 8)
 
     -- Card background
     love.graphics.setColor(UI.COLORS.cardBg)
@@ -621,6 +629,15 @@ function UI.drawAnimatedNumber(text, bx, by, bw, bh, color, scaleFactor)
     love.graphics.scale(scaleFactor, scaleFactor)
     love.graphics.print(text, -tw / 2, -th / 2)
     love.graphics.pop()
+end
+
+function UI.calculateTilt(mx, my, cx, cy, w, h)
+    if not mx or not my or not cx or not cy then return 0, 0 end
+    local cardCenterX = cx + (w or 100) / 2
+    local cardCenterY = cy + (h or 140) / 2
+    local normX = math.max(-1, math.min(1, (mx - cardCenterX) / ((w or 100) * 0.5)))
+    local normY = math.max(-1, math.min(1, (my - cardCenterY) / ((h or 140) * 0.5)))
+    return normX, normY
 end
 
 return UI

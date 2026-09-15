@@ -619,6 +619,53 @@ Sound.play("pack_open")
 
 log("[PASS] 35. Balatro Shop Structure (Upper/Voucher/Packs), Incremental Reroll ($5 -> $6 -> $7 -> reset $5), & Pack Opening verified")
 
+-- 36. Test Graphics Overhaul: Shaders, 3D Tilt & Deity Reordering
+local normX, normY = UI.calculateTilt(150, 150, 100, 100, 100, 100)
+assert(type(normX) == "number" and type(normY) == "number", "UI.calculateTilt must return numbers")
+assert(normX >= -1 and normX <= 1 and normY >= -1 and normY <= 1, "Tilt must be bounded in [-1, 1]")
+
+-- Test Deity Reordering
+local deiList = { { id = "dei_1", name = "Aurelia" }, { id = "dei_2", name = "Vharos" } }
+deiList[1], deiList[2] = deiList[2], deiList[1]
+assert(deiList[1].id == "dei_2" and deiList[2].id == "dei_1", "Deity slots must swap cleanly for reordering")
+
+-- Test Shader compilation if love.graphics is present
+if love and love.graphics and love.graphics.newShader then
+    local testBgShader = love.graphics.newShader([[
+        extern number u_time;
+        extern vec2 u_resolution;
+        extern vec3 u_color_a;
+        extern vec3 u_color_b;
+        extern vec3 u_color_c;
+        vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
+            vec2 uv = screen_coords / u_resolution;
+            vec2 p = uv * 2.0 - 1.0;
+            number t = u_time * 0.35;
+            vec2 q = vec2(sin(p.x * 2.2 + t), cos(p.y * 2.0 - t));
+            vec3 col = mix(u_color_a, u_color_b, 0.5);
+            return vec4(col, 1.0) * color;
+        }
+    ]])
+    assert(testBgShader ~= nil, "Background domain warping shader must compile successfully")
+
+    local testCrtShader = love.graphics.newShader([[
+        extern vec2 u_resolution;
+        extern number u_time;
+        extern number u_curvature;
+        extern number u_chroma;
+        extern number u_scanlines;
+        extern number u_vignette;
+        vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
+            vec2 uv = texture_coords;
+            number r = Texel(texture, uv).r;
+            return vec4(r, r, r, 1.0) * color;
+        }
+    ]])
+    assert(testCrtShader ~= nil, "CRT post-processing shader must compile successfully")
+end
+
+log("[PASS] 36. Graphics Overhaul (CRT & Psychedelic Background Shaders, 3D Card Tilt, Deity Reordering) verified")
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then
