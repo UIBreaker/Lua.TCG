@@ -110,12 +110,25 @@ function Sound.init()
             return env * 0.18 * math.sin(2 * math.pi * freq * t)
         end)
 
-        -- 11. UI Button Click (Snappy tactile mechanical click)
-        sounds.ui_click = generateSound(0.04, rate, function(t, d)
-            local env = math.exp(-t * 45)
-            local click = (love.math.random() * 2 - 1) * math.exp(-t * 60) * 0.3
-            local tone = math.sin(2 * math.pi * 840 * t) * 0.7
-            return env * 0.45 * (tone + click)
+        -- 11. UI Button Click (Tactile mechanical clack + woody switch thud)
+        sounds.ui_click = generateSound(0.05, rate, function(t, d)
+            -- A. Sharp mechanical snap / clack transient (0 to 6ms)
+            local snapNoise = (love.math.random() * 2 - 1) * math.exp(-t * 160) * 0.45
+            local snapChirp = math.sin(2 * math.pi * (2400 - t * 16000) * t) * math.exp(-t * 110) * 0.35
+
+            -- B. Tactile woody switch thud body (360-480 Hz bottom-out)
+            local bodyFreq = 420 * math.exp(-t * 16)
+            local body = math.sin(2 * math.pi * bodyFreq * t) + 0.35 * math.sin(4 * math.pi * bodyFreq * t)
+            local bodyEnv = math.exp(-t * 40)
+
+            -- C. Secondary micro tactile release ping around 10ms
+            local ping = 0
+            if t > 0.010 then
+                local pt = t - 0.010
+                ping = math.sin(2 * math.pi * 1350 * pt) * math.exp(-pt * 85) * 0.18
+            end
+
+            return (snapNoise + snapChirp) * 0.55 + body * bodyEnv * 0.50 + ping
         end)
 
         -- 12. Shop Buy (Crystal coin chimes + paper grab snap)

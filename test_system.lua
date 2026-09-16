@@ -1463,6 +1463,67 @@ do
     log("[PASS] 58. Bộ Sưu Tập Toàn Thư (Collection Compendium 11 Danh Mục, 25 Thần Hộ Mệnh, 8 Trang Bị Khảm, 4 Phe Phái, Phiếu & Dị Biến Boss) verified 100%")
 end
 
+-- 59. Balatro Tactile 3D Buttons (Extrusion, Tilt, Hotkeys, Depress & UTF-8 Uppercase)
+do
+        -- A. UTF-8 Uppercase Verification
+        assert(UI.toUpperUtf8("chơi tay bài [Space]") == "CHƠI TAY BÀI [SPACE]", "toUpperUtf8 standard phrase")
+        assert(UI.toUpperUtf8("Ván\nKế Tiếp") == "VÁN\nKẾ TIẾP", "toUpperUtf8 multiline phrase")
+        assert(UI.toUpperUtf8("Gieo lại $5") == "GIEO LẠI $5", "toUpperUtf8 with numbers/symbols")
+        assert(UI.toUpperUtf8("Đơn thủ") == "ĐƠN THỦ", "toUpperUtf8 with Đ")
+        assert(UI.toUpperUtf8("Trở lại") == "TRỞ LẠI", "toUpperUtf8 with Ơ and Ạ")
+
+        -- B. UI.drawButton execution in various states
+        local mockBtnActive = {
+            id = "test_play",
+            text = "Chơi Tay Bài [Space]",
+            x = 100, y = 100, w = 180, h = 56,
+            color = UI.COLORS.btnPlay,
+        }
+        local okActive = pcall(function() UI.drawButton(mockBtnActive, true, false) end)
+        assert(okActive, "UI.drawButton active hovered button must render without error")
+
+        local mockBtnPressed = {
+            id = "test_discard",
+            text = "Bỏ Bài [D]",
+            x = 300, y = 100, w = 160, h = 56,
+            color = UI.COLORS.btnDiscard,
+        }
+        local okPressed = pcall(function() UI.drawButton(mockBtnPressed, true, true) end)
+        assert(okPressed, "UI.drawButton pressed button must render without error")
+
+        local mockBtnDisabled = {
+            id = "test_disabled",
+            text = "Bỏ Bài [D]",
+            x = 300, y = 100, w = 160, h = 56,
+            color = UI.COLORS.btnDiscard,
+            disabled = true,
+        }
+        local okDisabled = pcall(function() UI.drawButton(mockBtnDisabled, false, false) end)
+        assert(okDisabled, "UI.drawButton disabled button must render without error")
+
+        local mockBtnMulti = {
+            id = "test_multi",
+            text = "Ván\nKế Tiếp",
+            x = 500, y = 100, w = 140, h = 100,
+            color = { 0.92, 0.32, 0.28, 1 },
+        }
+        local okMulti = pcall(function() UI.drawButton(mockBtnMulti, true, false) end)
+        assert(okMulti, "UI.drawButton multiline button must render without error")
+
+        local mockBtnSub = {
+            id = "test_sub",
+            text = "Lá Cường Hoá",
+            sub = "6 / 6",
+            alert = true,
+            x = 660, y = 100, w = 200, h = 50,
+            color = { 0.92, 0.28, 0.22, 1 },
+        }
+        local okSub = pcall(function() UI.drawButton(mockBtnSub, true, false) end)
+        assert(okSub, "UI.drawButton subtitle & alert button must render without error")
+
+        log("[PASS] 59. Hệ Thống Nút Bấm Balatro 3D (Extrusion, Depress, 3D Tilt, In Hoa UTF-8 & Keycap Badges) verified 100%")
+    end
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then

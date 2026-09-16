@@ -197,6 +197,7 @@ local juice = {
     buttonPressedId = nil,
     lastHoveredButtonId = nil,
     floatingTexts = {},
+    screenShake = 0,
 }
 
 local function spawnJuiceText(text, x, y, color, duration)
@@ -733,6 +734,8 @@ end
 local function discardSelected()
     if #game.selectedIndices == 0 or game.discardsRemaining <= 0 then return end
 
+    screenShake = math.max(screenShake or 0, 2.5)
+
     -- Check if any discarded card has Free Feather equipment
     local hasFreeDiscard = false
     for _, idx in ipairs(game.selectedIndices) do
@@ -889,6 +892,8 @@ local function playSelectedHand()
     local playedCards = getSelectedCards()
     local evalResult = Poker.evaluate(playedCards, game.unlockedHands)
     if not evalResult then return end
+
+    screenShake = math.max(screenShake or 0, 2.5)
 
     -- Ensure played cards don't draw with selection border and reveal if faceDown
     for _, c in ipairs(playedCards) do
@@ -1159,6 +1164,16 @@ function love.resize(w, h)
 end
 
 function love.update(dt)
+    if love.mouse and love.mouse.getPosition then
+        local rawMx, rawMy = love.mouse.getPosition()
+        UI.virtualMouseX, UI.virtualMouseY = toVirtual(rawMx, rawMy)
+    end
+    UI.currentPressedBtnId = juice and juice.buttonPressedId
+    if juice and juice.screenShake and juice.screenShake > 0 then
+        screenShake = math.max(screenShake, juice.screenShake)
+        juice.screenShake = 0
+    end
+
     if isCaptureMode and Capture then
         Capture.update(game, {
             startNewGame = startNewGame,
@@ -2461,45 +2476,8 @@ local function drawCollectionModal()
     -- Draw all buttons in this modal
     for _, btn in ipairs(buttons) do
         local isH = (mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h)
-
-        local col = btn.color or UI.COLORS.btnNormal
-        if isH then
-            love.graphics.setColor(math.min(1, col[1] * 1.18), math.min(1, col[2] * 1.18), math.min(1, col[3] * 1.18), 1)
-        else
-            love.graphics.setColor(col[1], col[2], col[3], col[4] or 1)
-        end
-        UI.drawRoundedRect("fill", btn.x, btn.y, btn.w, btn.h, 8)
-        love.graphics.setColor(0, 0, 0, 0.3)
-        UI.drawRoundedRect("line", btn.x, btn.y, btn.w, btn.h, 8)
-
-        -- Content text
-        love.graphics.setColor(1, 1, 1, 1)
-        if btn.isMultiLine then
-            love.graphics.setFont(UI.fonts.large)
-            love.graphics.printf(btn.text, btn.x, btn.y + btn.h * 0.28, btn.w, "center")
-            love.graphics.setFont(UI.fonts.medium)
-            love.graphics.printf(btn.sub, btn.x, btn.y + btn.h * 0.50, btn.w, "center")
-        elseif btn.sub then
-            love.graphics.setFont(btn.font or UI.fonts.medium)
-            love.graphics.printf(btn.text, btn.x, btn.y + btn.h * 0.16, btn.w, "center")
-            love.graphics.setFont(UI.fonts.small)
-            love.graphics.setColor(1, 1, 1, 0.9)
-            love.graphics.printf(btn.sub, btn.x, btn.y + btn.h * 0.56, btn.w, "center")
-        else
-            love.graphics.setFont(btn.font or UI.fonts.medium)
-            love.graphics.printf(btn.text, btn.x, btn.y + (btn.h - 22) / 2, btn.w, "center")
-        end
-
-        -- Alert exclamation badge
-        if btn.alert then
-            local badgeX = btn.x + btn.w - 18
-            local badgeY = btn.y + btn.h / 2
-            love.graphics.setColor(0.75, 0.15, 0.15, 1)
-            love.graphics.circle("fill", badgeX, badgeY, 11)
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.setFont(UI.fonts.tiny)
-            love.graphics.printf("!", badgeX - 11, badgeY - 7, 22, "center")
-        end
+        local isP = (juice and juice.buttonPressedId == btn.id)
+        UI.drawButton(btn, isH, isP)
     end
 end
 
@@ -5850,7 +5828,7 @@ local function drawShopState()
         y = trY,
         w = hw - 20,
         h = 36,
-        color = { 0.48, 0.28, 0.68, 1 },
+        color = UI.COLORS.btnSpecial,
         font = UI.fonts.tiny,
     }
     table.insert(buttons, btnTransfer)
@@ -6045,7 +6023,7 @@ local function drawShopState()
         y = upY + 14,
         w = 136,
         h = 110,
-        color = { 0.92, 0.32, 0.28, 1 },
+        color = UI.COLORS.btnDestruct,
         font = UI.fonts.medium,
     }
     table.insert(buttons, btnNextRound)
@@ -6056,13 +6034,15 @@ local function drawShopState()
     local canReroll = (game.gold or 0) >= rCost
     local btnReroll = {
         id = "reroll",
-        text = "Gieo lại\n\n$" .. rCost,
+        text = "Gieo lại",
+        sub = "$" .. rCost,
+        isMultiLine = true,
         x = upX + 12,
         y = upY + 134,
         w = 136,
         h = 122,
-        color = canReroll and { 0.22, 0.68, 0.45, 1 } or UI.COLORS.btnNormal,
-        font = UI.fonts.small,
+        color = canReroll and UI.COLORS.btnSpecial or UI.COLORS.btnNormal,
+        font = UI.fonts.medium,
         disabled = not canReroll,
     }
     table.insert(buttons, btnReroll)
@@ -6739,6 +6719,12 @@ local function drawGameOverState()
 end
 
 function love.draw()
+    if love.mouse and love.mouse.getPosition then
+        local rawMx, rawMy = love.mouse.getPosition()
+        UI.virtualMouseX, UI.virtualMouseY = toVirtual(rawMx, rawMy)
+    end
+    UI.currentPressedBtnId = juice and juice.buttonPressedId
+
     -- 1. If Canvas is enabled, render the game into mainCanvas
     if mainCanvas then
         love.graphics.setCanvas({ mainCanvas, stencil = true })
@@ -6937,10 +6923,16 @@ end
 function love.mousepressed(x, y, button)
     local mx, my = toVirtual(x, y)
 
-    -- Track pressed button id for juice animation
+    -- Track pressed button id for juice animation, tactile mechanical sound & micro-screenshake
     for _, btn in ipairs(buttons or {}) do
         if not btn.disabled and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
             juice.buttonPressedId = btn.id
+            Sound.play("ui_click")
+            if btn.id == "play" or btn.id == "discard" or btn.id == "fight" or btn.id == "fight_blind"
+               or btn.id == "reroll" or btn.id == "leave_shop" or btn.id == "btn_select_combat"
+               or btn.id == "cashout_continue" or btn.id == "skip_blind" or btn.id == "start_game" then
+                juice.screenShake = math.max(juice.screenShake or 0, 2.5)
+            end
             break
         end
     end

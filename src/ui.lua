@@ -19,8 +19,11 @@ UI.COLORS = {
     hpGreen = { 0.2, 0.8, 0.3, 1 },
     hpRed = { 0.85, 0.2, 0.2, 1 },
     bossPurple = { 0.85, 0.25, 0.8, 1 },
-    btnPlay = { 0.18, 0.68, 0.42, 1 },
-    btnDiscard = { 0.85, 0.32, 0.25, 1 },
+    btnPlay = { 0.18, 0.55, 0.92, 1 },
+    btnDiscard = { 0.88, 0.28, 0.22, 1 },
+    btnConfirm = { 0.18, 0.70, 0.38, 1 },
+    btnSpecial = { 0.95, 0.75, 0.18, 1 },
+    btnDestruct = { 0.82, 0.22, 0.24, 1 },
     btnNormal = { 0.22, 0.28, 0.35, 1 },
 }
 
@@ -44,6 +47,33 @@ function UI.truncateUtf8(str, maxChars)
         return str:sub(1, byteOffset - 1) .. "..."
     end
     return str
+end
+
+local VN_LOWER_TO_UPPER = {
+    ["a"] = "A", ["à"] = "À", ["á"] = "Á", ["ả"] = "Ả", ["ã"] = "Ã", ["ạ"] = "Ạ",
+    ["ă"] = "Ă", ["ằ"] = "Ằ", ["ắ"] = "Ắ", ["ẳ"] = "Ẳ", ["ẵ"] = "Ẵ", ["ặ"] = "Ặ",
+    ["â"] = "Â", ["ầ"] = "Ầ", ["ấ"] = "Ấ", ["ẩ"] = "Ẩ", ["ẫ"] = "Ẫ", ["ậ"] = "Ậ",
+    ["đ"] = "Đ",
+    ["e"] = "E", ["è"] = "È", ["é"] = "É", ["ẻ"] = "Ẻ", ["ẽ"] = "Ẽ", ["ẹ"] = "Ẹ",
+    ["ê"] = "Ê", ["ề"] = "Ề", ["ế"] = "Ế", ["ể"] = "Ể", ["ễ"] = "Ễ", ["ệ"] = "Ệ",
+    ["i"] = "I", ["ì"] = "Ì", ["í"] = "Í", ["ỉ"] = "Ỉ", ["ĩ"] = "Ĩ", ["ị"] = "Ị",
+    ["o"] = "O", ["ò"] = "Ò", ["ó"] = "Ó", ["ỏ"] = "Ỏ", ["õ"] = "Õ", ["ọ"] = "Ọ",
+    ["ô"] = "Ô", ["ồ"] = "Ồ", ["ố"] = "Ố", ["ổ"] = "Ổ", ["ỗ"] = "Ỗ", ["ộ"] = "Ộ",
+    ["ơ"] = "Ơ", ["ờ"] = "Ờ", ["ớ"] = "Ớ", ["ở"] = "Ở", ["ỡ"] = "Ỡ", ["ợ"] = "Ợ",
+    ["u"] = "U", ["ù"] = "Ù", ["ú"] = "Ú", ["ủ"] = "Ủ", ["ũ"] = "Ũ", ["ụ"] = "Ụ",
+    ["ư"] = "Ư", ["ừ"] = "Ừ", ["ứ"] = "Ứ", ["ử"] = "Ử", ["ữ"] = "Ữ", ["ự"] = "Ự",
+    ["y"] = "Y", ["ỳ"] = "Ỳ", ["ý"] = "Ý", ["ỷ"] = "Ỷ", ["ỹ"] = "Ỹ", ["ỵ"] = "Ỵ",
+}
+
+function UI.toUpperUtf8(str)
+    if type(str) ~= "string" or str == "" then return str or "" end
+    local res = str
+    for low, upp in pairs(VN_LOWER_TO_UPPER) do
+        if #low > 1 then
+            res = res:gsub(low, upp)
+        end
+    end
+    return res:upper()
 end
 
 function UI.initFonts()
@@ -223,6 +253,29 @@ function UI.drawSuitSymbol(suit, cx, cy, size, customColor)
 end
 
 function UI.drawButton(btn, isHovered, isPressed)
+    if not btn or btn.invisible then return end
+    if not btn.x or not btn.y or not btn.w or not btn.h then return end
+
+    -- 1. Auto-resolve hover & pressed states if omitted
+    if isHovered == nil then
+        local mx = UI.virtualMouseX
+        local my = UI.virtualMouseY
+        if not mx and love.mouse and love.mouse.getPosition then
+            mx, my = love.mouse.getPosition()
+        end
+        if mx and my then
+            isHovered = (mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h)
+        else
+            isHovered = false
+        end
+    end
+    if isPressed == nil then
+        isPressed = (btn.isPressed == true) or (btn.id and btn.id == UI.currentPressedBtnId)
+    else
+        isPressed = isPressed or (btn.isPressed == true) or (btn.id and btn.id == UI.currentPressedBtnId)
+    end
+
+    -- 2. Spring Scale Animation (Hover expansion 1.06x, Click shrink 0.94x)
     btn.animScale = btn.animScale or 1.0
     local targetScale = 1.0
     if btn.disabled then
@@ -230,56 +283,299 @@ function UI.drawButton(btn, isHovered, isPressed)
     elseif isPressed then
         targetScale = 0.94
     elseif isHovered then
-        targetScale = 1.04
+        targetScale = 1.06
     end
-    btn.animScale = btn.animScale + (targetScale - btn.animScale) * 0.25
+    btn.animScale = btn.animScale + (targetScale - btn.animScale) * 0.28
 
+    -- 3. Mechanical Depression Animation (Instant snap down, spring release)
+    btn.pressProgress = btn.pressProgress or 0
+    if isPressed and not btn.disabled then
+        btn.pressProgress = 1.0
+    else
+        btn.pressProgress = btn.pressProgress * 0.65
+        if btn.pressProgress < 0.01 then btn.pressProgress = 0 end
+    end
+
+    -- 4. 3D Mouse Tilt (Perspective shear based on cursor offset from center)
+    btn.tiltX = btn.tiltX or 0
+    btn.tiltY = btn.tiltY or 0
+    if isHovered and not btn.disabled then
+        local mx = UI.virtualMouseX
+        local my = UI.virtualMouseY
+        if not mx and love.mouse and love.mouse.getPosition then
+            mx, my = love.mouse.getPosition()
+        end
+        if mx and my then
+            local tx, ty = UI.calculateTilt(mx, my, btn.x, btn.y, btn.w, btn.h)
+            btn.tiltX = btn.tiltX + (tx - btn.tiltX) * 0.25
+            btn.tiltY = btn.tiltY + (ty - btn.tiltY) * 0.25
+        end
+    else
+        btn.tiltX = btn.tiltX * 0.72
+        btn.tiltY = btn.tiltY * 0.72
+        if math.abs(btn.tiltX) < 0.001 then btn.tiltX = 0 end
+        if math.abs(btn.tiltY) < 0.001 then btn.tiltY = 0 end
+    end
+
+    -- 5. Extrusion Depth & Corner Radius
+    local depth = 0
+    if not btn.disabled then
+        if btn.depth then
+            depth = btn.depth
+        elseif btn.h <= 24 then
+            depth = 2
+        elseif btn.h <= 36 then
+            depth = 3
+        elseif btn.h <= 55 then
+            depth = 5
+        else
+            depth = 6
+        end
+    end
+    local r = btn.cornerRadius or math.min(8, math.max(4, math.floor(btn.h * 0.2)))
+    local depressY = math.floor(btn.pressProgress * math.max(0, depth - 1) + 0.5)
+
+    -- 6. Color Scheme & Disabled State Handling
+    local baseCol = btn.color or UI.COLORS.btnNormal
+    local faceColor, baseColor, borderColor, textColor
+    if btn.disabled then
+        faceColor = { 0.22, 0.25, 0.29, 0.88 }
+        baseColor = { 0.16, 0.18, 0.21, 0.88 }
+        borderColor = { 0.15, 0.17, 0.20, 0.70 }
+        textColor = { 0.48, 0.52, 0.56, 0.85 }
+    else
+        local bright = isHovered and 1.15 or 1.0
+        faceColor = {
+            math.min(1.0, baseCol[1] * bright),
+            math.min(1.0, baseCol[2] * bright),
+            math.min(1.0, baseCol[3] * bright),
+            baseCol[4] or 1
+        }
+        baseColor = {
+            baseCol[1] * 0.40,
+            baseCol[2] * 0.40,
+            baseCol[3] * 0.40,
+            baseCol[4] or 1
+        }
+        if isHovered then
+            borderColor = { 1.0, 1.0, 1.0, 0.98 }
+        else
+            borderColor = { 0.06, 0.08, 0.10, 0.88 }
+        end
+        textColor = btn.textColor or { 1.0, 1.0, 1.0, 1.0 }
+    end
+
+    -- 7. Render Transformation
     local cx = btn.x + btn.w / 2
     local cy = btn.y + btn.h / 2
 
     love.graphics.push()
     love.graphics.translate(cx, cy)
     love.graphics.scale(btn.animScale, btn.animScale)
+    if btn.tiltX ~= 0 or btn.tiltY ~= 0 then
+        love.graphics.shear(btn.tiltX * 0.045, btn.tiltY * 0.045)
+    end
     love.graphics.translate(-cx, -cy)
 
-    local col = btn.color or UI.COLORS.btnNormal
-    if btn.disabled then
-        love.graphics.setColor(col[1] * 0.35, col[2] * 0.35, col[3] * 0.35, 0.7)
-    elseif isHovered then
-        love.graphics.setColor(math.min(1, col[1] * 1.25), math.min(1, col[2] * 1.25), math.min(1, col[3] * 1.25), 1)
-    else
-        love.graphics.setColor(col[1], col[2], col[3], col[4] or 1)
+    -- A. Extruded 3D Base (Chân nút phía dưới dày 3-6px)
+    if depth > 0 then
+        love.graphics.setColor(baseColor)
+        UI.drawRoundedRect("fill", btn.x, btn.y + 2, btn.w, btn.h - 2, r)
+
+        love.graphics.setColor(0.04, 0.05, 0.07, 0.92)
+        love.graphics.setLineWidth(1.5)
+        UI.drawRoundedRect("line", btn.x, btn.y + 2, btn.w, btn.h - 2, r)
     end
 
-    if isHovered and not btn.disabled then
-        love.graphics.setColor(0, 0, 0, 0.35)
-        UI.drawRoundedRect("fill", btn.x + 2, btn.y + 4, btn.w, btn.h, 8)
-        love.graphics.setColor(math.min(1, col[1] * 1.25), math.min(1, col[2] * 1.25), math.min(1, col[3] * 1.25), 1)
+    -- B. Button Face (Mặt trên nút)
+    local faceY = btn.y + depressY
+    local faceH = btn.h - depth
+    if isPressed and depth > 0 then
+        faceH = math.max(4, faceH - 1)
     end
 
-    UI.drawRoundedRect("fill", btn.x, btn.y, btn.w, btn.h, 8)
+    love.graphics.setColor(faceColor)
+    UI.drawRoundedRect("fill", btn.x, faceY, btn.w, faceH, r)
 
-    -- Border
-    love.graphics.setLineWidth(2)
-    if isHovered and not btn.disabled then
-        love.graphics.setColor(1, 1, 1, 0.95)
-    else
-        love.graphics.setColor(0, 0, 0, 0.35)
+    -- Face Top Glossy Highlight (Phản quang mép trên)
+    if not btn.disabled and faceH > 10 then
+        love.graphics.setColor(1, 1, 1, isHovered and 0.26 or 0.16)
+        local hlH = math.max(2, math.min(6, math.floor(faceH * 0.22)))
+        UI.drawRoundedRect("fill", btn.x + 2, faceY + 1, btn.w - 4, hlH, math.max(2, r - 2))
     end
-    UI.drawRoundedRect("line", btn.x, btn.y, btn.w, btn.h, 8)
 
-    -- Text
+    -- Face Bottom Inset Shadow (Rãnh phân tách Face và Base)
+    if not btn.disabled and depth > 0 and faceH > 12 then
+        love.graphics.setColor(0, 0, 0, 0.24)
+        UI.drawRoundedRect("fill", btn.x + 2, faceY + faceH - 3, btn.w - 4, 2, math.max(1, r - 2))
+    end
+
+    -- Face Outline (Sáng trắng khi hover, viền đen pixel khi bình thường)
+    love.graphics.setLineWidth(isHovered and not btn.disabled and 2.0 or 1.5)
+    love.graphics.setColor(borderColor)
+    UI.drawRoundedRect("line", btn.x, faceY, btn.w, faceH, r)
+
+    -- C. Typography, Labels, Subtitles & Hotkey Badges
     local font = btn.font or UI.fonts.regular or love.graphics.getFont()
     love.graphics.setFont(font)
-    if btn.disabled then
-        love.graphics.setColor(0.6, 0.6, 0.6, 0.8)
-    else
-        love.graphics.setColor(1, 1, 1, 1)
+
+    local rawText = btn.text or ""
+    local cleanText = UI.sanitizeText(rawText)
+    if not btn.preserveCase then
+        cleanText = UI.toUpperUtf8(cleanText)
     end
-    local cleanText = UI.sanitizeText(btn.text or "")
-    local textW = font:getWidth(cleanText)
-    local textH = font:getHeight()
-    love.graphics.print(cleanText, btn.x + (btn.w - textW) / 2, btn.y + (btn.h - textH) / 2)
+
+    if btn.isMultiLine and btn.sub then
+        local f1 = UI.fonts.large or font
+        local f2 = UI.fonts.medium or font
+        -- Line 1
+        love.graphics.setFont(f1)
+        local l1W = f1:getWidth(cleanText)
+        local l1Y = faceY + faceH * 0.24
+        love.graphics.setColor(0.04, 0.04, 0.06, 0.95)
+        love.graphics.print(cleanText, btn.x + (btn.w - l1W) / 2, l1Y + 1.5)
+        love.graphics.setColor(textColor)
+        love.graphics.print(cleanText, btn.x + (btn.w - l1W) / 2, l1Y)
+
+        -- Subtitle
+        local subText = UI.sanitizeText(btn.sub or "")
+        if not btn.preserveCase then subText = UI.toUpperUtf8(subText) end
+        love.graphics.setFont(f2)
+        local subW = f2:getWidth(subText)
+        local subY = faceY + faceH * 0.52
+        love.graphics.setColor(0.04, 0.04, 0.06, 0.95)
+        love.graphics.print(subText, btn.x + (btn.w - subW) / 2, subY + 1.5)
+        love.graphics.setColor(btn.disabled and textColor or { 0.92, 0.94, 0.98, 0.95 })
+        love.graphics.print(subText, btn.x + (btn.w - subW) / 2, subY)
+    elseif btn.sub then
+        local fMain = font
+        local fSub = UI.fonts.small or font
+        love.graphics.setFont(fMain)
+        local mainW = fMain:getWidth(cleanText)
+        local mainY = faceY + faceH * 0.16
+        love.graphics.setColor(0.04, 0.04, 0.06, 0.95)
+        love.graphics.print(cleanText, btn.x + (btn.w - mainW) / 2, mainY + 1.5)
+        love.graphics.setColor(textColor)
+        love.graphics.print(cleanText, btn.x + (btn.w - mainW) / 2, mainY)
+
+        local subText = UI.sanitizeText(btn.sub or "")
+        if not btn.preserveCase then subText = UI.toUpperUtf8(subText) end
+        love.graphics.setFont(fSub)
+        local subW = fSub:getWidth(subText)
+        local subY = faceY + faceH * 0.56
+        love.graphics.setColor(0.04, 0.04, 0.06, 0.95)
+        love.graphics.print(subText, btn.x + (btn.w - subW) / 2, subY + 1.5)
+        love.graphics.setColor(btn.disabled and textColor or { 0.92, 0.94, 0.98, 0.92 })
+        love.graphics.print(subText, btn.x + (btn.w - subW) / 2, subY)
+    else
+        -- Check for newline
+        if cleanText:find("\n") then
+            local rawLines = {}
+            for l in cleanText:gmatch("([^\r\n]*)") do
+                table.insert(rawLines, l)
+            end
+            if #rawLines > 1 and rawLines[#rawLines] == "" then
+                table.remove(rawLines)
+            end
+            local lineH = font:getHeight()
+            local lineSpacing = 2
+            local totalH = #rawLines * lineH + (#rawLines - 1) * lineSpacing
+            local curY = faceY + (faceH - totalH) / 2
+            for _, line in ipairs(rawLines) do
+                if #line > 0 then
+                    local lw = font:getWidth(line)
+                    local lx = btn.x + (btn.w - lw) / 2
+                    -- Shadow
+                    love.graphics.setColor(0.04, 0.04, 0.06, 0.95)
+                    love.graphics.print(line, lx, curY + 1.5)
+                    -- Face text
+                    love.graphics.setColor(textColor)
+                    love.graphics.print(line, lx, curY)
+                end
+                curY = curY + lineH + lineSpacing
+            end
+        else
+            -- Single line: Check for hotkey bracket like [Space], [D], [R], [Tab], [Esc]
+            local hotkey = cleanText:match("%[([^%]]+)%]")
+            if hotkey and not btn.noHotkeyBadge then
+                local prefix = cleanText:gsub("%s*%[[^%]]+%]%s*", "")
+                local pW = (#prefix > 0) and font:getWidth(prefix) or 0
+                local badgeFont = (font == UI.fonts.large or font == UI.fonts.huge) and (UI.fonts.medium or font) 
+                                  or (font == UI.fonts.medium and (UI.fonts.small or font) or (UI.fonts.tiny or font))
+                local kw = math.max(20, badgeFont:getWidth(hotkey) + 12)
+                local kh = math.max(16, badgeFont:getHeight() + 4)
+                local gap = (pW > 0) and 8 or 0
+                local totalW = pW + gap + kw
+                local startX = btn.x + (btn.w - totalW) / 2
+                local textY = faceY + (faceH - font:getHeight()) / 2
+                local badgeY = faceY + (faceH - kh) / 2
+
+                if pW > 0 then
+                    -- Main text shadow
+                    love.graphics.setFont(font)
+                    love.graphics.setColor(0.04, 0.04, 0.06, 0.95)
+                    love.graphics.print(prefix, startX, textY + 1.5)
+                    -- Main text
+                    love.graphics.setColor(textColor)
+                    love.graphics.print(prefix, startX, textY)
+                end
+
+                -- Keycap Badge
+                local bx = startX + pW + gap
+                -- Keycap Base / Depressed casing
+                love.graphics.setColor(0.06, 0.08, 0.10, 0.95)
+                UI.drawRoundedRect("fill", bx, badgeY + 1, kw, kh, 3)
+                -- Keycap Face
+                love.graphics.setColor(0.14, 0.18, 0.22, 0.95)
+                UI.drawRoundedRect("fill", bx, badgeY, kw, kh - 1, 3)
+                -- Keycap Top Highlight
+                love.graphics.setColor(1, 1, 1, 0.22)
+                love.graphics.line(bx + 2, badgeY + 1, bx + kw - 2, badgeY + 1)
+                -- Keycap Border
+                love.graphics.setLineWidth(1)
+                love.graphics.setColor(0.36, 0.44, 0.52, 0.92)
+                UI.drawRoundedRect("line", bx, badgeY, kw, kh, 3)
+                -- Keycap Text
+                love.graphics.setFont(badgeFont)
+                local kwText = badgeFont:getWidth(hotkey)
+                local khText = badgeFont:getHeight()
+                local ktx = bx + (kw - kwText) / 2
+                local kty = badgeY + (kh - khText) / 2
+                love.graphics.setColor(0, 0, 0, 0.95)
+                love.graphics.print(hotkey, ktx, kty + 1)
+                love.graphics.setColor(UI.COLORS.goldYellow or { 0.98, 0.85, 0.25, 1 })
+                love.graphics.print(hotkey, ktx, kty)
+            else
+                -- Standard single line text
+                local textW = font:getWidth(cleanText)
+                local textH = font:getHeight()
+                local tx = btn.x + (btn.w - textW) / 2
+                local ty = faceY + (faceH - textH) / 2
+                -- Shadow
+                love.graphics.setColor(0.04, 0.04, 0.06, 0.95)
+                love.graphics.print(cleanText, tx, ty + 1.5)
+                -- Face text
+                love.graphics.setColor(textColor)
+                love.graphics.print(cleanText, tx, ty)
+            end
+        end
+    end
+
+    -- Alert exclamation badge on right side
+    if btn.alert then
+        local badgeX = btn.x + btn.w - 18
+        local badgeY = faceY + faceH / 2
+        love.graphics.setColor(0.85, 0.18, 0.18, 1)
+        love.graphics.circle("fill", badgeX, badgeY, 11)
+        love.graphics.setColor(1, 1, 1, 0.95)
+        love.graphics.setLineWidth(1.5)
+        love.graphics.circle("line", badgeX, badgeY, 11)
+        love.graphics.setFont(UI.fonts.tiny or font)
+        love.graphics.setColor(0, 0, 0, 0.95)
+        love.graphics.printf("!", badgeX - 11, badgeY - 6, 22, "center")
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf("!", badgeX - 11, badgeY - 7, 22, "center")
+    end
 
     love.graphics.pop()
 end
