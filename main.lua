@@ -11,6 +11,7 @@ local Map = require("src.map")
 local Events = require("src.events")
 local RunManager = require("src.run_manager")
 local RewardSystem = require("src.reward_system")
+local Collection = require("src.collection")
 
 io.stdout:setvbuf("no")
 local isCaptureMode = false
@@ -40,9 +41,9 @@ local bgShader = nil
 local crtShader = nil
 
 local bgCurrentColors = {
-    a = { 0.06, 0.16, 0.12 },
-    b = { 0.10, 0.32, 0.22 },
-    c = { 0.18, 0.48, 0.30 },
+    a = { 0.72, 0.10, 0.14 },
+    b = { 0.08, 0.32, 0.75 },
+    c = { 0.85, 0.20, 0.25 },
 }
 
 -- Run data
@@ -114,6 +115,11 @@ local isPauseMenuOpen = false
 local isSettingsOpen = false
 local lastActiveState = "map"
 local hasRunStarted = false
+
+-- Collection Compendium Modal State
+local isCollectionOpen = false
+local collectionCategory = nil -- nil: Category Hub, string: Category id for Detail view
+local selectedCollectionItem = nil
 
 -- Settings Data
 local settings = {
@@ -1219,6 +1225,14 @@ function love.update(dt)
             closePauseMenu = function()
                 isPauseMenuOpen = false
             end,
+            openCollection = function(cat)
+                isCollectionOpen = true
+                collectionCategory = cat
+            end,
+            closeCollection = function()
+                isCollectionOpen = false
+                collectionCategory = nil
+            end,
         })
     end
 
@@ -1359,7 +1373,11 @@ function love.update(dt)
 
     -- Smooth background shader color interpolation based on active state / blind
     local targetA, targetB, targetC
-    if state == "shop" then
+    if state == "menu" then
+        targetA = { 0.72, 0.10, 0.14 }
+        targetB = { 0.08, 0.32, 0.75 }
+        targetC = { 0.85, 0.20, 0.25 }
+    elseif state == "shop" then
         targetA = { 0.11, 0.06, 0.18 }
         targetB = { 0.22, 0.10, 0.32 }
         targetC = { 0.55, 0.32, 0.12 }
@@ -2002,107 +2020,269 @@ end
 --------------------------------------------------------------------------------
 
 local function drawMainMenu()
-    local winW, winH = love.graphics.getDimensions()
-    love.graphics.setColor(UI.COLORS.felt)
-    love.graphics.rectangle("fill", -offsetX / scale, -offsetY / scale, winW / scale, winH / scale)
-
     local mx, my = toVirtual(love.mouse.getPosition())
     buttons = {}
 
-    -- Floating background decorative cards
+    -- 1. Subtle dark overlay so the psychedelic swirling shader shines through vibrantly
+    love.graphics.setColor(0, 0, 0, 0.08)
+    love.graphics.rectangle("fill", 0, 0, V_WIDTH, V_HEIGHT)
+
+    -- 2. Top-right version indicators (matching media_1789532726531.png)
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(1, 1, 1, 0.95)
+    love.graphics.printf("1.0.1o-FULL", 0, 16, V_WIDTH - 24, "right")
+    love.graphics.printf("1.0.0~BETA-1620a-TERRASUIT", 0, 32, V_WIDTH - 24, "right")
+
+    -- 3. Center Emblem: Caduceus Blade & Floating Chained Card
+    local emblemCX = 640
+    local cardFloatY = 275 + math.sin((juice.ambientTimer or 0) * 2.2) * 7
+    local cardTilt = math.sin((juice.ambientTimer or 0) * 1.5) * 0.04
+
+    -- A. Vertical Caduceus / Sword of Destiny behind the card
+    love.graphics.push()
+    love.graphics.translate(emblemCX, cardFloatY)
+
+    -- Upper sword hilt / pommel
+    love.graphics.setColor(0.80, 0.88, 0.96, 0.95)
+    love.graphics.rectangle("fill", -5, -165, 10, 60)
+    love.graphics.setColor(0.98, 0.85, 0.25, 1)
+    love.graphics.circle("fill", 0, -168, 11)
+    love.graphics.rectangle("fill", -24, -125, 48, 8, 3, 3)
+
+    -- Blue coiled serpent ribbon on upper shaft
     for i = 1, 5 do
-        local floatX = 140 + (i - 1) * 245 + math.sin(juice.ambientTimer * 0.8 + i) * 15
-        local floatY = 230 + math.cos(juice.ambientTimer * 0.6 + i * 1.5) * 20
-        local floatAngle = math.sin(juice.ambientTimer * 0.5 + i) * 0.12
+        local ry = -155 + i * 14
+        local rx = math.sin(ry * 0.15 + (juice.ambientTimer or 0) * 1.2) * 16
+        love.graphics.setColor(0.18, 0.52, 0.96, 0.95)
+        love.graphics.circle("fill", rx, ry, 8)
+        love.graphics.setColor(0.92, 0.96, 1.0, 0.95)
+        love.graphics.circle("fill", rx - 1.5, ry - 1.5, 3.5)
+    end
+
+    -- Lower silver sword blade pointing down
+    love.graphics.setColor(0.88, 0.92, 0.98, 1)
+    love.graphics.polygon("fill", -8, 95, 8, 95, 0, 180)
+    love.graphics.setColor(0.2, 0.25, 0.3, 1)
+    love.graphics.line(0, 95, 0, 175)
+
+    -- Yellow coiled serpent ribbon on lower shaft
+    for i = 1, 5 do
+        local ry = 100 + i * 14
+        local rx = -math.sin(ry * 0.15 + (juice.ambientTimer or 0) * 1.2) * 15
+        love.graphics.setColor(0.96, 0.88, 0.15, 0.95)
+        love.graphics.circle("fill", rx, ry, 7.5)
+        love.graphics.setColor(1, 1, 0.75, 0.95)
+        love.graphics.circle("fill", rx - 1.5, ry - 1.5, 3)
+    end
+    love.graphics.pop()
+
+    -- B. Stylized 3D Letters: "TERRA" (Left) and "SUIT" (Right)
+    local letterY = 224
+    local fontLogo = UI.fonts.logo or UI.fonts.huge
+
+    local function drawLogoLetters()
+        love.graphics.setFont(fontLogo)
+        love.graphics.printf("TERRA", 40, letterY, 510, "right")
+        love.graphics.printf("SUIT", 730, letterY, 510, "left")
+    end
+
+    -- Layer 1: Thick 3D Extruded Dark Shadow
+    love.graphics.setFont(fontLogo)
+    for d = 10, 1, -1 do
+        love.graphics.setColor(0.05, 0.07, 0.10, 0.94)
+        love.graphics.printf("TERRA", 40 + d, letterY + d, 510, "right")
+        love.graphics.printf("SUIT", 730 + d, letterY + d, 510, "left")
+    end
+
+    -- Layer 2: Dark Outlines (8 directions)
+    love.graphics.setColor(0.08, 0.11, 0.15, 1)
+    for ox = -4, 4, 4 do
+        for oy = -4, 4, 4 do
+            if ox ~= 0 or oy ~= 0 then
+                love.graphics.printf("TERRA", 40 + ox, letterY + oy, 510, "right")
+                love.graphics.printf("SUIT", 730 + ox, letterY + oy, 510, "left")
+            end
+        end
+    end
+
+    -- Layer 3: Base Off-White / Cream Letter Body
+    love.graphics.setColor(0.97, 0.96, 0.92, 1)
+    love.graphics.printf("TERRA", 40, letterY, 510, "right")
+    love.graphics.printf("SUIT", 730, letterY, 510, "left")
+
+    -- Layer 4: 3 Wavy Contour Landscape Stripes (Blue, Sage Green, Olive Yellow) using Stencil
+    local okStencil = pcall(love.graphics.stencil, drawLogoLetters, "replace", 1)
+    if okStencil then
+        pcall(love.graphics.setStencilTest, "greater", 0)
+        local stripeT = (juice.ambientTimer or 0) * 0.4
+        -- Blue top stripe
+        love.graphics.setColor(0.12, 0.45, 0.90, 0.95)
+        for px = 0, V_WIDTH, 4 do
+            local sy = letterY + 28 + math.sin(px * 0.015 + stripeT) * 8
+            love.graphics.rectangle("fill", px, sy, 5, 8)
+        end
+        -- Sage green middle stripe
+        love.graphics.setColor(0.38, 0.68, 0.48, 0.95)
+        for px = 0, V_WIDTH, 4 do
+            local sy = letterY + 52 + math.sin(px * 0.018 - stripeT * 1.2) * 8
+            love.graphics.rectangle("fill", px, sy, 5, 8)
+        end
+        -- Olive yellow bottom stripe
+        love.graphics.setColor(0.78, 0.76, 0.24, 0.95)
+        for px = 0, V_WIDTH, 4 do
+            local sy = letterY + 76 + math.sin(px * 0.014 + stripeT * 0.8) * 8
+            love.graphics.rectangle("fill", px, sy, 5, 8)
+        end
+        pcall(love.graphics.setStencilTest)
+    end
+
+    -- C. The Sealed Tarot Card with Chains and Padlock (Floating & Tilting in center)
+    love.graphics.push()
+    love.graphics.translate(emblemCX, cardFloatY)
+    love.graphics.rotate(cardTilt)
+
+    local cardW = 142
+    local cardH = 205
+    local halfW = cardW / 2
+    local halfH = cardH / 2
+
+    -- Card 3D drop shadow
+    love.graphics.setColor(0, 0, 0, 0.55)
+    UI.drawRoundedRect("fill", -halfW + 8, -halfH + 10, cardW, cardH, 10)
+
+    -- Card Gold Border
+    love.graphics.setColor(0.98, 0.80, 0.18, 1)
+    UI.drawRoundedRect("fill", -halfW, -halfH, cardW, cardH, 10)
+
+    -- Card Body (Silver Slate)
+    love.graphics.setColor(0.88, 0.92, 0.96, 1)
+    UI.drawRoundedRect("fill", -halfW + 6, -halfH + 6, cardW - 12, cardH - 12, 8)
+
+    -- Inner Card Decorative Frame
+    love.graphics.setColor(0.68, 0.76, 0.84, 1)
+    UI.drawRoundedRect("line", -halfW + 12, -halfH + 12, cardW - 24, cardH - 24, 6)
+
+    -- Crossed Silver Chains (Diagonal 1: TL to BR, Diagonal 2: TR to BL)
+    local function drawChainLink(lx, ly, lrot)
         love.graphics.push()
-        love.graphics.translate(floatX, floatY)
-        love.graphics.rotate(floatAngle)
-        love.graphics.setColor(0.06, 0.12, 0.09, 0.35)
-        UI.drawRoundedRect("fill", -45, -65, 90, 130, 8)
-        love.graphics.setColor(0.18, 0.32, 0.24, 0.4)
-        UI.drawRoundedRect("line", -45, -65, 90, 130, 8)
+        love.graphics.translate(lx, ly)
+        love.graphics.rotate(lrot)
+        love.graphics.setColor(0.18, 0.22, 0.28, 0.95)
+        love.graphics.rectangle("fill", -11, -6, 22, 12, 5, 5)
+        love.graphics.setColor(0.86, 0.91, 0.97, 1)
+        love.graphics.rectangle("fill", -9, -4, 18, 8, 4, 4)
+        love.graphics.setColor(0.18, 0.22, 0.28, 1)
+        love.graphics.rectangle("fill", -4, -2, 8, 4, 2, 2)
         love.graphics.pop()
     end
 
-    -- Title Banner Box
-    local titleY = 65
-    love.graphics.setFont(UI.fonts.huge)
-    love.graphics.setColor(0, 0, 0, 0.6)
-    love.graphics.printf("POKER ROGUELIKE", 3, titleY + 3, V_WIDTH, "center")
-    love.graphics.setColor(UI.COLORS.goldYellow)
-    love.graphics.printf("POKER ROGUELIKE", 0, titleY, V_WIDTH, "center")
+    local dAngle = math.atan2(cardH, cardW)
+    for t = -0.46, 0.46, 0.11 do
+        drawChainLink(t * cardW * 0.92, t * cardH * 0.92, dAngle)
+        drawChainLink(-t * cardW * 0.92, t * cardH * 0.92, -dAngle)
+    end
 
-    love.graphics.setFont(UI.fonts.medium)
-    love.graphics.setColor(UI.COLORS.textLight)
-    love.graphics.printf("Hành Trình Thần Bài • Roguelike Deckbuilder", 0, titleY + 62, V_WIDTH, "center")
+    -- Center Padlock
+    local lockW = 54
+    local lockH = 48
+    local shackleR = 17
+    -- Shackle
+    love.graphics.setColor(0.72, 0.78, 0.85, 1)
+    love.graphics.setLineWidth(6)
+    love.graphics.arc("line", "open", 0, -14, shackleR, math.pi, 2 * math.pi)
+    -- Padlock Body
+    love.graphics.setColor(0.26, 0.32, 0.40, 1)
+    UI.drawRoundedRect("fill", -lockW / 2, -12, lockW, lockH, 7)
+    love.graphics.setColor(0.42, 0.50, 0.60, 1)
+    UI.drawRoundedRect("line", -lockW / 2, -12, lockW, lockH, 7)
+    -- Keyhole
+    love.graphics.setColor(0.06, 0.08, 0.12, 1)
+    love.graphics.circle("fill", 0, 7, 6)
+    love.graphics.polygon("fill", -3.5, 7, 3.5, 7, 2, 20, -2, 20)
 
-    -- Central Menu Buttons
-    local btnW = 340
-    local btnH = 50
-    local startY = 210
-    local spacing = 64
-    local cx = (V_WIDTH - btnW) / 2
+    love.graphics.pop()
 
-    local btnNewRun = {
-        id = "menu_new_run",
-        text = "BẮT ĐẦU HÀNH TRÌNH",
-        x = cx,
-        y = startY,
-        w = btnW,
-        h = btnH,
-        color = UI.COLORS.btnPlay,
-        font = UI.fonts.medium,
+    -- 4. Bottom Horizontal Control Bar (matching media_1789532726531.png)
+    local barY = 622
+    local barH = 58
+
+    -- Left: Profile Badge Container
+    local profX = 45
+    local profW = 110
+    love.graphics.setColor(0, 0, 0, 0.4)
+    UI.drawRoundedRect("fill", profX + 2, barY + 3, profW, barH, 8)
+    love.graphics.setColor(0.16, 0.22, 0.25, 0.95)
+    UI.drawRoundedRect("fill", profX, barY, profW, barH, 8)
+    love.graphics.setColor(0.28, 0.38, 0.44, 1)
+    UI.drawRoundedRect("line", profX, barY, profW, barH, 8)
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.textMuted)
+    love.graphics.printf("Hồ Sơ", profX, barY + 8, profW, "center")
+    love.graphics.setFont(UI.fonts.regular)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf("Nhatnam", profX, barY + 28, profW, "center")
+
+    -- Center: 5 Action Buttons
+    local btnGroupX = 165
+    local btnPlay = {
+        id = "menu_play",
+        text = "CHƠI",
+        x = btnGroupX,
+        y = barY,
+        w = 175,
+        h = barH,
+        color = { 0.05, 0.52, 0.95, 1 }, -- Bright blue
+        font = UI.fonts.large,
     }
-    table.insert(buttons, btnNewRun)
+    table.insert(buttons, btnPlay)
 
-    local btnContinue = {
-        id = "menu_continue",
-        text = "TIẾP TỤC VÁN ĐẤU",
-        x = cx,
-        y = startY + spacing,
-        w = btnW,
-        h = btnH,
-        color = hasRunStarted and UI.COLORS.chipsBlue or UI.COLORS.btnNormal,
-        font = UI.fonts.medium,
-        disabled = not hasRunStarted,
-    }
-    table.insert(buttons, btnContinue)
-
-    local btnHandbook = {
-        id = "menu_handbook",
-        text = "SỔ TAY CHIẾN THUẬT",
-        x = cx,
-        y = startY + spacing * 2,
-        w = btnW,
-        h = btnH,
-        color = UI.COLORS.btnNormal,
-        font = UI.fonts.medium,
-    }
-    table.insert(buttons, btnHandbook)
-
-    local btnSettings = {
+    local btnOptions = {
         id = "menu_settings",
-        text = "CÀI ĐẶT TRÒ CHƠI",
-        x = cx,
-        y = startY + spacing * 3,
-        w = btnW,
-        h = btnH,
-        color = UI.COLORS.btnNormal,
+        text = "TUỲ CHỌN",
+        x = btnGroupX + 185,
+        y = barY,
+        w = 140,
+        h = barH,
+        color = { 0.96, 0.54, 0.08, 1 }, -- Balatro orange
         font = UI.fonts.medium,
     }
-    table.insert(buttons, btnSettings)
+    table.insert(buttons, btnOptions)
 
     local btnQuit = {
         id = "menu_quit",
-        text = "THOÁT TRÒ CHƠI",
-        x = cx,
-        y = startY + spacing * 4,
-        w = btnW,
-        h = btnH,
-        color = { 0.35, 0.18, 0.20, 1 },
+        text = "THOÁT",
+        x = btnGroupX + 335,
+        y = barY,
+        w = 135,
+        h = barH,
+        color = { 0.94, 0.28, 0.28, 1 }, -- Red
         font = UI.fonts.medium,
     }
     table.insert(buttons, btnQuit)
+
+    local btnCollection = {
+        id = "menu_collection",
+        text = "BỘ SƯU TẬP",
+        x = btnGroupX + 480,
+        y = barY,
+        w = 185,
+        h = barH,
+        color = { 0.22, 0.60, 0.42, 1 }, -- Jade Green
+        font = UI.fonts.medium,
+    }
+    table.insert(buttons, btnCollection)
+
+    local btnMod = {
+        id = "menu_mod",
+        text = "MOD",
+        x = btnGroupX + 675,
+        y = barY,
+        w = 95,
+        h = barH,
+        color = { 0.36, 0.42, 0.60, 1 }, -- Slate purple
+        font = UI.fonts.medium,
+    }
+    table.insert(buttons, btnMod)
 
     for _, btn in ipairs(buttons) do
         local isH = (mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h)
@@ -2110,9 +2290,411 @@ local function drawMainMenu()
         UI.drawButton(btn, isH, isP)
     end
 
+    -- Right side social buttons & language badge
+    local rightX = btnGroupX + 782
+    -- Discord Button
+    local isDiscH = (mx >= rightX and mx <= rightX + 38 and my >= barY and my <= barY + 26)
+    love.graphics.setColor(isDiscH and { 0.42, 0.50, 0.95, 1 } or { 0.35, 0.42, 0.92, 1 })
+    UI.drawRoundedRect("fill", rightX, barY, 38, 26, 6)
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf("Dc", rightX, barY + 5, 38, "center")
+
+    -- X Button
+    local isXH = (mx >= rightX + 44 and mx <= rightX + 82 and my >= barY and my <= barY + 26)
+    love.graphics.setColor(isXH and { 0.22, 0.22, 0.24, 1 } or { 0.12, 0.12, 0.14, 1 })
+    UI.drawRoundedRect("fill", rightX + 44, barY, 38, 26, 6)
+    love.graphics.setColor(0.3, 0.35, 0.4, 1)
+    UI.drawRoundedRect("line", rightX + 44, barY, 38, 26, 6)
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf("𝕏", rightX + 44, barY + 5, 38, "center")
+
+    -- Language pill [A文 Tiếng Việt]
+    local langW = 150
+    local langH = 26
+    local langY = barY + 32
+    local isLangH = (mx >= rightX and mx <= rightX + langW and my >= langY and my <= langY + langH)
+    love.graphics.setColor(isLangH and { 0.22, 0.28, 0.32, 1 } or { 0.16, 0.22, 0.25, 0.95 })
+    UI.drawRoundedRect("fill", rightX, langY, langW, langH, 6)
+    love.graphics.setColor(0.28, 0.38, 0.44, 1)
+    UI.drawRoundedRect("line", rightX, langY, langW, langH, 6)
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(1, 1, 1, 0.95)
+    love.graphics.printf("A文 Tiếng Việt", rightX, langY + 6, langW, "center")
+end
+
+local function drawCollectionModal()
+    local mx, my = toVirtual(love.mouse.getPosition())
+    -- Dim background
+    love.graphics.setColor(0, 0, 0, 0.65)
+    love.graphics.rectangle("fill", 0, 0, V_WIDTH, V_HEIGHT)
+
+    local modalW = 760
+    local modalH = 590
+    local modalX = (V_WIDTH - modalW) / 2
+    local modalY = (V_HEIGHT - modalH) / 2
+
+    -- Modal background & border
+    love.graphics.setColor(0, 0, 0, 0.5)
+    UI.drawRoundedRect("fill", modalX + 4, modalY + 6, modalW, modalH, 12)
+    love.graphics.setColor(0.22, 0.28, 0.31, 0.98) -- #38464d
+    UI.drawRoundedRect("fill", modalX, modalY, modalW, modalH, 12)
+    love.graphics.setColor(0.31, 0.39, 0.44, 1)
+    UI.drawRoundedRect("line", modalX, modalY, modalW, modalH, 12)
+
+    local colW = 340
+    local colLX = modalX + 26
+    local colRX = modalX + modalW - 26 - colW
+
+    -- LEFT COLUMN
+    -- 1. Joker (Thần Hộ Mệnh)
+    local btnJoker = {
+        id = "coll_cat_jokers",
+        catId = "jokers",
+        text = "Joker",
+        sub = "25 / 25",
+        x = colLX,
+        y = modalY + 24,
+        w = colW,
+        h = 76,
+        color = { 0.55, 0.16, 0.14, 1 },
+        font = UI.fonts.large,
+    }
+    table.insert(buttons, btnJoker)
+
+    -- 2. Bộ Bài (Factions)
+    local btnDecks = {
+        id = "coll_cat_decks",
+        catId = "decks",
+        text = "Bộ Bài",
+        sub = "4 / 4",
+        x = colLX,
+        y = modalY + 112,
+        w = colW,
+        h = 48,
+        color = { 0.92, 0.28, 0.22, 1 },
+        font = UI.fonts.medium,
+    }
+    table.insert(buttons, btnDecks)
+
+    -- 3. Phiếu (Vouchers)
+    local btnVouchers = {
+        id = "coll_cat_vouchers",
+        catId = "vouchers",
+        text = "Phiếu",
+        sub = "9 / 9",
+        x = colLX,
+        y = modalY + 172,
+        w = colW,
+        h = 48,
+        color = { 0.92, 0.28, 0.22, 1 },
+        font = UI.fonts.medium,
+        alert = true,
+    }
+    table.insert(buttons, btnVouchers)
+
+    -- 4. Section Lá Tiêu Thụ / Trang Bị Khảm (Dark inset with vertical tab and large orange card)
+    local boxY = modalY + 232
+    local boxH = 270
+    love.graphics.setColor(0.12, 0.16, 0.18, 1)
+    UI.drawRoundedRect("fill", colLX, boxY, colW, boxH, 8)
+    love.graphics.setColor(0.22, 0.28, 0.32, 1)
+    UI.drawRoundedRect("line", colLX, boxY, colW, boxH, 8)
+
+    -- Vertical label "LÁ TIÊU THỤ"
+    love.graphics.push()
+    love.graphics.translate(colLX + 14, boxY + boxH - 25)
+    love.graphics.rotate(-math.pi / 2)
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.printf("Phiên bản v1.2 • [F11] Toàn Màn Hình • [ESC] Tạm Dừng Trong Trận", 0, V_HEIGHT - 45, V_WIDTH, "center")
+    love.graphics.print("LÁ TIÊU THỤ", 0, 0)
+    love.graphics.pop()
+
+    -- Large orange card button inside
+    local btnConsumables = {
+        id = "coll_cat_consumables",
+        catId = "consumables",
+        text = "Lá Tiêu Thụ",
+        sub = "Trang Bị Khảm\n8 / 8",
+        x = colLX + 44,
+        y = boxY + 12,
+        w = colW - 56,
+        h = boxH - 24,
+        color = { 0.96, 0.54, 0.08, 1 },
+        font = UI.fonts.large,
+        isMultiLine = true,
+    }
+    table.insert(buttons, btnConsumables)
+
+    -- RIGHT COLUMN
+    local rButtons = {
+        { id = "coll_cat_enhancements", catId = "enhancements", text = "Lá Cường Hoá", sub = "6 / 6", y = modalY + 24, h = 46 },
+        { id = "coll_cat_seals", catId = "seals", text = "Con Dấu", sub = "4 / 4", y = modalY + 76, h = 46 },
+        { id = "coll_cat_editions", catId = "editions", text = "Ấn Bản", sub = "4 / 4", y = modalY + 128, h = 46, alert = true },
+        { id = "coll_cat_packs", catId = "packs", text = "Gói Bài", sub = "5 / 5", y = modalY + 180, h = 46 },
+        { id = "coll_cat_tags", catId = "tags", text = "Nhãn Bỏ Qua", sub = "8 / 8", y = modalY + 232, h = 46, alert = true },
+        { id = "coll_cat_blinds", catId = "blinds", text = "Blind", sub = "9 / 9", y = modalY + 284, h = 86, alert = true },
+        { id = "coll_cat_other", catId = "other", text = "Khác", sub = "Tổ Hợp & Điểm Số", y = modalY + 376, h = 46 },
+    }
+    for _, rb in ipairs(rButtons) do
+        rb.x = colRX
+        rb.w = colW
+        rb.color = { 0.92, 0.28, 0.22, 1 }
+        rb.font = UI.fonts.medium
+        table.insert(buttons, rb)
+    end
+
+    -- BOTTOM: Trở Lại (Orange button spanning full modal width)
+    local btnBack = {
+        id = "coll_close",
+        text = "Trở Lại",
+        x = modalX + 26,
+        y = modalY + modalH - 60,
+        w = modalW - 52,
+        h = 44,
+        color = { 0.96, 0.54, 0.08, 1 },
+        font = UI.fonts.medium,
+    }
+    table.insert(buttons, btnBack)
+
+    -- Draw all buttons in this modal
+    for _, btn in ipairs(buttons) do
+        local isH = (mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h)
+
+        local col = btn.color or UI.COLORS.btnNormal
+        if isH then
+            love.graphics.setColor(math.min(1, col[1] * 1.18), math.min(1, col[2] * 1.18), math.min(1, col[3] * 1.18), 1)
+        else
+            love.graphics.setColor(col[1], col[2], col[3], col[4] or 1)
+        end
+        UI.drawRoundedRect("fill", btn.x, btn.y, btn.w, btn.h, 8)
+        love.graphics.setColor(0, 0, 0, 0.3)
+        UI.drawRoundedRect("line", btn.x, btn.y, btn.w, btn.h, 8)
+
+        -- Content text
+        love.graphics.setColor(1, 1, 1, 1)
+        if btn.isMultiLine then
+            love.graphics.setFont(UI.fonts.large)
+            love.graphics.printf(btn.text, btn.x, btn.y + btn.h * 0.28, btn.w, "center")
+            love.graphics.setFont(UI.fonts.medium)
+            love.graphics.printf(btn.sub, btn.x, btn.y + btn.h * 0.50, btn.w, "center")
+        elseif btn.sub then
+            love.graphics.setFont(btn.font or UI.fonts.medium)
+            love.graphics.printf(btn.text, btn.x, btn.y + btn.h * 0.16, btn.w, "center")
+            love.graphics.setFont(UI.fonts.small)
+            love.graphics.setColor(1, 1, 1, 0.9)
+            love.graphics.printf(btn.sub, btn.x, btn.y + btn.h * 0.56, btn.w, "center")
+        else
+            love.graphics.setFont(btn.font or UI.fonts.medium)
+            love.graphics.printf(btn.text, btn.x, btn.y + (btn.h - 22) / 2, btn.w, "center")
+        end
+
+        -- Alert exclamation badge
+        if btn.alert then
+            local badgeX = btn.x + btn.w - 18
+            local badgeY = btn.y + btn.h / 2
+            love.graphics.setColor(0.75, 0.15, 0.15, 1)
+            love.graphics.circle("fill", badgeX, badgeY, 11)
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.setFont(UI.fonts.tiny)
+            love.graphics.printf("!", badgeX - 11, badgeY - 7, 22, "center")
+        end
+    end
+end
+
+local function drawCollectionDetailView()
+    local mx, my = toVirtual(love.mouse.getPosition())
+    buttons = {}
+
+    -- Dim background
+    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.rectangle("fill", 0, 0, V_WIDTH, V_HEIGHT)
+
+    local cat = Collection.getCategoryById(collectionCategory) or { title = "Danh Mục", sub = "" }
+    local items = Collection.getItems(collectionCategory)
+
+    local modalW = 1180
+    local modalH = 640
+    local modalX = (V_WIDTH - modalW) / 2
+    local modalY = (V_HEIGHT - modalH) / 2
+
+    -- Modal box
+    love.graphics.setColor(0.14, 0.18, 0.21, 0.98)
+    UI.drawRoundedRect("fill", modalX, modalY, modalW, modalH, 12)
+    love.graphics.setColor(0.28, 0.38, 0.44, 1)
+    UI.drawRoundedRect("line", modalX, modalY, modalW, modalH, 12)
+
+    -- Header Navigation
+    local btnBack = {
+        id = "coll_back_to_hub",
+        text = "< QUAY LẠI BỘ SƯU TẬP",
+        x = modalX + 24,
+        y = modalY + 16,
+        w = 230,
+        h = 38,
+        color = { 0.96, 0.54, 0.08, 1 },
+        font = UI.fonts.small,
+    }
+    table.insert(buttons, btnBack)
+    local isBackH = (mx >= btnBack.x and mx <= btnBack.x + btnBack.w and my >= btnBack.y and my <= btnBack.y + btnBack.h)
+    UI.drawButton(btnBack, isBackH, juice.buttonPressedId == btnBack.id)
+
+    love.graphics.setFont(UI.fonts.large)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.print(string.upper(cat.title) .. " • " .. cat.sub, modalX + 270, modalY + 20)
+
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.textMuted)
+    love.graphics.print(#items .. " Mục đã mở khóa • Nhấp hoặc rê chuột vào thẻ để xem chi tiết", modalX + 272, modalY + 48)
+
+    -- Layout: Left Area is Grid (width ~ 750), Right Area is Inspector (width ~ 360)
+    local gridX = modalX + 24
+    local gridY = modalY + 75
+    local gridW = 750
+    local gridH = modalH - 95
+
+    local hoveredItem = nil
+
+    -- Render Cards in Grid
+    local cardW = 112
+    local cardH = 158
+    local cols = 6
+    local padX = 14
+    local padY = 16
+
+    for i, item in ipairs(items) do
+        local col = (i - 1) % cols
+        local row = math.floor((i - 1) / cols)
+        local cx = gridX + col * (cardW + padX)
+        local cy = gridY + row * (cardH + padY)
+
+        if cy + cardH <= gridY + gridH + 10 then
+            local isH = (mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH)
+            if isH then hoveredItem = item end
+
+            -- 3D Tilt calculation
+            local tX, tY = 0, 0
+            if isH then
+                tX, tY = UI.calculateTilt(mx, my, cx, cy, cardW, cardH)
+            end
+
+            love.graphics.push()
+            love.graphics.translate(cx + cardW / 2, cy + cardH / 2)
+            if isH then
+                love.graphics.shear(tX * 0.08, tY * 0.08)
+                love.graphics.scale(1.05, 1.05)
+            end
+            love.graphics.translate(-cardW / 2, -cardH / 2)
+
+            -- Card Body
+            local itemCol = item.color or { 0.3, 0.4, 0.5, 1 }
+            love.graphics.setColor(0, 0, 0, 0.35)
+            UI.drawRoundedRect("fill", 2, 4, cardW, cardH, 8)
+
+            love.graphics.setColor(0.18, 0.22, 0.26, 1)
+            UI.drawRoundedRect("fill", 0, 0, cardW, cardH, 8)
+
+            -- Card Header Banner
+            love.graphics.setColor(itemCol[1], itemCol[2], itemCol[3], 0.9)
+            UI.drawRoundedRect("fill", 0, 0, cardW, 26, 8)
+            UI.drawRoundedRect("fill", 0, 16, cardW, 10, 0)
+
+            -- Card Border
+            love.graphics.setLineWidth(isH and 2.5 or 1.5)
+            love.graphics.setColor(isH and UI.COLORS.goldYellow or { itemCol[1], itemCol[2], itemCol[3], 0.8 })
+            UI.drawRoundedRect("line", 0, 0, cardW, cardH, 8)
+
+            -- Card Icon
+            love.graphics.setFont(UI.fonts.large)
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.printf(item.icon or "🃏", 0, 48, cardW, "center")
+
+            -- Card Name
+            love.graphics.setFont(UI.fonts.tiny)
+            love.graphics.setColor(1, 1, 1, 1)
+            local cleanName = UI.truncateUtf8(item.name, 16)
+            love.graphics.printf(cleanName, 4, 100, cardW - 8, "center")
+
+            -- Rarity / Cost pill
+            if item.cost then
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor(UI.COLORS.goldYellow)
+                love.graphics.printf("$" .. item.cost, 0, 134, cardW, "center")
+            elseif item.rarity then
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor(UI.COLORS.textMuted)
+                love.graphics.printf(item.rarity, 0, 134, cardW, "center")
+            end
+
+            love.graphics.pop()
+        end
+    end
+
+    -- Right Area: Item Inspector / Detail Preview
+    local inspItem = hoveredItem or selectedCollectionItem or items[1]
+    if inspItem then
+        local inspX = modalX + gridW + 40
+        local inspY = gridY
+        local inspW = modalW - gridW - 64
+        local inspH = gridH
+
+        -- Inspector Box
+        love.graphics.setColor(0.10, 0.13, 0.16, 0.95)
+        UI.drawRoundedRect("fill", inspX, inspY, inspW, inspH, 10)
+        love.graphics.setColor(0.25, 0.35, 0.42, 1)
+        UI.drawRoundedRect("line", inspX, inspY, inspW, inspH, 10)
+
+        -- Large Preview Card (Center of top half)
+        local lcw = 140
+        local lch = 195
+        local lcx = inspX + (inspW - lcw) / 2
+        local lcy = inspY + 20
+        local lcol = inspItem.color or { 0.3, 0.4, 0.5, 1 }
+
+        love.graphics.setColor(0, 0, 0, 0.4)
+        UI.drawRoundedRect("fill", lcx + 4, lcy + 6, lcw, lch, 10)
+        love.graphics.setColor(0.16, 0.20, 0.24, 1)
+        UI.drawRoundedRect("fill", lcx, lcy, lcw, lch, 10)
+        love.graphics.setColor(lcol[1], lcol[2], lcol[3], 0.95)
+        UI.drawRoundedRect("fill", lcx, lcy, lcw, 32, 10)
+        UI.drawRoundedRect("fill", lcx, lcy + 18, lcw, 14, 0)
+        love.graphics.setLineWidth(2)
+        love.graphics.setColor(lcol)
+        UI.drawRoundedRect("line", lcx, lcy, lcw, lch, 10)
+
+        love.graphics.setFont(UI.fonts.huge)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf(inspItem.icon or "🃏", lcx, lcy + 55, lcw, "center")
+
+        -- Item Header Info below card
+        local infoY = lcy + lch + 18
+        love.graphics.setFont(UI.fonts.medium)
+        love.graphics.setColor(lcol)
+        love.graphics.printf(inspItem.name, inspX + 16, infoY, inspW - 32, "center")
+
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(UI.COLORS.textMuted)
+        love.graphics.printf(inspItem.subtitle or inspItem.rarity or "", inspX + 16, infoY + 28, inspW - 32, "center")
+
+        -- Stats banner
+        if inspItem.cost then
+            love.graphics.setFont(UI.fonts.small)
+            love.graphics.setColor(UI.COLORS.goldYellow)
+            love.graphics.printf("GIÁ MUA: $" .. inspItem.cost, inspX + 16, infoY + 52, inspW - 32, "center")
+        end
+
+        -- Detailed Description
+        local descY = infoY + (inspItem.cost and 78 or 58)
+        love.graphics.setColor(0.14, 0.18, 0.22, 1)
+        UI.drawRoundedRect("fill", inspX + 14, descY, inspW - 28, inspH - (descY - inspY) - 16, 8)
+        love.graphics.setColor(0.24, 0.32, 0.38, 1)
+        UI.drawRoundedRect("line", inspX + 14, descY, inspW - 28, inspH - (descY - inspY) - 16, 8)
+
+        love.graphics.setFont(UI.fonts.regular)
+        love.graphics.setColor(UI.COLORS.textLight)
+        love.graphics.printf(inspItem.desc, inspX + 24, descY + 14, inspW - 48, "left")
+    end
 end
 
 local function drawFactionSelect()
@@ -6159,7 +6741,7 @@ end
 function love.draw()
     -- 1. If Canvas is enabled, render the game into mainCanvas
     if mainCanvas then
-        love.graphics.setCanvas(mainCanvas)
+        love.graphics.setCanvas({ mainCanvas, stencil = true })
         love.graphics.clear(0, 0, 0, 1)
     else
         love.graphics.push()
@@ -6241,8 +6823,16 @@ function love.draw()
         drawPauseMenuModal()
     end
 
+    if isCollectionOpen then
+        if collectionCategory then
+            drawCollectionDetailView()
+        else
+            drawCollectionModal()
+        end
+    end
+
     -- In-game sleek Pause / Menu button at top right
-    if state ~= "menu" and not isPauseMenuOpen and not isSettingsOpen and not isDeckViewerOpen and not isHandbookOpen and not inspectCardModal then
+    if state ~= "menu" and not isPauseMenuOpen and not isSettingsOpen and not isDeckViewerOpen and not isHandbookOpen and not inspectCardModal and not isCollectionOpen then
         local mx, my = toVirtual(love.mouse.getPosition())
         local btnMenu = {
             id = "open_pause_menu",
@@ -6468,6 +7058,73 @@ function love.mousepressed(x, y, button)
         end
     end
 
+    -- 0d. Collection Compendium Modal Dismissal & Interaction
+    if isCollectionOpen then
+        if button == 1 then
+            if collectionCategory then
+                -- Detail View
+                for _, btn in ipairs(buttons) do
+                    if btn.id == "coll_back_to_hub" and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+                        collectionCategory = nil
+                        selectedCollectionItem = nil
+                        Sound.play("card_deal")
+                        return
+                    end
+                end
+                -- Check card clicks to select inspector item
+                local items = Collection.getItems(collectionCategory)
+                local modalW = 1180
+                local modalH = 640
+                local modalX = (V_WIDTH - modalW) / 2
+                local modalY = (V_HEIGHT - modalH) / 2
+                local gridX = modalX + 24
+                local gridY = modalY + 75
+                local cardW = 112
+                local cardH = 158
+                local cols = 6
+                local padX = 14
+                local padY = 16
+                for i, it in ipairs(items) do
+                    local col = (i - 1) % cols
+                    local row = math.floor((i - 1) / cols)
+                    local cx = gridX + col * (cardW + padX)
+                    local cy = gridY + row * (cardH + padY)
+                    if mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH then
+                        selectedCollectionItem = it
+                        Sound.play("ui_click")
+                        return
+                    end
+                end
+            else
+                -- Category Hub
+                for _, btn in ipairs(buttons) do
+                    if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+                        if btn.id == "coll_close" then
+                            isCollectionOpen = false
+                            Sound.play("card_deal")
+                            return
+                        elseif btn.catId then
+                            collectionCategory = btn.catId
+                            selectedCollectionItem = nil
+                            Sound.play("ui_click")
+                            return
+                        end
+                    end
+                end
+                local modalW = 760
+                local modalH = 590
+                local modalX = (V_WIDTH - modalW) / 2
+                local modalY = (V_HEIGHT - modalH) / 2
+                if mx < modalX or mx > modalX + modalW or my < modalY or my > modalY + modalH then
+                    isCollectionOpen = false
+                    Sound.play("card_deal")
+                    return
+                end
+            end
+            return
+        end
+    end
+
     -- 1. Right-Click Inspector Modal Dismissal
     if inspectCardModal then
         if button == 2 then
@@ -6620,12 +7277,21 @@ function love.mousepressed(x, y, button)
         if menuMode == "title" then
             for _, btn in ipairs(buttons) do
                 if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
-                    if btn.id == "menu_new_run" then
-                        menuMode = "faction_select"
+                    if btn.id == "menu_play" or btn.id == "menu_new_run" then
+                        if hasRunStarted then
+                            state = lastActiveState or "map"
+                        else
+                            menuMode = "faction_select"
+                        end
                         Sound.play("ui_click")
                         return
                     elseif btn.id == "menu_continue" and hasRunStarted then
                         state = lastActiveState or "map"
+                        Sound.play("ui_click")
+                        return
+                    elseif btn.id == "menu_collection" then
+                        isCollectionOpen = true
+                        collectionCategory = nil
                         Sound.play("ui_click")
                         return
                     elseif btn.id == "menu_handbook" then
@@ -6635,6 +7301,50 @@ function love.mousepressed(x, y, button)
                     elseif btn.id == "menu_settings" then
                         isSettingsOpen = true
                         Sound.play("ui_click")
+                        return
+                    elseif btn.id == "menu_mod" then
+                        Sound.play("ui_click")
+                        table.insert(juice.floatingTexts, {
+                            text = "MOD: Terra Suit v1.0.1 Modding Engine sẵn sàng!",
+                            x = V_WIDTH / 2,
+                            y = V_HEIGHT - 120,
+                            color = { 0.85, 0.65, 0.95, 1 },
+                            life = 2.5,
+                            vy = -25,
+                        })
+                        return
+                    elseif btn.id == "menu_discord" then
+                        Sound.play("ui_click")
+                        table.insert(juice.floatingTexts, {
+                            text = "Discord: discord.gg/terrasuit",
+                            x = V_WIDTH / 2,
+                            y = V_HEIGHT - 120,
+                            color = { 0.45, 0.65, 0.95, 1 },
+                            life = 2.5,
+                            vy = -25,
+                        })
+                        return
+                    elseif btn.id == "menu_x" then
+                        Sound.play("ui_click")
+                        table.insert(juice.floatingTexts, {
+                            text = "X (Twitter): @TerraSuitGame",
+                            x = V_WIDTH / 2,
+                            y = V_HEIGHT - 120,
+                            color = { 0.85, 0.85, 0.90, 1 },
+                            life = 2.5,
+                            vy = -25,
+                        })
+                        return
+                    elseif btn.id == "menu_lang" then
+                        Sound.play("ui_click")
+                        table.insert(juice.floatingTexts, {
+                            text = "Ngôn ngữ: Tiếng Việt (Mặc Định)",
+                            x = V_WIDTH / 2,
+                            y = V_HEIGHT - 120,
+                            color = { 0.35, 0.85, 0.55, 1 },
+                            life = 2.5,
+                            vy = -25,
+                        })
                         return
                     elseif btn.id == "menu_quit" then
                         love.event.quit()
@@ -7389,6 +8099,16 @@ function love.keypressed(key)
 
     -- Escape closes Modals or toggles In-Game Pause Menu
     if key == "escape" then
+        if isCollectionOpen then
+            if collectionCategory then
+                collectionCategory = nil
+                selectedCollectionItem = nil
+            else
+                isCollectionOpen = false
+            end
+            Sound.play("ui_click")
+            return
+        end
         if isSettingsOpen then
             isSettingsOpen = false
             Sound.play("ui_click")

@@ -24,7 +24,20 @@ function Capture.update(gameRef, callbacks)
     if frame == 2 then
         saveImage("shot_main_menu.png")
 
+    elseif frame == 4 then
+        if callbacks.openCollection then callbacks.openCollection(nil) end
+        saveImage("shot_collection_hub.png")
+
     elseif frame == 6 then
+        if callbacks.openCollection then callbacks.openCollection("jokers") end
+        saveImage("shot_collection_detail.png")
+
+    elseif frame == 7 then
+        if callbacks.openCollection then callbacks.openCollection("consumables") end
+        saveImage("shot_collection_equipment.png")
+
+    elseif frame == 8 then
+        if callbacks.closeCollection then callbacks.closeCollection() end
         if callbacks.setMenuMode then callbacks.setMenuMode("faction_select") end
         saveImage("shot_menu.png")
 

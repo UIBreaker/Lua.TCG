@@ -1429,6 +1429,40 @@ do
     log("[PASS] 57. Toàn bộ Vòng Lặp Màn Chơi (4 Phe Phái), Đấu Small Blind, Bỏ qua Big Blind nhận Tag, Đấu Boss Debuff, Tăng Ante 1->2, Cửa Hàng & Reroll ($5->$6->$5), An toàn UTF-8 tiếng Việt verified")
 end
 
+do
+    -- 58. Test Toàn Vẹn Dữ Liệu Bộ Sưu Tập Toàn Thư (Collection Compendium)
+    local Collection = require("src.collection")
+    local categories = Collection.getCategories()
+    assert(#categories == 11, "Collection must have exactly 11 categories, got: " .. #categories)
+
+    local expectedCats = { "jokers", "decks", "vouchers", "consumables", "enhancements", "seals", "editions", "packs", "tags", "blinds", "other" }
+    for _, catId in ipairs(expectedCats) do
+        local cat = Collection.getCategoryById(catId)
+        assert(cat ~= nil, "Category " .. catId .. " must exist in Collection")
+        assert(cat.title ~= nil and cat.title ~= "", "Category title must not be empty")
+
+        local items = Collection.getItems(catId)
+        assert(#items > 0, "Category " .. catId .. " must have at least 1 item, got: " .. #items)
+        for _, item in ipairs(items) do
+            assert(item.id ~= nil, "Item must have id in " .. catId)
+            assert(item.name ~= nil and item.name ~= "", "Item must have valid name in " .. catId .. ": " .. tostring(item.id))
+            assert(item.desc ~= nil and item.desc ~= "", "Item must have valid desc in " .. catId .. ": " .. tostring(item.id))
+            assert(item.color ~= nil, "Item must have color in " .. catId .. ": " .. tostring(item.id))
+        end
+    end
+
+    local jokers = Collection.getItems("jokers")
+    assert(#jokers >= 20, "Must have at least 20 Deities/Jokers in Collection, got: " .. #jokers)
+
+    local consumables = Collection.getItems("consumables")
+    assert(#consumables >= 8, "Must have at least 8 Consumables/Equipment in Collection, got: " .. #consumables)
+
+    local decks = Collection.getItems("decks")
+    assert(#decks == 4, "Must have exactly 4 Faction Decks, got: " .. #decks)
+
+    log("[PASS] 58. Bộ Sưu Tập Toàn Thư (Collection Compendium 11 Danh Mục, 25 Thần Hộ Mệnh, 8 Trang Bị Khảm, 4 Phe Phái, Phiếu & Dị Biến Boss) verified 100%")
+end
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then

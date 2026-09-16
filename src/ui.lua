@@ -72,6 +72,7 @@ function UI.initFonts()
     UI.fonts.large = loadFont(28)
     UI.fonts.title = loadFont(36)
     UI.fonts.huge = loadFont(48)
+    UI.fonts.logo = loadFont(92)
 end
 
 function UI.drawRoundedRect(mode, x, y, w, h, r)
