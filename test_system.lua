@@ -1874,6 +1874,22 @@ do
     log("[PASS] 67. Delayed Gratification (Kiên Nhẫn Thần Thụ) Joker verified 100%")
 end
 
+-- 68. Test RewardSystem.draw Rendering & Runtime Safety
+do
+    local run = RunManager.newRun("aurelia")
+    local sb = run.blinds[1]
+    local breakdown = RewardSystem.calculate(sb, { gold = 25, handsRemaining = 2, deities = { Deities.CATALOG.deity_golden } }, false)
+    local anim = RewardSystem.newAnimation(breakdown)
+    RewardSystem.finishImmediately(anim)
+    local btns = {}
+    local success, err = pcall(function()
+        RewardSystem.draw(anim, 1280, 720, 100, 100, btns)
+    end)
+    assert(success == true, "RewardSystem.draw must not throw runtime error: " .. tostring(err))
+    assert(#btns > 0, "RewardSystem.draw must populate continue button")
+    log("[PASS] 68. RewardSystem.draw rendering runtime safety & button layout verified 100%")
+end
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then
