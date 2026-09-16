@@ -666,6 +666,120 @@ end
 
 log("[PASS] 36. Graphics Overhaul (CRT & Psychedelic Background Shaders, 3D Card Tilt, Deity Reordering) verified")
 
+-- 37. Test Thần Khởi Nguyên (deity_genesis: +4 Mult unconditional)
+local genHand = Poker.evaluate({ Deck.newCard(10, "valoria") })
+local genScore = Scoring.calculate(genHand, { Deities.CATALOG.deity_genesis }, {})
+assert(genScore.totalMult == genHand.type.baseMult + 4, "deity_genesis must grant +4 Mult")
+log("[PASS] 37. Thần Khởi Nguyên verified: +4 Mult unconditional")
+
+-- 38. Test Tứ Đại Thần Tộc (deity_aurelia, deity_elaris, deity_vharos, deity_valoria: +4 Mult per card)
+local aurCards = { Deck.newCard(8, "aurelia"), Deck.newCard(8, "aurelia") }
+local aurHand = Poker.evaluate(aurCards, { pair = true })
+local aurScore = Scoring.calculate(aurHand, { Deities.CATALOG.deity_aurelia }, {})
+assert(aurScore.totalMult == aurHand.type.baseMult + 8, "deity_aurelia must grant +4 Mult per Aurelia card (total +8)")
+
+local vharCards = { Deck.newCard(9, "vharos"), Deck.newCard(9, "vharos"), Deck.newCard(9, "vharos") }
+local vharHand = Poker.evaluate(vharCards, { three_of_a_kind = true })
+local vharScore = Scoring.calculate(vharHand, { Deities.CATALOG.deity_vharos }, {})
+assert(vharScore.totalMult == vharHand.type.baseMult + 12, "deity_vharos must grant +4 Mult per Vharos card (total +12)")
+log("[PASS] 38. Tứ Đại Thần Tộc verified: +4 Mult per faction card scored")
+
+-- 39. Test Thần Trận Pháp (deity_formation: +50 Chips on Pair or Three of a Kind)
+local pairHand = Poker.evaluate({ Deck.newCard(7, "valoria"), Deck.newCard(7, "elaris") }, { pair = true })
+local pairBase = Scoring.calculate(pairHand, {}, {})
+local formScore = Scoring.calculate(pairHand, { Deities.CATALOG.deity_formation }, {})
+assert(formScore.totalChips == pairBase.totalChips + 50, "deity_formation must grant +50 Chips on Pair")
+local highHand = Poker.evaluate({ Deck.newCard(7, "valoria") }, { high_card = true })
+local highBase = Scoring.calculate(highHand, {}, {})
+local noFormScore = Scoring.calculate(highHand, { Deities.CATALOG.deity_formation }, {})
+assert(noFormScore.totalChips == highBase.totalChips, "deity_formation must not trigger on High Card")
+log("[PASS] 39. Thần Trận Pháp verified: +50 Chips for tactical formations (Pair / Trips)")
+
+-- 40. Test Thần Tinh Binh (deity_elite: +20 Mult if hand <= 3 cards)
+local smallHand = Poker.evaluate({ Deck.newCard(4, "elaris"), Deck.newCard(5, "elaris") }, { high_card = true })
+local smallScore = Scoring.calculate(smallHand, { Deities.CATALOG.deity_elite }, {})
+assert(smallScore.totalMult == smallHand.type.baseMult + 20, "deity_elite must grant +20 Mult when <= 3 cards played")
+
+local largeCards = { Deck.newCard(2, "elaris"), Deck.newCard(3, "elaris"), Deck.newCard(4, "elaris"), Deck.newCard(5, "elaris"), Deck.newCard(6, "elaris") }
+local largeHand = Poker.evaluate(largeCards, { straight = true })
+local largeScore = Scoring.calculate(largeHand, { Deities.CATALOG.deity_elite }, {})
+assert(largeScore.totalMult == largeHand.type.baseMult, "deity_elite must not grant Mult when > 3 cards played")
+log("[PASS] 40. Thần Tinh Binh verified: +20 Mult strictly for hands <= 3 cards")
+
+-- 41. Test Thần Chiến Kỷ (deity_banner: +30 Chips per remaining discard)
+local bannerHand = Poker.evaluate({ Deck.newCard(9, "valoria") }, { high_card = true })
+local bannerBase = Scoring.calculate(bannerHand, {}, { discardsRemaining = 4 })
+local bannerScore = Scoring.calculate(bannerHand, { Deities.CATALOG.deity_banner }, { discardsRemaining = 4 })
+assert(bannerScore.totalChips == bannerBase.totalChips + 120, "deity_banner with 4 discards must grant +120 Chips")
+log("[PASS] 41. Thần Chiến Kỷ verified: +30 Chips per remaining Discard (4 discards = +120 Chips)")
+
+-- 42. Test Thần Bách Hoa (deity_floral: starts +20 Mult, decays -4 on round win, goes extinct at 0)
+local floralDeity = {}
+for k, v in pairs(Deities.CATALOG.deity_floral) do floralDeity[k] = v end
+local fScore1 = Scoring.calculate(genHand, { floralDeity }, {})
+assert(fScore1.totalMult == genHand.type.baseMult + 20, "Initial floral deity must grant +20 Mult")
+-- Simulate round win decay
+floralDeity.onRoundWin({}, floralDeity)
+assert(floralDeity.currentMult == 16, "Floral deity must decay to 16 Mult after 1 round win")
+local fScore2 = Scoring.calculate(genHand, { floralDeity }, {})
+assert(fScore2.totalMult == genHand.type.baseMult + 16, "Decayed floral deity must grant +16 Mult")
+-- Decay until extinct
+floralDeity.onRoundWin({}, floralDeity) -- 12
+floralDeity.onRoundWin({}, floralDeity) -- 8
+floralDeity.onRoundWin({}, floralDeity) -- 4
+floralDeity.onRoundWin({}, floralDeity) -- 0 -> extinct
+assert(floralDeity.extinct == true, "Floral deity must be marked extinct when reaching 0 Mult")
+log("[PASS] 42. Thần Bách Hoa verified: decaying Mult (+20 -> +16 -> ... -> extinct)")
+
+-- 43. Test Thần Kim Tài (deity_golden: +$4 gold on round win)
+local goldRes = Deities.CATALOG.deity_golden.onRoundWin({}, Deities.CATALOG.deity_golden)
+assert(goldRes and goldRes.addGold == 4, "deity_golden must grant +$4 Gold on round win")
+log("[PASS] 43. Thần Kim Tài verified: +$4 Gold on round win")
+
+-- 44. Test Thần Quả Thần Bí (deity_sacred_fruit) and Thần Thụ Bất Diệt (deity_eternal_tree)
+local mockGameState = { sacredFruitExtinct = false }
+-- Ensure eternal tree is NOT in shop pool when fruit has not gone extinct
+local shopPool1 = Deities.getRandomShopPool({}, 100, mockGameState)
+local foundTree1 = false
+for _, d in ipairs(shopPool1) do
+    if d.id == "deity_eternal_tree" then foundTree1 = true break end
+end
+assert(not foundTree1, "deity_eternal_tree must NOT appear in shop pool before fruit extinction")
+
+-- Trigger extinction
+mockGameState.sacredFruitExtinct = true
+local shopPool2 = Deities.getRandomShopPool({}, 100, mockGameState)
+local foundTree2 = false
+for _, d in ipairs(shopPool2) do
+    if d.id == "deity_eternal_tree" then foundTree2 = true break end
+end
+assert(foundTree2, "deity_eternal_tree MUST appear in shop pool after fruit extinction")
+
+local treeScore = Scoring.calculate(genHand, { Deities.CATALOG.deity_eternal_tree }, {})
+assert(treeScore.xMultTotal == 3.0, "deity_eternal_tree must grant x3.0 XMult")
+log("[PASS] 44. Thần Quả Thần Bí & Thần Thụ Bất Diệt verified: extinction triggers Cavendish unlock & x3.0 XMult")
+
+-- 45. Test Thần Điệp Kích (deity_echo: x3.0 XMult on repeated hand)
+local firstEchoScore = Scoring.calculate(pairHand, { Deities.CATALOG.deity_echo }, { playedHandsHistory = {} })
+assert(firstEchoScore.xMultTotal == 1.0, "First play of hand must not trigger deity_echo")
+local repeatEchoScore = Scoring.calculate(pairHand, { Deities.CATALOG.deity_echo }, { playedHandsHistory = { pair = 1 } })
+assert(repeatEchoScore.xMultTotal == 3.0, "Repeated play of hand must trigger deity_echo x3.0 XMult")
+log("[PASS] 45. Thần Điệp Kích verified: x3.0 XMult on repeated hand in same combat")
+
+-- 46. Test Thần Phản Chiếu (deity_mirror / Blueprint)
+-- Setup: [deity_mirror, deity_genesis] -> mirror copies genesis: +4 + +4 = +8 Mult
+local mirrorGenesisScore = Scoring.calculate(genHand, { Deities.CATALOG.deity_mirror, Deities.CATALOG.deity_genesis }, {})
+assert(mirrorGenesisScore.totalMult == genHand.type.baseMult + 8, "deity_mirror copying deity_genesis must produce +8 Mult")
+
+-- Setup: [deity_mirror, deity_aurelia] with 2 Aurelia cards -> +8 + +8 = +16 Mult
+local mirrorAurScore = Scoring.calculate(aurHand, { Deities.CATALOG.deity_mirror, Deities.CATALOG.deity_aurelia }, {})
+assert(mirrorAurScore.totalMult == aurHand.type.baseMult + 16, "deity_mirror copying deity_aurelia must double faction card Mult")
+
+-- Setup: [deity_genesis, deity_mirror] -> mirror at the end has no target to the right: +4 Mult only
+local mirrorEdgeScore = Scoring.calculate(genHand, { Deities.CATALOG.deity_genesis, Deities.CATALOG.deity_mirror }, {})
+assert(mirrorEdgeScore.totalMult == genHand.type.baseMult + 4, "deity_mirror with no target to the right must gracefully do nothing")
+log("[PASS] 46. Thần Phản Chiếu (Blueprint) verified: dynamically copies deity to right across hand and card triggers")
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then

@@ -170,7 +170,7 @@ function Sound.init()
 end
 
 local masterVolume = 0.8
-if love.audio and love.audio.setVolume then
+if love and love.audio and love.audio.setVolume then
     love.audio.setVolume(masterVolume)
 end
 

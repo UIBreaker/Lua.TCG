@@ -4,7 +4,7 @@
 
 [![GitHub Repository](https://img.shields.io/badge/GitHub-UIBreaker%2FLua.TCG-blue?logo=github)](https://github.com/UIBreaker/Lua.TCG.git)
 [![Engine](https://img.shields.io/badge/Engine-LÖVE%2011.5-pink?logo=lua)](https://love2d.org/)
-[![Tests](https://img.shields.io/badge/Tests-24%2F24%20Passing-brightgreen)](test_system.lua)
+[![Tests](https://img.shields.io/badge/Tests-46%2F46%20Passing-brightgreen)](test_system.lua)
 
 ---
 
@@ -185,19 +185,30 @@ Mỗi lá bài sở hữu **tối đa 5 ô khảm trang bị (Sockets)**. Các b
 
 ---
 
-## 👑 8. Hệ Thống Thần Bài Ban Ơn (Deities)
+## 👑 8. Hệ Thống Thần Bài Ban Ơn (Deities — Jokers Cổ Xưa)
 
-- Các vị Thần Bài **không bán trong shop**. Thần Bài chỉ giáng trần ban ơn khi bạn đánh bại Trùm Cuối (Boss Tầng 20) hoặc mở các hòm báu cực hiếm.
-- Mỗi lần chiến thắng Boss, 2 Vị Thần Bài ngẫu nhiên xuất hiện, bạn được chọn **1 trong 2**:
-  - **Thần Cặp Đôi**: Mỗi Đôi ghi điểm +15 Mult.
-  - **Thần Tam Hoa**: Mỗi Sám cô ghi điểm +30 Mult.
-  - **Thần Sảnh**: Mỗi khi đánh Sảnh nhân x2.0 XMult.
-  - **Thần Thùng**: Mỗi lá bài trong Thùng +15 Chips.
-  - **Thần Át Chủ Bài**: Mỗi lá Át trên tay +20 Mult.
-  - **Thần Bùng Nổ**: Khi còn 1 Lượt đánh duy nhất, nhân x2.0 XMult.
-  - **Thần Vương Giả**: Mỗi lá J, Q, K ghi điểm +10 Mult.
-  - **Thần Tiết Kiệm**: Cuối round nhận + vàng cho mỗi  đang sở hữu.
-- Người chơi sở hữu tối đa 5 vị Thần và có thể bán lại trong Cửa Hàng với nửa giá khi cần cơ cấu lại chiến thuật.
+Người chơi có thể thờ phụng tối đa **5 vị Thần Bài cùng lúc** (hiển thị tại thanh trên cùng màn hình). Hỗ trợ **kéo thả (Drag & Drop)** để sắp xếp lại thứ tự kích hoạt nội tại.
+
+### 🌟 10 Thần Bài Tiêu Biểu (Chuyển Thể Từ Balatro Jokers)
+1. **Thần Khởi Nguyên** *(Joker)*: +4 Mult vô điều kiện cho mọi tay bài.
+2. **Tứ Đại Thần Tộc** *(Greedy/Lusty/Wrathful/Gluttonous)*:
+   - **Thần Quang Huy (Aurelia ☀️)**: +4 Mult cho mỗi lá Aurelia ghi điểm.
+   - **Thần Trường Sinh (Elaris 🌲)**: +4 Mult cho mỗi lá Elaris ghi điểm.
+   - **Thần Huyết Lửa (Vharos 🔥)**: +4 Mult cho mỗi lá Vharos ghi điểm.
+   - **Thần Thiết Huyết (Valoria ⚔️)**: +4 Mult cho mỗi lá Valoria ghi điểm.
+3. **Thần Trận Pháp** *(Sly / Wily)*: +50 Chips nếu tay bài là Song Đao hoặc Tam Hoa.
+4. **Thần Tinh Binh** *(Half Joker)*: +20 Mult nếu tay bài đánh ra có <= 3 lá bài (cực mạnh với bài khởi đầu 3 lá!).
+5. **Thần Chiến Kỷ** *(Banner)*: +30 Chips cho mỗi lượt Đổi Bài (Discard) còn lại (synergy tuyệt vời với Valoria).
+6. **Thần Bách Hoa** *(Popcorn)*: Ban đầu +20 Mult, suy giảm -4 Mult sau mỗi trận cho đến khi tan biến.
+7. **Thần Kim Tài** *(Golden Joker)*: Nhận +$4 Vàng khi chiến thắng mỗi trận để tối ưu Tiền Lãi (Interest).
+8. **Thần Quả Thần Bí $\rightarrow$ Thần Thụ Bất Diệt** *(Gros Michel $\rightarrow$ Cavendish)*:
+   - *Thần Quả Thần Bí*: +15 Mult, 1/6 tỉ lệ thăng thiên sau mỗi trận.
+   - Khi thăng thiên sẽ mở khóa *Thần Thụ Bất Diệt* trong Shop với **x3.0 XMult vĩnh viễn**!
+9. **Thần Điệp Kích** *(Card Sharp)*: Nhân x3.0 XMult nếu thế bài này đã được chơi trong cùng trận đấu.
+10. **Thần Phản Chiếu** *(Blueprint)*: Sao chép toàn bộ kỹ năng và nội tại của Thần Bài đứng ngay bên phải nó.
+
+- Các vị Thần xuất hiện trong Cửa Hàng, Gói Thần Ơn (Deity Packs) hoặc sau khi đánh bại Boss Tầng 20.
+- Có thể bán lại Thần trong Shop để thu hồi 50% vàng khi muốn thay đổi chiến thuật.
 
 ---
 
@@ -287,6 +298,28 @@ Game tích hợp bộ kiểm thử tự động 24 bài test độc lập để 
 [PASS] 23b. Vharos Hơi Thở Ma Quỷ grants +40 Chips in scoring
 [PASS] 23c. Knight (J) synergizes with Soldier (2-10) to grant bonus Chips and Mult
 [PASS] 24. Shop equipment purchase and socketing attaches properly without being erased
+[PASS] 25. Deck exhaustion defeat rule verified: played cards stay in discard pile and empty deck+hand causes Defeat
+[PASS] 26. UI.drawCard renders faceted gemstone sockets and gilded frame without error
+[PASS] 27. Faction Discard Buffs rebalanced cleanly: Aurelia (+6/12c, +1m), Elaris (Heal), Vharos (3/6 True Dmg), Valoria (+5/8c, +$1)
+[PASS] 28. Player HP & Monster Counter-Attack verified: monster counter-attacks for 12 HP
+[PASS] 29. Tiền Lãi (Interest) verified: +$1 per $5 stored, capped at +$5 per combat
+[PASS] 30. Skip Blind & Tag Rewards verified: node completed with tag reward: Túi Vàng Cực Lớn
+[PASS] 31. 6 Disruptive Boss Abilities verified: The Needle, The Water, The Pillar, The Hook, The Fish, The Arm
+[PASS] 32. UI.formatNumber verified: 15 -> 15, 1250 -> 1,250, 1234567 -> 1,234,567, 1.234e12 -> 1.234e12
+[PASS] 33. Hand Drag Reordering verified: cards swap indices cleanly without data loss
+[PASS] 34. Text Sanitization (variation selector stripping) & Audio Volume Clamping verified
+[PASS] 35. Balatro Shop Structure (Upper/Voucher/Packs), Incremental Reroll ($5 -> $6 -> $7 -> reset $5), & Pack Opening verified
+[PASS] 36. Graphics Overhaul (CRT & Psychedelic Background Shaders, 3D Card Tilt, Deity Reordering) verified
+[PASS] 37. Thần Khởi Nguyên verified: +4 Mult unconditional
+[PASS] 38. Tứ Đại Thần Tộc verified: +4 Mult per faction card scored
+[PASS] 39. Thần Trận Pháp verified: +50 Chips for tactical formations (Pair / Trips)
+[PASS] 40. Thần Tinh Binh verified: +20 Mult strictly for hands <= 3 cards
+[PASS] 41. Thần Chiến Kỷ verified: +30 Chips per remaining Discard (4 discards = +120 Chips)
+[PASS] 42. Thần Bách Hoa verified: decaying Mult (+20 -> +16 -> ... -> extinct)
+[PASS] 43. Thần Kim Tài verified: +$4 Gold on round win
+[PASS] 44. Thần Quả Thần Bí & Thần Thụ Bất Diệt verified: extinction triggers Cavendish unlock & x3.0 XMult
+[PASS] 45. Thần Điệp Kích verified: x3.0 XMult on repeated hand in same combat
+[PASS] 46. Thần Phản Chiếu (Blueprint) verified: dynamically copies deity to right across hand and card triggers
 === ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===
 `
 

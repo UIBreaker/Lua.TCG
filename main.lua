@@ -442,6 +442,7 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
     game.discardPile = {}
     game.hand = {}
     game.discardBuffs = { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 }
+    game.playedHandsHistory = {}
     Deck.shuffle(game.deck)
     clearAllSelections()
 
@@ -810,8 +811,15 @@ local function playSelectedHand()
         monster = game.monster,
         discardBuffs = game.discardBuffs,
         selectedSuit = game.selectedSuit,
+        selectedFaction = game.selectedFaction,
+        playedHandsHistory = game.playedHandsHistory,
     }
     local scoreResult = Scoring.calculate(evalResult, game.deities, context)
+    -- Record played hand in history for repeated hand bonuses (e.g. Thần Điệp Kích)
+    game.playedHandsHistory = game.playedHandsHistory or {}
+    if evalResult and evalResult.type and evalResult.type.id then
+        game.playedHandsHistory[evalResult.type.id] = (game.playedHandsHistory[evalResult.type.id] or 0) + 1
+    end
     -- Reset consumed discard buffs
     game.discardBuffs = { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 }
 
@@ -1517,12 +1525,28 @@ function love.update(dt)
                         local baseReward = game.monster.isBoss and 15 or (game.monster.isElite and 10 or 4)
                         local unusedHandsBonus = game.handsRemaining * 1
                         local deityBonus = 0
-                        for _, d in ipairs(game.deities) do
-                            if d.onRoundWin then
-                                local r = d.onRoundWin(game)
+                        local survivingDeities = {}
+                        for di, d in ipairs(game.deities) do
+                            local effectiveDeity = Deities.resolveDeity and Deities.resolveDeity(game.deities, di) or d
+                            if effectiveDeity and effectiveDeity.onRoundWin then
+                                local r = effectiveDeity.onRoundWin(game, effectiveDeity)
                                 if r and r.addGold then deityBonus = deityBonus + r.addGold end
+                                if r and r.message then
+                                    local msg = d.isCopyDeity and (d.name .. " (Sao chép): " .. r.message) or r.message
+                                    table.insert(anim.floatingTexts, {
+                                        text = msg,
+                                        color = UI.COLORS.goldYellow,
+                                        x = 640,
+                                        y = 190 - (di * 22),
+                                        alpha = 2.8,
+                                    })
+                                end
+                            end
+                            if not d.extinct then
+                                table.insert(survivingDeities, d)
                             end
                         end
+                        game.deities = survivingDeities
 
                         -- Tiền Lãi (Interest): Cứ mỗi $5 vàng tích trữ trong túi, sau trận được nhận thêm $1 tiền lãi (tối đa +$5)
                         local interestBonus = math.min(5, math.floor(game.gold / 5))
@@ -2096,10 +2120,13 @@ local function drawPlayingState()
     local eval = (#selectedCards > 0) and Poker.evaluate(selectedCards, game.unlockedHands) or nil
     local scPreview = eval and Scoring.calculate(eval, game.deities, {
         handsRemaining = game.handsRemaining,
+        discardsRemaining = game.discardsRemaining,
         round = game.round,
         monster = game.monster,
         discardBuffs = game.discardBuffs,
         selectedSuit = game.selectedSuit,
+        selectedFaction = game.selectedFaction,
+        playedHandsHistory = game.playedHandsHistory,
     }) or nil
 
     if state == "scoring" and anim.active then
@@ -2430,7 +2457,12 @@ local function drawPlayingState()
 
             love.graphics.setFont(UI.fonts.tiny)
             love.graphics.setColor(UI.COLORS.textMuted)
-            love.graphics.printf(d.desc, dx + 6, deityY + 34, deitySlotW - 12, "center")
+            local descText = d.desc
+            if d.isCopyDeity then
+                local target = Deities.resolveDeity and Deities.resolveDeity(game.deities, i)
+                descText = target and ("(Sao chép: " .. target.name .. ")") or "Đặt bên trái 1 Thần khác để sao chép"
+            end
+            love.graphics.printf(descText, dx + 6, deityY + 34, deitySlotW - 12, "center")
         else
             love.graphics.setColor(0.12, 0.15, 0.18, 0.6)
             UI.drawRoundedRect("fill", dx, deityY, deitySlotW, deitySlotH, 6)

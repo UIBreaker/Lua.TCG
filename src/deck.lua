@@ -169,7 +169,7 @@ function Deck.createStarterDeck(suit)
     local cards = {}
     local soldierPool = { 2, 3, 4, 5, 6, 7, 8, 9, 10 }
     for i = #soldierPool, 2, -1 do
-        local j = love.math and love.math.random(i) or math.random(i)
+        local j = (love and love.math and love.math.random(i)) or math.random(i)
         soldierPool[i], soldierPool[j] = soldierPool[j], soldierPool[i]
     end
     -- 4 Soldiers
@@ -179,7 +179,7 @@ function Deck.createStarterDeck(suit)
     -- 1 Knight (J = 11)
     table.insert(cards, Deck.newCard(11, suit))
     -- 1 Royalty (Q = 12 or K = 13)
-    local royalRank = (love.math and love.math.random(2) or math.random(2)) == 1 and 12 or 13
+    local royalRank = ((love and love.math and love.math.random(2)) or math.random(2)) == 1 and 12 or 13
     table.insert(cards, Deck.newCard(royalRank, suit))
 
     return cards
@@ -316,10 +316,10 @@ function Deck.createRewardCard(excludeSuit)
             table.insert(availableSuits, s)
         end
     end
-    local suit = availableSuits[love.math and love.math.random(#availableSuits) or 1]
+    local suit = availableSuits[(love and love.math and love.math.random(#availableSuits)) or math.random(#availableSuits)]
     -- Random high rank: 10, J, Q, K, A
     local ranks = { 10, 11, 12, 13, 14 }
-    local rank = ranks[love.math and love.math.random(#ranks) or 5]
+    local rank = ranks[(love and love.math and love.math.random(#ranks)) or math.random(#ranks)]
 
     local card = Deck.newCard(rank, suit)
     return card
@@ -328,7 +328,7 @@ end
 function Deck.shuffle(deck)
     local n = #deck
     for i = n, 2, -1 do
-        local j = love.math and love.math.random(i) or math.random(i)
+        local j = (love and love.math and love.math.random(i)) or math.random(i)
         deck[i], deck[j] = deck[j], deck[i]
     end
     return deck

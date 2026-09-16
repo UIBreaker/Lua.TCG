@@ -1,4 +1,5 @@
 local Scoring = {}
+local Deities = require("src.deities")
 
 --[[
 Formula:
@@ -224,9 +225,10 @@ function Scoring.calculate(handInfo, deities, context)
 
         -- Check Deities triggered by card
         local deityTriggers = {}
-        for _, deity in ipairs(deities or {}) do
-            if deity.onCardScored then
-                local res = deity.onCardScored(card, context)
+        for di, deity in ipairs(deities or {}) do
+            local effectiveDeity = Deities.resolveDeity and Deities.resolveDeity(deities, di) or deity
+            if effectiveDeity and effectiveDeity.onCardScored then
+                local res = effectiveDeity.onCardScored(card, context, effectiveDeity)
                 if res then
                     if res.addChips then
                         bonusChips = bonusChips + res.addChips
@@ -236,9 +238,10 @@ function Scoring.calculate(handInfo, deities, context)
                         bonusMult = bonusMult + res.addMult
                         cardEvent.addedMult = cardEvent.addedMult + res.addMult
                     end
+                    local dName = deity.isCopyDeity and (deity.name .. " (" .. effectiveDeity.name .. ")") or deity.name
                     table.insert(deityTriggers, {
-                        deityName = deity.name,
-                        message = res.message or deity.name
+                        deityName = dName,
+                        message = res.message or effectiveDeity.name
                     })
                 end
             end
@@ -259,9 +262,10 @@ function Scoring.calculate(handInfo, deities, context)
     end
 
     -- Step 3: Deities hand-level triggers (+Chips, +Mult, XMult)
-    for _, deity in ipairs(deities or {}) do
-        if deity.onHandScored then
-            local res = deity.onHandScored(handInfo, context)
+    for di, deity in ipairs(deities or {}) do
+        local effectiveDeity = Deities.resolveDeity and Deities.resolveDeity(deities, di) or deity
+        if effectiveDeity and effectiveDeity.onHandScored then
+            local res = effectiveDeity.onHandScored(handInfo, context, effectiveDeity)
             if res then
                 local addedChips = res.addChips or 0
                 local addedMult = res.addMult or 0
@@ -273,13 +277,14 @@ function Scoring.calculate(handInfo, deities, context)
                     xMultTotal = xMultTotal * cardXMult
                 end
 
+                local displayName = deity.isCopyDeity and (deity.name .. " (" .. effectiveDeity.name .. ")") or deity.name
                 table.insert(steps, {
                     type = "deity_hand",
                     deity = deity,
                     addedChips = addedChips,
                     addedMult = addedMult,
                     xMult = cardXMult,
-                    message = deity.name .. ": " .. (res.message or deity.desc)
+                    message = displayName .. ": " .. (res.message or effectiveDeity.desc or deity.desc)
                 })
             end
         end

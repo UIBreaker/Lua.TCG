@@ -110,7 +110,7 @@ Equipment.POOL = {
 }
 
 function Equipment.getRandomEquipment()
-    local idx = love.math and love.math.random(#Equipment.POOL) or math.random(#Equipment.POOL)
+    local idx = (love and love.math and love.math.random(#Equipment.POOL)) or math.random(#Equipment.POOL)
     local key = Equipment.POOL[idx]
     return Equipment.ITEMS[key]
 end
