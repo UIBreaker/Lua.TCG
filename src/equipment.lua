@@ -96,7 +96,40 @@ Equipment.ITEMS = {
             return { xMult = 1.3, message = "x1.3 XMult (Thánh Tích)" }
         end
     },
+    ward_stone = {
+        id = "ward_stone",
+        name = "Đá Hộ Mệnh",
+        icon = "🛡️",
+        color = { 0.35, 0.65, 0.95, 1 },
+        desc = "+5 Giáp (Armor) bảo vệ bản thân khi lá bài này được đánh ra",
+        onCardScore = function(card, playedCards, cardIndex)
+            return { addArmor = 5, message = "+5 Giáp (Đá Hộ Mệnh)" }
+        end
+    },
+    shield_gem = {
+        id = "shield_gem",
+        name = "Ngọc Hộ Thân",
+        icon = "🛡️",
+        color = { 0.45, 0.75, 1.0, 1 },
+        desc = "+8 Giáp (Armor) phòng ngự kiên cố khi lá bài này được đánh ra",
+        onCardScore = function(card, playedCards, cardIndex)
+            return { addArmor = 8, message = "+8 Giáp (Ngọc Hộ Thân)" }
+        end
+    },
+    vitality_gem = {
+        id = "vitality_gem",
+        name = "Ngọc Hồi Máu",
+        icon = "💚",
+        color = { 0.25, 0.90, 0.45, 1 },
+        desc = "Hồi phục ngay +2 HP sinh lực khi lá bài này được đánh ra",
+        onCardScore = function(card, playedCards, cardIndex)
+            return { healHp = 2, message = "+2 HP (Ngọc Hồi Máu)" }
+        end
+    },
 }
+
+Equipment.ITEMS.stone_armor = Equipment.ITEMS.ward_stone
+Equipment.ITEMS.gem_armor = Equipment.ITEMS.ward_stone
 
 Equipment.POOL = {
     "gem_fire",
@@ -106,7 +139,10 @@ Equipment.POOL = {
     "lucky_coin",
     "free_feather",
     "blood_ring",
-    "holy_relic"
+    "holy_relic",
+    "ward_stone",
+    "shield_gem",
+    "vitality_gem",
 }
 
 function Equipment.getRandomEquipment()

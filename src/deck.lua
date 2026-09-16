@@ -189,24 +189,15 @@ function Deck.newCard(rank, suit)
     return card
 end
 
--- Create starter deck of 6 cards of the chosen faction: 4 Soldiers (2-10) + 1 Knight (J) + 1 Royalty (Q/K)
-function Deck.createStarterDeck(suit)
-    local cards = {}
-    local soldierPool = { 2, 3, 4, 5, 6, 7, 8, 9, 10 }
-    for i = #soldierPool, 2, -1 do
-        local j = (love and love.math and love.math.random(i)) or math.random(i)
-        soldierPool[i], soldierPool[j] = soldierPool[j], soldierPool[i]
-    end
-    -- 4 Soldiers
-    for i = 1, 4 do
-        table.insert(cards, Deck.newCard(soldierPool[i], suit))
-    end
-    -- 1 Knight (J = 11)
-    table.insert(cards, Deck.newCard(11, suit))
-    -- 1 Royalty (Q = 12 or K = 13)
-    local royalRank = ((love and love.math and love.math.random(2)) or math.random(2)) == 1 and 12 or 13
-    table.insert(cards, Deck.newCard(royalRank, suit))
+Deck.DEFAULT_HAND_SIZE = 3
 
+-- Create starter deck of exactly 3 core cards of the chosen faction: 2 Soldiers (Rank 3 & 8) + 1 Knight (Rank 11, J)
+function Deck.createStarterDeck(suit)
+    local cards = {
+        Deck.newCard(3, suit),  -- Lính 3 (Soldier 3)
+        Deck.newCard(8, suit),  -- Lính 8 (Soldier 8)
+        Deck.newCard(11, suit), -- Hiệp sĩ J (Knight J)
+    }
     return cards
 end
 

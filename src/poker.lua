@@ -5,7 +5,7 @@ Poker.HAND_TYPES = {
     FOUR_OF_A_KIND = { id = "four_of_a_kind", name = "Four of a Kind", vnName = "TỨ TƯỢNG", subtitle = "Tứ quý", baseChips = 60, baseMult = 7, order = 8, requiredCards = 4 },
     FULL_HOUSE     = { id = "full_house",     name = "Full House",     vnName = "HỖN NGUYÊN", subtitle = "Cù lũ", baseChips = 40, baseMult = 4, order = 7, requiredCards = 5 },
     FLUSH          = { id = "flush",          name = "Flush",          vnName = "ĐỒNG KHÍ", subtitle = "Thùng", baseChips = 35, baseMult = 4, order = 6, requiredCards = 5 },
-    STRAIGHT       = { id = "straight",       name = "Straight",       vnName = "TRƯỜNG LONG", subtitle = "Sảnh", baseChips = 30, baseMult = 4, order = 5, requiredCards = 5 },
+    STRAIGHT       = { id = "straight",       name = "Straight",       vnName = "TRƯỜNG LONG", subtitle = "Sảnh (hoặc Sảnh 3 lá)", baseChips = 30, baseMult = 4, order = 5, requiredCards = 3 },
     THREE_OF_A_KIND= { id = "three_of_a_kind",name = "Three of a Kind",vnName = "TAM HOA", subtitle = "Sám cô", baseChips = 30, baseMult = 3, order = 4, requiredCards = 3 },
     TWO_PAIR       = { id = "two_pair",       name = "Two Pair",       vnName = "SONG ĐÔI", subtitle = "Hai đôi", baseChips = 20, baseMult = 2, order = 3, requiredCards = 4 },
     PAIR           = { id = "pair",           name = "Pair",           vnName = "SONG ĐAO", subtitle = "Đôi", baseChips = 10, baseMult = 2, order = 2, requiredCards = 2 },
@@ -109,10 +109,11 @@ local function hasQueenOfClubs(cards)
     return false
 end
 
--- Check if sorted ranks form a straight (5 cards normally, 4 cards if Queen of Clubs present)
+-- Check if sorted ranks form a straight (3 cards for 3-card hands, 4 cards if Queen of Clubs present, 5 cards normally)
 local function checkStraight(sortedCards)
     local len = #sortedCards
-    local minRequired = hasQueenOfClubs(sortedCards) and 4 or 5
+    if len < 3 then return false end
+    local minRequired = (len == 3) and 3 or (hasQueenOfClubs(sortedCards) and 4 or 5)
     if len < minRequired then return false end
 
     -- Extract unique ranks descending
@@ -139,7 +140,14 @@ local function checkStraight(sortedCards)
     -- Check Ace-low straight
     local hasAce = (uniqueRanks[1] == 14)
     if hasAce then
-        if minRequired == 4 then
+        if minRequired == 3 then
+            local r3, r2 = false, false
+            for _, r in ipairs(uniqueRanks) do
+                if r == 3 then r3 = true
+                elseif r == 2 then r2 = true end
+            end
+            if r3 and r2 then return true end
+        elseif minRequired == 4 then
             local r4, r3, r2 = false, false, false
             for _, r in ipairs(uniqueRanks) do
                 if r == 4 then r4 = true

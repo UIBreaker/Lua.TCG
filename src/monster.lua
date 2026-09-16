@@ -120,29 +120,29 @@ Monster.DISRUPTIVE_BOSSES = {
 
 local DISRUPTIVE_KEYS = { "the_needle", "the_water", "the_pillar", "the_hook", "the_fish", "the_arm" }
 
--- Calculate Monster HP: Room 1 = 10 HP, each subsequent monster encounter increases HP by +50% indefinitely
+-- Calculate Monster HP: Room 1 = 76 HP, each subsequent monster encounter increases HP by +50% indefinitely
 function Monster.getHpByEncounter(encounterCount, isBoss, isElite)
     local n = math.max(1, encounterCount or 1)
-    local baseHp = math.floor(10 * (1.5 ^ (n - 1)) + 0.5)
+    local baseHp = math.floor(76 * (1.5 ^ (n - 1)) + 0.5)
 
     if isBoss then
-        return math.max(25, math.floor(baseHp * 2.5))
+        return math.max(152, math.floor(baseHp * 2.0))
     elseif isElite then
-        return math.max(15, math.floor(baseHp * 1.5))
+        return math.max(114, math.floor(baseHp * 1.5))
     else
         return baseHp
     end
 end
 
--- Calculate Monster Counter-Attack Power
+-- Calculate Monster Counter-Attack Power: Encounter 1 = 12 DMG
 function Monster.getAttackByEncounter(encounterCount, isBoss, isElite)
     local n = math.max(1, encounterCount or 1)
     if isBoss then
-        return math.min(50, 35 + math.floor((n - 1) * 2.5))
+        return math.min(50, 24 + math.floor((n - 1) * 3.0))
     elseif isElite then
-        return math.min(40, 25 + math.floor((n - 1) * 1.5))
+        return math.min(40, 18 + math.floor((n - 1) * 2.0))
     else
-        return math.min(25, 12 + math.floor((n - 1) * 1.0))
+        return math.min(30, 12 + math.floor((n - 1) * 1.5))
     end
 end
 
@@ -166,6 +166,11 @@ function Monster.create(round, isBossOverride, isEliteOverride, encounterCountOv
         maxHp = hp,
         damageLagHp = hp,
         attack = attack,
+        intent = {
+            type = "attack",
+            value = attack,
+            label = "Tấn Công " .. attack .. " DMG",
+        },
         name = "",
         title = "",
         desc = "",

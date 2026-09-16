@@ -227,12 +227,12 @@ local BOSS_KEYS = {
 }
 
 -- HP formula:
--- Small Blind: round(12 * (1.6 ^ (Ante - 1)))
+-- Small Blind: round(76 * (1.6 ^ (Ante - 1)))
 -- Big Blind: round(1.5 * Small HP)
 -- Boss Blind: round(2.0 * Small HP)
 function RunManager.calculateBlindHp(ante, blindType)
     local a = math.max(1, math.min(RunManager.MAX_ANTE, ante or 1))
-    local smallHp = math.floor(12 * (1.6 ^ (a - 1)) + 0.5)
+    local smallHp = math.floor(76 * (1.6 ^ (a - 1)) + 0.5)
 
     if blindType == "small" then
         return smallHp
@@ -341,7 +341,7 @@ end
 function RunManager.createBlindMonster(blind, gameState)
     local isBoss = (blind.type == "boss")
     local isElite = (blind.type == "big")
-
+    local atk = (blind.ante == 1 and blind.type == "small") and 12 or math.max(12, math.floor(blind.hp * 0.15))
     local m = {
         round = blind.ante,
         encounterCount = (blind.ante - 1) * 3 + blind.index,
@@ -350,7 +350,12 @@ function RunManager.createBlindMonster(blind, gameState)
         hp = blind.hp,
         maxHp = blind.hp,
         damageLagHp = blind.hp,
-        attack = math.max(6, math.floor(blind.hp * 0.15)),
+        attack = atk,
+        intent = {
+            type = "attack",
+            value = atk,
+            label = "Tấn Công " .. atk .. " DMG",
+        },
         name = blind.name,
         title = blind.title .. " (ANTE " .. blind.ante .. ")",
         desc = isBoss and (blind.debuff and blind.debuff.desc or "Trùm Ma Thần đầy quyền năng!") or ("Ải " .. blind.name .. ": Mục tiêu " .. blind.hp .. " HP"),

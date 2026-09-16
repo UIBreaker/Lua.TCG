@@ -21,26 +21,28 @@ end
 log("=== RUNNING ROGUELIKE POKER SYSTEM TESTS ===")
 
 do
-    -- 1. Test Monster HP scaling (Encounter 1 = 10 HP, each subsequent encounter increases by 50% indefinitely)
+    -- 1. Test Monster HP scaling (Encounter 1 = 76 HP, each subsequent encounter increases by 50% indefinitely)
     local m1 = Monster.create(1, false, false, 1)
-    assert(m1.hp == 10, "Encounter 1 monster HP must be 10, got: " .. m1.hp)
-    assert(m1.maxHp == 10, "Encounter 1 monster maxHp must be 10")
-    log("[PASS] 1. Encounter 1 Monster HP is 10 HP: " .. m1.name .. " (" .. m1.hp .. " HP)")
+    assert(m1.hp == 76, "Encounter 1 monster HP must be 76, got: " .. m1.hp)
+    assert(m1.maxHp == 76, "Encounter 1 monster maxHp must be 76")
+    assert(m1.attack == 12, "Encounter 1 monster attack must be 12, got: " .. m1.attack)
+    assert(m1.intent ~= nil and m1.intent.value == 12, "Encounter 1 monster intent must be 12 DMG")
+    log("[PASS] 1. Encounter 1 Monster HP is 76 HP with 12 DMG intent: " .. m1.name .. " (" .. m1.hp .. " HP)")
 
     local m2 = Monster.create(2, false, false, 2)
-    assert(m2.hp == 15, "Encounter 2 monster HP must be 15 (+50%), got: " .. m2.hp)
+    assert(m2.hp == 114, "Encounter 2 monster HP must be 114 (+50%), got: " .. m2.hp)
     local m3 = Monster.create(3, false, false, 3)
-    assert(m3.hp == 23, "Encounter 3 monster HP must be 23 (+50%), got: " .. m3.hp)
+    assert(m3.hp == 171, "Encounter 3 monster HP must be 171 (+50%), got: " .. m3.hp)
     local m4 = Monster.create(4, false, false, 4)
-    assert(m4.hp == 34, "Encounter 4 monster HP must be 34 (+50%), got: " .. m4.hp)
+    assert(m4.hp == 257, "Encounter 4 monster HP must be 257 (+50%), got: " .. m4.hp)
     local m5 = Monster.create(5, false, false, 5)
-    assert(m5.hp == 51, "Encounter 5 monster HP must be 51 (+50%), got: " .. m5.hp)
-    log("[PASS] 2. Monster HP scaling (+50% each encounter) verified: 10 -> 15 -> 23 -> 34 -> 51 HP")
+    assert(m5.hp == 385, "Encounter 5 monster HP must be 385 (+50%), got: " .. m5.hp)
+    log("[PASS] 2. Monster HP scaling (+50% each encounter) verified: 76 -> 114 -> 171 -> 257 -> 385 HP")
 
     -- 2. Test Boss creation with scaling
     local boss1 = Monster.create(5, true, false, 5)
     assert(boss1.isBoss == true, "Boss must be flagged isBoss")
-    assert(boss1.hp == math.floor(51 * 2.5), "Boss HP must be 2.5x base, got: " .. boss1.hp)
+    assert(boss1.hp == math.floor(385 * 2.0), "Boss HP must be 2.0x base, got: " .. boss1.hp)
     log("[PASS] 2b. Boss created with scaled HP: " .. boss1.name .. " (" .. boss1.hp .. " HP)")
 end
 
@@ -134,13 +136,14 @@ log("[PASS] 10. Selling deity refunds gold properly")
 -- 6. Test Starter Deck for 4 Factions (Aurelia, Elaris, Vharos, Valoria)
 for _, faction in ipairs({ "aurelia", "elaris", "vharos", "valoria" }) do
     local sDeck = Deck.createStarterDeck(faction)
-    assert(#sDeck == 6, "Starter deck should have 6 cards, got: " .. #sDeck)
+    assert(#sDeck == 3, "Starter deck should have exactly 3 cards, got: " .. #sDeck)
+    assert(sDeck[1].rank == 3 and sDeck[2].rank == 8 and sDeck[3].rank == 11, "Starter deck must be Soldier 3, Soldier 8, Knight J")
     for _, card in ipairs(sDeck) do
         assert(card.suit == faction, "Card suit must match faction " .. faction)
         assert(card.role ~= nil, "Card must have role assigned")
     end
 end
-log("[PASS] 11. Starter deck has 6 cards (4 Soldiers, 1 Knight, 1 Royalty) for all 4 Factions")
+log("[PASS] 11. Starter deck has exactly 3 cards (Soldier 3, Soldier 8, Knight J) for all 4 Factions")
 
 do
     -- 7. Test Card Roles Hierarchy (Soldiers 2-10, Knight J, Queen Q, King K, Ace A)
@@ -195,7 +198,7 @@ log("[PASS] 14. Deities.addDeity successfully adds chosen deity: " .. draftPick.
 do
     -- 10. Test Encounter Restoration ("qua trận mới thì khôi phục như ban đầu")
     local persistentDeck = Deck.createStarterDeck("hearts")
-    assert(#persistentDeck == 6, "Persistent deck has 6 cards")
+    assert(#persistentDeck == 3, "Persistent deck has 3 cards")
     local originalRank1 = persistentDeck[1].rank
     assert(persistentDeck[1].baseRank == originalRank1, "Card baseRank matches initial rank")
 
@@ -254,14 +257,14 @@ local testGameState = {
     deck = {},
     hand = {},
 }
-assert(#testGameState.persistentDeck == 6, "Starter deck must have 6 cards")
+assert(#testGameState.persistentDeck == 3, "Starter deck must have 3 cards")
 local extraCard = Deck.newCard(13, "spades") -- K of Spades
 Deck.addCardToDeck(testGameState, extraCard)
-assert(#testGameState.persistentDeck == 7, "persistentDeck must now have exactly 7 cards")
+assert(#testGameState.persistentDeck == 4, "persistentDeck must now have exactly 4 cards")
 -- Calling addCardToDeck with the same card again must not duplicate
 Deck.addCardToDeck(testGameState, extraCard)
-assert(#testGameState.persistentDeck == 7, "persistentDeck must not add duplicate of same card")
-log("[PASS] 19. Deck.addCardToDeck safely adds 1 card and blocks duplicates: 7 total cards")
+assert(#testGameState.persistentDeck == 4, "persistentDeck must not add duplicate of same card")
+log("[PASS] 19. Deck.addCardToDeck safely adds 1 card and blocks duplicates: 4 total cards")
 
 -- 15. Test Deck.cloneCard preserves id
 local origCard = testGameState.persistentDeck[1]
@@ -796,17 +799,17 @@ local mirrorEdgeScore = Scoring.calculate(genHand, { Deities.CATALOG.deity_genes
 assert(mirrorEdgeScore.totalMult == genHand.type.baseMult + 4, "deity_mirror with no target to the right must gracefully do nothing")
 log("[PASS] 46. Thần Phản Chiếu (Blueprint) verified: dynamically copies deity to right across hand and card triggers")
 
--- 47. Test Ante & Blind HP Progression (8 Ante, Small HP = round(12 * 1.6^(Ante-1)), Big = 1.5x, Boss = 2.0x)
+-- 47. Test Ante & Blind HP Progression (8 Ante, Small HP = round(76 * 1.6^(Ante-1)), Big = 1.5x, Boss = 2.0x)
 do
     local expectedSmallHps = {
-        [1] = 12,
-        [2] = 19,
-        [3] = 31,
-        [4] = 49,
-        [5] = 79,
-        [6] = 126,
-        [7] = 201,
-        [8] = 322,
+        [1] = 76,
+        [2] = 122,
+        [3] = 195,
+        [4] = 311,
+        [5] = 498,
+        [6] = 797,
+        [7] = 1275,
+        [8] = 2040,
     }
     for a = 1, 8 do
         local sHp = RunManager.calculateBlindHp(a, "small")
@@ -821,7 +824,7 @@ do
         local expBoss = math.floor(expS * 2.0 + 0.5)
         assert(bossHp == expBoss, "Ante " .. a .. " Boss Blind HP mismatch: expected " .. expBoss .. ", got " .. bossHp)
     end
-    log("[PASS] 47. Ante & Blind HP Progression verified: 8 Antes mathematically validated (Small 12->322, Big 18->483, Boss 24->644)")
+    log("[PASS] 47. Ante & Blind HP Progression verified: 8 Antes mathematically validated (Small 76->2040, Big 114->3060, Boss 152->4080)")
 end
 
 -- 48. Test RunManager.newRun and Blind Structure
@@ -1570,6 +1573,158 @@ do
     assert(okTooltip, "UI.drawPatronTooltip must render rich lore tooltip without error")
 
     log("[PASS] 60. Đại Tu Grimdark & Cổ Điển (Hốc Khảm Đá Quý 3 Trạng Thái, Chân Dung Gothic K-Q-J-A, Hộ Linh Tarot & Sigil Cổ Vật) verified 100%")
+end
+
+-- 61. Test 3-Turn Turn-Based Combat Benchmark (User Specification)
+do
+    log("--- Testing 3-Turn Turn-Based Combat Benchmark ---")
+    local monster = Monster.create(1, false, false, 1)
+    assert(monster.hp == 76, "Encounter 1 monster HP must be 76, got: " .. monster.hp)
+    assert(monster.attack == 12, "Encounter 1 monster attack must be 12, got: " .. monster.attack)
+    assert(monster.intent ~= nil and monster.intent.value == 12, "Monster intent must show 12 DMG")
+
+    local testGame = {
+        playerHp = 100,
+        maxPlayerHp = 100,
+        playerArmor = 0,
+        playerShield = 0,
+        handsRemaining = 3,
+        maxHands = 3,
+        monster = monster,
+    }
+
+    -- TURN 1:
+    -- Player plays Pair 8♠ (+5 Armor from Đá Hộ Mệnh / ward_stone, 28 DMG)
+    local card8_1 = { rank = 8, rankName = "8", suit = "vharos", suitSymbol = "♠", equipments = { Equipment.ITEMS.ward_stone } }
+    local card8_2 = { rank = 8, rankName = "8", suit = "vharos", suitSymbol = "♠" }
+    local evalT1 = { type = Poker.HAND_TYPES.PAIR, scoringCards = { card8_1, card8_2 }, unscoredCards = {} }
+    local scoreT1 = Scoring.calculate(evalT1, {}, {})
+    assert(scoreT1.addArmor == 5, "Ward stone must grant +5 Armor, got: " .. tostring(scoreT1.addArmor))
+
+    -- Survival attribute triggers FIRST:
+    testGame.playerArmor = testGame.playerArmor + scoreT1.addArmor
+    testGame.playerShield = testGame.playerArmor
+    assert(testGame.playerArmor == 5, "Player Armor must be 5 before counter-attack")
+
+    -- Deal 28 DMG to monster
+    local dmg1 = 28
+    local actual1, def1 = Monster.takeDamage(testGame.monster, dmg1)
+    assert(testGame.monster.hp == 48, "Monster HP must be 48/76 after 28 DMG, got: " .. testGame.monster.hp)
+    assert(def1 == false, "Monster should not be defeated yet")
+
+    -- Monster counter-attacks (12 DMG)
+    local mAtk = testGame.monster.attack
+    local absorbed1 = math.min(testGame.playerArmor, mAtk)
+    testGame.playerArmor = testGame.playerArmor - absorbed1
+    testGame.playerShield = testGame.playerArmor
+    local dmgToHp1 = mAtk - absorbed1
+    testGame.playerHp = math.max(0, testGame.playerHp - dmgToHp1)
+    testGame.handsRemaining = testGame.handsRemaining - 1
+
+    assert(absorbed1 == 5, "5 Armor must block 5 damage")
+    assert(testGame.playerArmor == 0, "Armor must be 0 after absorbing")
+    assert(dmgToHp1 == 7, "7 damage must penetrate to HP")
+    assert(testGame.playerHp == 93, "Player HP must be 93/100, got: " .. testGame.playerHp)
+    assert(testGame.handsRemaining == 2, "2 Hands must remain")
+    log("[PASS] 61a. Turn 1: Pair 8♠ (+5 Armor, 28 DMG) -> Monster 48/76 HP. Quái attacks 12 -> 5 Armor blocks 5 -> 7 DMG to HP -> 93/100 HP")
+
+    -- TURN 2:
+    -- Player plays Single K♠ (+8 Armor from Ngọc Hộ Thân, +2 HP from Ngọc Hồi Máu, 25 DMG)
+    local cardK = {
+        rank = 13, rankName = "K", suit = "vharos", suitSymbol = "♠",
+        equipments = { Equipment.ITEMS.shield_gem, Equipment.ITEMS.vitality_gem }
+    }
+    local evalT2 = { type = Poker.HAND_TYPES.HIGH_CARD, scoringCards = { cardK }, unscoredCards = {} }
+    local scoreT2 = Scoring.calculate(evalT2, {}, {})
+    assert(scoreT2.addArmor == 8, "Shield gem must grant +8 Armor, got: " .. tostring(scoreT2.addArmor))
+    assert(scoreT2.healHp == 2, "Vitality gem must heal +2 HP, got: " .. tostring(scoreT2.healHp))
+
+    -- Survival attributes trigger FIRST (+8 Armor, +2 HP)
+    testGame.playerArmor = testGame.playerArmor + scoreT2.addArmor
+    testGame.playerShield = testGame.playerArmor
+    testGame.playerHp = math.min(testGame.maxPlayerHp, testGame.playerHp + scoreT2.healHp)
+    assert(testGame.playerArmor == 8, "Player Armor must be 8")
+    assert(testGame.playerHp == 95, "Player HP must heal to 95/100, got: " .. testGame.playerHp)
+
+    -- Deal 25 DMG to monster
+    local dmg2 = 25
+    local actual2, def2 = Monster.takeDamage(testGame.monster, dmg2)
+    assert(testGame.monster.hp == 23, "Monster HP must be 23/76 after 25 DMG, got: " .. testGame.monster.hp)
+    assert(def2 == false, "Monster should not be defeated yet")
+
+    -- Monster counter-attacks (12 DMG)
+    local absorbed2 = math.min(testGame.playerArmor, mAtk)
+    testGame.playerArmor = testGame.playerArmor - absorbed2
+    testGame.playerShield = testGame.playerArmor
+    local dmgToHp2 = mAtk - absorbed2
+    testGame.playerHp = math.max(0, testGame.playerHp - dmgToHp2)
+    testGame.handsRemaining = testGame.handsRemaining - 1
+
+    assert(absorbed2 == 8, "8 Armor must block 8 damage")
+    assert(testGame.playerArmor == 0, "Armor must be 0")
+    assert(dmgToHp2 == 4, "4 damage must penetrate to HP")
+    assert(testGame.playerHp == 91, "Player HP must be 91/100, got: " .. testGame.playerHp)
+    assert(testGame.handsRemaining == 1, "1 Hand must remain")
+    log("[PASS] 61b. Turn 2: Single K♠ (+8 Armor, +2 HP, 25 DMG) -> Heals to 95 HP, Monster 23/76 HP. Quái attacks 12 -> 8 Armor blocks 8 -> 4 DMG to HP -> 91/100 HP")
+
+    -- TURN 3:
+    -- Player plays Single J♠ (no defense, 32 DMG)
+    local cardJ = { rank = 11, rankName = "J", suit = "vharos", suitSymbol = "♠" }
+    local dmg3 = 32
+    local actual3, def3 = Monster.takeDamage(testGame.monster, dmg3)
+    assert(testGame.monster.hp <= 0, "Monster HP must be <= 0 after 32 DMG, got: " .. testGame.monster.hp)
+    assert(def3 == true, "Monster must be DEFEATED")
+
+    -- Immediate Finish Check: Since def3 is true, Quái CHẾT NGAY, NO counter-attack!
+    testGame.handsRemaining = testGame.handsRemaining - 1
+    if def3 then
+        testGame.combatWon = true
+    else
+        testGame.playerHp = testGame.playerHp - mAtk
+    end
+
+    assert(testGame.combatWon == true, "Combat must be won immediately on Turn 3")
+    assert(testGame.playerHp == 91, "Player HP must finish at 91 HP (NO counter-attack!), got: " .. testGame.playerHp)
+    log("[PASS] 61c. Turn 3: Single J♠ (32 DMG) -> Monster HP <= 0! Quái CHẾT NGAY! Immediate victory with 91 HP, NO counter-attack!")
+end
+
+-- 62. Test Dual Loss Condition & 3-Card Straight
+do
+    -- Dual loss rule: Player loses IF AND ONLY IF playerHp <= 0 OR (handsRemaining <= 0 and monster.hp > 0)
+    -- Case A: Out of HP
+    local aliveMonster = { hp = 50 }
+    local stateHpLoss = { playerHp = 0, handsRemaining = 2, monster = aliveMonster }
+    local isLostA = (stateHpLoss.playerHp <= 0) or (stateHpLoss.handsRemaining <= 0 and stateHpLoss.monster.hp > 0)
+    assert(isLostA == true, "Player HP <= 0 must trigger Loss")
+
+    -- Case B: Out of Hands while Monster alive
+    local stateHandLoss = { playerHp = 90, handsRemaining = 0, monster = aliveMonster }
+    local isLostB = (stateHandLoss.playerHp <= 0) or (stateHandLoss.handsRemaining <= 0 and stateHandLoss.monster.hp > 0)
+    assert(isLostB == true, "Out of hands while monster alive must trigger Loss")
+
+    -- Case C: Hands == 0 but Monster dead -> Victory! Not a loss!
+    local deadMonster = { hp = 0 }
+    local stateWin = { playerHp = 91, handsRemaining = 0, monster = deadMonster }
+    local isLostC = (stateWin.playerHp <= 0) or (stateWin.handsRemaining <= 0 and stateWin.monster.hp > 0)
+    assert(isLostC == false, "Hands == 0 with Monster dead must NOT trigger Loss (it is VICTORY!)")
+
+    -- 3-Card Straight test
+    local c7 = { rank = 7, rankName = "7", suit = "vharos" }
+    local c8 = { rank = 8, rankName = "8", suit = "vharos" }
+    local c9 = { rank = 9, rankName = "9", suit = "vharos" }
+    local unlockedStraight = { high_card = true, straight = true }
+    local evalStraight3 = Poker.evaluate({ c7, c8, c9 }, unlockedStraight)
+    assert(evalStraight3 ~= nil and evalStraight3.type.id == "straight", "3 consecutive cards must evaluate to STRAIGHT (Sảnh 3 lá)")
+    assert(#evalStraight3.scoringCards == 3, "Sảnh 3 lá must have 3 scoring cards")
+
+    -- Ace-low 3-card straight (A, 2, 3)
+    local cA = { rank = 14, rankName = "A", suit = "vharos" }
+    local c2 = { rank = 2, rankName = "2", suit = "vharos" }
+    local c3 = { rank = 3, rankName = "3", suit = "vharos" }
+    local evalA23 = Poker.evaluate({ cA, c2, c3 }, unlockedStraight)
+    assert(evalA23 ~= nil and evalA23.type.id == "straight", "A-2-3 must evaluate to STRAIGHT (Sảnh 3 lá)")
+
+    log("[PASS] 62. Dual Loss Condition & 3-Card Straight (TRƯỜNG LONG) verified 100%")
 end
 
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")

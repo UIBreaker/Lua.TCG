@@ -38,6 +38,8 @@ function Scoring.calculate(handInfo, deities, context)
     local xMultTotal = 1.0
     local totalExtraDamagePct = 0
     local bonusGoldAwarded = 0
+    local totalArmorGain = 0
+    local totalHealHp = 0
     local hasAceOfSpades = false
     local hasAceOfHearts = false
     local hasKingOfDiamonds = false
@@ -421,6 +423,30 @@ function Scoring.calculate(handInfo, deities, context)
                             local g = math.floor(res.addGold * eqMult)
                             bonusGoldAwarded = bonusGoldAwarded + g
                         end
+                        if res.addArmor then
+                            local arm = math.floor(res.addArmor * eqMult)
+                            totalArmorGain = totalArmorGain + arm
+                            cardEvent.message = cardEvent.message .. " | 🛡️ +" .. arm .. " Giáp"
+                            table.insert(steps, {
+                                type = "armor_gain",
+                                card = card,
+                                equipment = eq,
+                                amount = arm,
+                                message = (card.rankName or "") .. (card.suitSymbol or "") .. " kích hoạt " .. eq.name .. ": +" .. arm .. " Giáp!"
+                            })
+                        end
+                        if res.healHp then
+                            local heal = math.floor(res.healHp * eqMult)
+                            totalHealHp = totalHealHp + heal
+                            cardEvent.message = cardEvent.message .. " | 💚 +" .. heal .. " Máu"
+                            table.insert(steps, {
+                                type = "heal_hp",
+                                card = card,
+                                equipment = eq,
+                                amount = heal,
+                                message = (card.rankName or "") .. (card.suitSymbol or "") .. " kích hoạt " .. eq.name .. ": +" .. heal .. " HP!"
+                            })
+                        end
                     end
                 end
             end
@@ -454,6 +480,40 @@ function Scoring.calculate(handInfo, deities, context)
             end
             cardEvent.deityTriggers = deityTriggers
             table.insert(steps, cardEvent)
+        end
+    end
+
+    -- Check Card Equipments on unscored played cards (Survival equipment activates on play)
+    for _, ucard in ipairs(handInfo.unscoredCards or {}) do
+        for _, eq in ipairs(ucard.equipments or {}) do
+            if eq.onCardScore then
+                local res = eq.onCardScore(ucard, handInfo.scoringCards, 0)
+                if res then
+                    local eqMult = isDiamond(ucard) and 1.5 or 1.0
+                    if res.addArmor then
+                        local arm = math.floor(res.addArmor * eqMult)
+                        totalArmorGain = totalArmorGain + arm
+                        table.insert(steps, {
+                            type = "armor_gain",
+                            card = ucard,
+                            equipment = eq,
+                            amount = arm,
+                            message = (ucard.rankName or "") .. (ucard.suitSymbol or "") .. " (Phụ) kích hoạt " .. eq.name .. ": +" .. arm .. " Giáp!"
+                        })
+                    end
+                    if res.healHp then
+                        local heal = math.floor(res.healHp * eqMult)
+                        totalHealHp = totalHealHp + heal
+                        table.insert(steps, {
+                            type = "heal_hp",
+                            card = ucard,
+                            equipment = eq,
+                            amount = heal,
+                            message = (ucard.rankName or "") .. (ucard.suitSymbol or "") .. " (Phụ) kích hoạt " .. eq.name .. ": +" .. heal .. " HP!"
+                        })
+                    end
+                end
+            end
         end
     end
 
@@ -642,6 +702,8 @@ function Scoring.calculate(handInfo, deities, context)
         finalScore = finalScore,
         totalExtraDamagePct = totalExtraDamagePct,
         bonusGoldAwarded = bonusGoldAwarded,
+        addArmor = totalArmorGain,
+        healHp = totalHealHp,
         hasAceOfSpades = hasAceOfSpades,
         hasAceOfHearts = hasAceOfHearts,
         bribeDollarsSpent = bribeDollarsSpent,

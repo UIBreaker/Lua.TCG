@@ -56,13 +56,14 @@ local game = {
     currentEvent = nil,
     eventOutcomeText = nil,
     bossDeityDraft = {},
-    unlockedHands = { high_card = true }, -- Initially ONLY High Card is unlocked!
+    unlockedHands = { high_card = true, pair = true, three_of_a_kind = true, straight = true },
     monster = nil,
     playerHp = 100,
     maxPlayerHp = 100,
     playerShield = 0,
-    handsRemaining = 4,
-    maxHands = 4,
+    playerArmor = 0,
+    handsRemaining = 3,
+    maxHands = 3,
     discardsRemaining = 3,
     maxDiscards = 3,
     gold = 6,
@@ -403,17 +404,9 @@ local function getCardGridPos(i, totalCards, cardW, cardH, gapX, gapY, maxCols, 
 end
 
 local function getMaxSelectableCards()
-    local maxCount = 1
-    for handId, isUnlocked in pairs(game.unlockedHands) do
-        if isUnlocked and Poker.HAND_TYPES[handId:upper()] then
-            local req = Poker.HAND_TYPES[handId:upper()].requiredCards or 1
-            if req > maxCount then
-                maxCount = req
-            end
-        end
-    end
-    if game.monster and game.monster.isBoss and game.monster.bossData and game.monster.bossData.debuffId == "max_4_cards" then
-        maxCount = math.min(maxCount, 4)
+    local maxCount = 3
+    if game.monster and game.monster.isBoss and game.monster.bossData and game.monster.bossData.maxSelectedCards then
+        maxCount = math.min(maxCount, game.monster.bossData.maxSelectedCards)
     end
     return maxCount
 end
@@ -423,6 +416,8 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
     game.monsterEncounterCount = game.monsterEncounterCount or 1
     game.monster = Monster.create(game.round, isBossNode, isEliteNode, game.monsterEncounterCount)
     game.handsRemaining = game.maxHands
+    game.playerArmor = 0
+    game.playerShield = 0
 
     -- Valoria Passive: +1 Discard per combat
     if game.selectedFaction == "valoria" or game.selectedSuit == "valoria" then
@@ -485,20 +480,29 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
     Deck.shuffle(game.deck)
     clearAllSelections()
 
-    -- Elaris / Feral Swarm Passive: Bầy Đàn (9-card hand size)
-    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris" or game.selectedFaction == "clubs" or game.selectedFaction == "feral_swarm") and 9 or 8
-    while #game.hand < maxHandSize and #game.deck > 0 do
-        local drawn = table.remove(game.deck)
-        drawn.selected = false
-        drawn.visualX = 1180
-        drawn.visualY = 620
-        drawn.visualAngle = 0
-        drawn.visualScale = 0.7
-        local isSpadeCard = (drawn.suit == "spades" or drawn.suit == "vharos" or drawn.suit == "iron_axiom")
-        if not isSpadeCard and game.monster and game.monster.isBoss and game.monster.bossData and (game.monster.bossData.id == "the_fish" or game.monster.bossData.debuffId == "the_fish") then
-            drawn.faceDown = true
+    -- Draw up to 3 cards (Hand Size = 3)
+    local maxHandSize = Deck.DEFAULT_HAND_SIZE or 3
+    while #game.hand < maxHandSize do
+        if #game.deck == 0 and #game.discardPile > 0 then
+            while #game.discardPile > 0 do
+                table.insert(game.deck, table.remove(game.discardPile))
+            end
+            Deck.shuffle(game.deck)
         end
-        table.insert(game.hand, drawn)
+        if #game.deck == 0 then break end
+        local drawn = table.remove(game.deck)
+        if drawn then
+            drawn.selected = false
+            drawn.visualX = 1180
+            drawn.visualY = 620
+            drawn.visualAngle = 0
+            drawn.visualScale = 0.7
+            local isSpadeCard = (drawn.suit == "spades" or drawn.suit == "vharos" or drawn.suit == "iron_axiom")
+            if not isSpadeCard and game.monster and game.monster.isBoss and game.monster.bossData and (game.monster.bossData.id == "the_fish" or game.monster.bossData.debuffId == "the_fish") then
+                drawn.faceDown = true
+            end
+            table.insert(game.hand, drawn)
+        end
     end
 
     -- ♠️ Thiết Quân Thứ: Axiom Lock (Luôn auto-sort theo Rank tăng dần)
@@ -520,6 +524,8 @@ local function startBlindCombat(blind)
     game.round = blind.ante or 1
     game.monster = RunManager.createBlindMonster(blind, game)
     game.handsRemaining = game.maxHands
+    game.playerArmor = 0
+    game.playerShield = 0
 
     -- Valoria Passive: +1 Discard per combat
     if game.selectedFaction == "valoria" or game.selectedSuit == "valoria" then
@@ -582,9 +588,16 @@ local function startBlindCombat(blind)
     Deck.shuffle(game.deck)
     clearAllSelections()
 
-    -- Elaris / Feral Swarm Passive: Bầy Đàn (9-card hand size)
-    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris" or game.selectedFaction == "clubs" or game.selectedFaction == "feral_swarm") and 9 or 8
-    while #game.hand < maxHandSize and #game.deck > 0 do
+    -- Draw up to 3 cards (Hand Size = 3)
+    local maxHandSize = Deck.DEFAULT_HAND_SIZE or 3
+    while #game.hand < maxHandSize do
+        if #game.deck == 0 and #game.discardPile > 0 then
+            while #game.discardPile > 0 do
+                table.insert(game.deck, table.remove(game.discardPile))
+            end
+            Deck.shuffle(game.deck)
+        end
+        if #game.deck == 0 then break end
         local drawn = table.remove(game.deck)
         if drawn then
             drawn.selected = false
@@ -622,13 +635,15 @@ local function startNewGame(chosenFaction)
     game.round = 1
     game.act = 1
     game.gold = 6
-    game.maxHands = 4
+    game.maxHands = 3
+    game.handsRemaining = 3
     game.maxDiscards = (game.selectedFaction == "valoria") and 4 or 3
-    game.unlockedHands = { high_card = true }
+    game.unlockedHands = { high_card = true, pair = true, three_of_a_kind = true, straight = true }
     game.deities = {} -- Mới vào game không có vị thần nào hết!
     game.playerHp = 100
     game.maxPlayerHp = 100
     game.playerShield = 0
+    game.playerArmor = 0
     game.martyrStacks = 0
     game.storedSlaughterChips = 0
     game.jHeartDiscardUsed = false
@@ -841,9 +856,16 @@ local function discardSelected()
         game.discardsRemaining = game.discardsRemaining - 1
     end
 
-    -- Refill hand to maxHandSize (9 for Elaris, 8 for others) while deck has cards
-    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and 9 or 8
-    while #game.hand < maxHandSize and #game.deck > 0 do
+    -- Refill hand to 3 cards while deck/discard has cards
+    local maxHandSize = Deck.DEFAULT_HAND_SIZE or 3
+    while #game.hand < maxHandSize do
+        if #game.deck == 0 and #game.discardPile > 0 then
+            while #game.discardPile > 0 do
+                table.insert(game.deck, table.remove(game.discardPile))
+            end
+            Deck.shuffle(game.deck)
+        end
+        if #game.deck == 0 then break end
         local drawn = table.remove(game.deck)
         if drawn then
             drawn.selected = false
@@ -856,13 +878,6 @@ local function discardSelected()
             end
             table.insert(game.hand, drawn)
         end
-    end
-
-    -- Defeat check if cards are exhausted without defeating monster
-    if #game.hand == 0 and #game.deck == 0 and game.monster and game.monster.hp > 0 then
-        state = "gameover"
-        Sound.play("game_over")
-        return
     end
 
     if game.sortMode == "rank" then
@@ -960,6 +975,17 @@ local function playSelectedHand()
         end,
     }
     local scoreResult = Scoring.calculate(evalResult, game.deities, context)
+
+    -- Pha Người Chơi: Kích hoạt Hiệu ứng Trang Bị/Ngọc Khảm sinh tồn trước (+Giáp, +Hồi Máu)
+    if scoreResult.addArmor and scoreResult.addArmor > 0 then
+        game.playerArmor = (game.playerArmor or 0) + scoreResult.addArmor
+        game.playerShield = game.playerArmor
+    end
+    if scoreResult.healHp and scoreResult.healHp > 0 then
+        local maxHp = game.maxPlayerHp or 100
+        game.playerHp = math.min(maxHp, (game.playerHp or 100) + scoreResult.healHp)
+    end
+
     -- Reset consumed martyr stacks
     game.martyrStacks = 0
     -- Record played hand in history for repeated hand bonuses (e.g. Thần Điệp Kích)
@@ -1601,6 +1627,34 @@ function love.update(dt)
                     screenShake = math.max(screenShake, 3.0)
                     anim.targetStepDelay = 0.28
 
+                elseif st.type == "armor_gain" then
+                    anim.activeCardIndex = nil
+                    anim.stepCategory = "PHÒNG NGỰ (GIÁP)"
+                    anim.stepLog = st.message
+                    Sound.play("chip_tick", pitch)
+                    anim.targetStepDelay = 0.35
+                    table.insert(anim.floatingTexts, {
+                        text = "+" .. st.amount .. " GIÁP!",
+                        color = { 0.35, 0.75, 1.0, 1 },
+                        x = 140,
+                        y = 540,
+                        alpha = 2.0,
+                    })
+
+                elseif st.type == "heal_hp" then
+                    anim.activeCardIndex = nil
+                    anim.stepCategory = "HỒI SINH LỰC"
+                    anim.stepLog = st.message
+                    Sound.play("jackpot", pitch)
+                    anim.targetStepDelay = 0.35
+                    table.insert(anim.floatingTexts, {
+                        text = "+" .. st.amount .. " HP!",
+                        color = { 0.25, 0.95, 0.45, 1 },
+                        x = 140,
+                        y = 540,
+                        alpha = 2.0,
+                    })
+
                 elseif st.type == "deity_hand" then
                     anim.activeCardIndex = nil
                     if st.addedChips > 0 then
@@ -1883,23 +1937,23 @@ function love.update(dt)
                         end
 
                         -- 2. Monster Counter-Attack on Player HP
-                        local mAtk = (game.monster and game.monster.attack) or 15
-                        local dmgToPlayer = mAtk
-                        if game.playerShield and game.playerShield > 0 then
-                            if game.playerShield >= dmgToPlayer then
-                                game.playerShield = game.playerShield - dmgToPlayer
-                                dmgToPlayer = 0
-                            else
-                                dmgToPlayer = dmgToPlayer - game.playerShield
-                                game.playerShield = 0
-                            end
-                        end
-
+                        local mAtk = (game.monster and game.monster.attack) or 12
+                        local curArmor = (game.playerArmor or game.playerShield or 0)
+                        local absorbed = math.min(curArmor, mAtk)
+                        curArmor = curArmor - absorbed
+                        game.playerArmor = curArmor
+                        game.playerShield = curArmor
+                        local dmgToPlayer = mAtk - absorbed
                         game.playerHp = math.max(0, (game.playerHp or 100) - dmgToPlayer)
+
                         screenShake = 16
                         Sound.play("xmult_boom")
+                        local counterMsg = "[QUÁI PHẢN CÔNG] -" .. dmgToPlayer .. " HP!"
+                        if absorbed > 0 then
+                            counterMsg = "[QUÁI PHẢN CÔNG] Giáp đỡ " .. absorbed .. " | -" .. dmgToPlayer .. " HP!"
+                        end
                         table.insert(anim.floatingTexts, {
-                            text = "[QUÁI PHẢN CÔNG] -" .. dmgToPlayer .. " HP!",
+                            text = counterMsg,
                             color = UI.COLORS.hpRed,
                             x = 640,
                             y = 350,
@@ -1919,15 +1973,13 @@ function love.update(dt)
                     anim.active = false
                     anim.playedCards = {}
 
-                    -- Player killed by counter-attack
+                    -- Dual Loss Condition: 1) HP <= 0, 2) Out of Hands while Monster alive
                     if anim.playerKilled or (game.playerHp and game.playerHp <= 0) then
                         state = "gameover"
                         Sound.play("game_over")
                         return
                     end
-
-                    -- Check if player has run out of all cards
-                    if #game.hand == 0 and #game.deck == 0 and #game.discardPile == 0 then
+                    if (not anim.monsterDefeated) and game.handsRemaining <= 0 and game.monster and game.monster.hp > 0 then
                         state = "gameover"
                         Sound.play("game_over")
                         return
@@ -1979,9 +2031,16 @@ function love.update(dt)
                         state = "gameover"
                         Sound.play("game_over")
                     else
-                        -- Refill hand while deck has cards (played cards stay in discard pile!)
-                        local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and 9 or 8
-                        while #game.hand < maxHandSize and #game.deck > 0 do
+                        -- Refill hand to 3 cards while deck/discard has cards
+                        local maxHandSize = Deck.DEFAULT_HAND_SIZE or 3
+                        while #game.hand < maxHandSize do
+                            if #game.deck == 0 and #game.discardPile > 0 then
+                                while #game.discardPile > 0 do
+                                    table.insert(game.deck, table.remove(game.discardPile))
+                                end
+                                Deck.shuffle(game.deck)
+                            end
+                            if #game.deck == 0 then break end
                             local drawn = table.remove(game.deck)
                             if drawn then
                                 drawn.selected = false
@@ -1994,13 +2053,6 @@ function love.update(dt)
                                 end
                                 table.insert(game.hand, drawn)
                             end
-                        end
-
-                        -- Deck exhaustion check: all cards played and monster not defeated = Defeat
-                        if #game.hand == 0 and #game.deck == 0 and game.monster and game.monster.hp > 0 then
-                            state = "gameover"
-                            Sound.play("game_over")
-                            return
                         end
 
                         if game.sortMode == "rank" then
@@ -2954,6 +3006,22 @@ local function drawPlayingState()
     love.graphics.setColor(isBoss and UI.COLORS.hpRed or UI.COLORS.goldYellow)
     love.graphics.print(m and (m.hp .. " HP") or "0 HP", mbX + 68, mbY + 58)
 
+    -- Monster Intent Badge right next to HP
+    local intentW = 86
+    local intentH = 36
+    local intentX = mbX + mbW - intentW - 10
+    local intentY = mbY + 44
+    love.graphics.setColor(0.24, 0.08, 0.10, 0.95)
+    UI.drawRoundedRect("fill", intentX, intentY, intentW, intentH, 4)
+    love.graphics.setColor(0.85, 0.30, 0.30, 1)
+    UI.drawRoundedRect("line", intentX, intentY, intentW, intentH, 4)
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(1, 0.65, 0.65, 1)
+    love.graphics.printf("Ý ĐỊNH", intentX, intentY + 3, intentW, "center")
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.hpRed)
+    love.graphics.printf("ĐÁNH: " .. (m and m.attack or 12) .. " DMG", intentX, intentY + 16, intentW, "center")
+
     -- Reward text
     local baseReward = (m and m.isBoss) and 15 or ((m and m.isElite) and 10 or 4)
     love.graphics.setFont(UI.fonts.tiny)
@@ -3180,7 +3248,7 @@ local function drawPlayingState()
     end
 
     -- C. Player HP Bar
-    UI.drawPlayerHpBar(panelX + 10, panelY + 346, panelW - 20, 32, game.playerHp, game.maxPlayerHp, game.playerShield)
+    UI.drawPlayerHpBar(panelX + 10, panelY + 346, panelW - 20, 32, game.playerHp, game.maxPlayerHp, game.playerArmor or game.playerShield or 0)
 
     -- D. Sidebar Action Buttons
     local btnHandbookPlay = {
