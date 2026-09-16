@@ -56,7 +56,20 @@ local game = {
     currentEvent = nil,
     eventOutcomeText = nil,
     bossDeityDraft = {},
-    unlockedHands = { high_card = true, pair = true, three_of_a_kind = true, straight = true },
+    maxHandSize = 3,
+    unlockedHands = { high_card = true },
+    handLevels = {
+        high_card = 1,
+        pair = 1,
+        two_pair = 1,
+        three_of_a_kind = 1,
+        straight = 1,
+        flush = 1,
+        full_house = 1,
+        four_of_a_kind = 1,
+        straight_flush = 1,
+    },
+    consumables = {},
     monster = nil,
     playerHp = 100,
     maxPlayerHp = 100,
@@ -174,6 +187,68 @@ local function getDeitySlotRect(i, currentState)
     local startX = 295
     local slotY = 32
     return startX + (i - 1) * (slotW + gap), slotY, slotW, slotH
+end
+
+local function drawConsumableSlot(c, cx, cy, conSlotW, conSlotH, j, mx, my)
+    if c then
+        local isHover = (mx >= cx and mx <= cx + conSlotW and my >= cy and my <= cy + conSlotH)
+        love.graphics.setColor(0.12, 0.16, 0.22, 0.95)
+        UI.drawRoundedRect("fill", cx, cy, conSlotW, conSlotH, 6)
+        love.graphics.setLineWidth(isHover and 2 or 1.5)
+        love.graphics.setColor(c.color or UI.COLORS.goldYellow)
+        UI.drawRoundedRect("line", cx, cy, conSlotW, conSlotH, 6)
+
+        -- Icon
+        love.graphics.setFont(UI.fonts.medium)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf(c.icon or "✨", cx, cy + 10, conSlotW, "center")
+
+        -- Name
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(1, 1, 1, 0.95)
+        love.graphics.printf(c.name or "Thẻ Phép", cx + 2, cy + 42, conSlotW - 4, "center")
+
+        -- Use Button
+        local btnUse = {
+            id = "use_consumable_" .. j,
+            text = "DÙNG",
+            x = cx + 8,
+            y = cy + conSlotH - 26,
+            w = conSlotW - 16,
+            h = 20,
+            color = UI.COLORS.btnPlay,
+            font = UI.fonts.tiny,
+            consumableIndex = j,
+        }
+        table.insert(buttons, btnUse)
+        UI.drawButton(btnUse, mx >= btnUse.x and mx <= btnUse.x + btnUse.w and my >= btnUse.y and my <= btnUse.y + btnUse.h, juice.buttonPressedId == btnUse.id)
+
+        if isHover and my < cy + conSlotH - 26 then
+            -- Tooltip
+            local ttW = 210
+            local ttH = 75
+            local ttX = math.min(V_WIDTH - ttW - 10, math.max(10, cx - 40))
+            local ttY = cy + conSlotH + 8
+            love.graphics.setColor(0.08, 0.10, 0.14, 0.96)
+            UI.drawRoundedRect("fill", ttX, ttY, ttW, ttH, 6)
+            love.graphics.setColor(c.color or UI.COLORS.goldYellow)
+            UI.drawRoundedRect("line", ttX, ttY, ttW, ttH, 6)
+            love.graphics.setFont(UI.fonts.tiny)
+            love.graphics.setColor(UI.COLORS.goldYellow)
+            love.graphics.printf(c.name, ttX + 6, ttY + 6, ttW - 12, "left")
+            love.graphics.setColor(UI.COLORS.textLight)
+            love.graphics.printf(c.desc or "", ttX + 6, ttY + 22, ttW - 12, "left")
+        end
+    else
+        love.graphics.setColor(0.09, 0.11, 0.13, 0.6)
+        UI.drawRoundedRect("fill", cx, cy, conSlotW, conSlotH, 6)
+        love.graphics.setLineWidth(1)
+        love.graphics.setColor(0.24, 0.28, 0.34, 0.5)
+        UI.drawRoundedRect("line", cx, cy, conSlotW, conSlotH, 6)
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(0.32, 0.36, 0.42, 0.5)
+        love.graphics.printf("Trống", cx, cy + conSlotH / 2 - 10, conSlotW, "center")
+    end
 end
 
 -- Micro-Animation & Juice System
@@ -448,11 +523,27 @@ local function getCardGridPos(i, totalCards, cardW, cardH, gapX, gapY, maxCols, 
 end
 
 local function getMaxSelectableCards()
-    local maxCount = 3
+    local maxAllowed = 1
+    if game.unlockedHands then
+        for handId, unlocked in pairs(game.unlockedHands) do
+            if unlocked then
+                if handId == "straight_flush" or handId == "flush" or handId == "full_house" then
+                    maxAllowed = math.max(maxAllowed, 5)
+                elseif handId == "four_of_a_kind" or handId == "two_pair" then
+                    maxAllowed = math.max(maxAllowed, 4)
+                elseif handId == "three_of_a_kind" or handId == "straight" then
+                    maxAllowed = math.max(maxAllowed, 3)
+                elseif handId == "pair" then
+                    maxAllowed = math.max(maxAllowed, 2)
+                end
+            end
+        end
+    end
+    local maxCount = math.min(game.maxHandSize or 3, maxAllowed)
     if game.monster and game.monster.isBoss and game.monster.bossData and game.monster.bossData.maxSelectedCards then
         maxCount = math.min(maxCount, game.monster.bossData.maxSelectedCards)
     end
-    return maxCount
+    return math.max(1, maxCount)
 end
 
 local function startMonsterEncounter(floor, isBossNode, isEliteNode)
@@ -525,8 +616,8 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
     Deck.shuffle(game.deck)
     clearAllSelections()
 
-    -- Draw up to 3 cards (Hand Size = 3)
-    local maxHandSize = Deck.DEFAULT_HAND_SIZE or 3
+    -- Draw up to maxHandSize cards
+    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and ((game.maxHandSize or 3) + 1) or (game.maxHandSize or 3)
     while #game.hand < maxHandSize do
         if #game.deck == 0 and #game.discardPile > 0 then
             while #game.discardPile > 0 do
@@ -634,8 +725,8 @@ local function startBlindCombat(blind)
     Deck.shuffle(game.deck)
     clearAllSelections()
 
-    -- Draw up to 3 cards (Hand Size = 3)
-    local maxHandSize = Deck.DEFAULT_HAND_SIZE or 3
+    -- Draw up to maxHandSize cards
+    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and ((game.maxHandSize or 3) + 1) or (game.maxHandSize or 3)
     while #game.hand < maxHandSize do
         if #game.deck == 0 and #game.discardPile > 0 then
             while #game.discardPile > 0 do
@@ -684,7 +775,20 @@ local function startNewGame(chosenFaction)
     game.maxHands = 3
     game.handsRemaining = 3
     game.maxDiscards = (game.selectedFaction == "valoria") and 4 or 3
-    game.unlockedHands = { high_card = true, pair = true, three_of_a_kind = true, straight = true }
+    game.maxHandSize = 3
+    game.unlockedHands = { high_card = true }
+    game.handLevels = {
+        high_card = 1,
+        pair = 1,
+        two_pair = 1,
+        three_of_a_kind = 1,
+        straight = 1,
+        flush = 1,
+        full_house = 1,
+        four_of_a_kind = 1,
+        straight_flush = 1,
+    }
+    game.consumables = {}
     game.deities = {} -- Mới vào game không có vị thần nào hết!
     game.playerHp = 100
     game.maxPlayerHp = 100
@@ -888,6 +992,40 @@ local function discardSelected()
         else
             table.insert(game.discardPile, card)
         end
+
+        -- 5. 🟣 DẤU TÍM (Purple Seal / Medium): Tạo Thẻ Phép ngẫu nhiên khi bị bỏ bài
+        if card.seal == "purple" then
+            local spellPool = {
+                { id = "spec_familiar", name = "Familiar", subtitle = "LINH THÚ", desc = "Hủy 1 lá ngẫu nhiên, thêm 3 lá Hoàng Gia (J, Q, K) có trang bị!" },
+                { id = "spec_grim", name = "Grim", subtitle = "TỬ THẦN", desc = "Hủy 1 lá ngẫu nhiên, thêm 2 lá Át (A) có trang bị!" },
+                { id = "spec_cryptid", name = "Cryptid", subtitle = "DỊ THỂ", desc = "Nhân bản 1 lá bài đã chọn trên tay thành 2 bản sao!" },
+                { id = "spec_immolate", name = "Immolate", subtitle = "THIÊU RỤI", desc = "Hủy 5 lá, nhận ngay +$20 Tiền Vàng!" },
+                { id = "spec_black_hole", name = "Black Hole", subtitle = "HỐ ĐEN", desc = "Tất cả các thế bài tăng +1 Cấp!" },
+                { id = "spell_aura", name = "Aura", subtitle = "HÀO QUANG", desc = "Thêm Foil, Holo, hoặc Polychrome cho 1 Thần ngẫu nhiên!" },
+                { id = "seal_deja_vu", name = "Deja Vu", subtitle = "DẤU ĐỎ", desc = "Đóng Dấu Đỏ lên 1 lá bài (kích hoạt lại điểm +1 lần)!" },
+            }
+            local chosen = spellPool[math.random(#spellPool)]
+            game.consumables = game.consumables or {}
+            if #game.consumables < 2 then
+                table.insert(game.consumables, chosen)
+                table.insert(anim.floatingTexts, {
+                    text = "🟣 [DẤU TÍM] Tạo Thẻ Phép: " .. chosen.name .. " (" .. chosen.subtitle .. ")!",
+                    color = { 0.85, 0.45, 0.95, 1 },
+                    x = 640,
+                    y = 390,
+                    alpha = 2.5,
+                })
+            else
+                table.insert(anim.floatingTexts, {
+                    text = "🟣 [DẤU TÍM] Ô Tiêu Hao đã đầy (2/2)!",
+                    color = { 0.85, 0.45, 0.95, 1 },
+                    x = 640,
+                    y = 390,
+                    alpha = 2.0,
+                })
+            end
+            Sound.play("round_win")
+        end
     end
 
     if hasFreeDiscard then
@@ -903,8 +1041,8 @@ local function discardSelected()
         game.discardsUsedInCombat = (game.discardsUsedInCombat or 0) + 1
     end
 
-    -- Refill hand to 3 cards while deck/discard has cards
-    local maxHandSize = Deck.DEFAULT_HAND_SIZE or 3
+    -- Refill hand to maxHandSize cards while deck/discard has cards
+    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and ((game.maxHandSize or 3) + 1) or (game.maxHandSize or 3)
     while #game.hand < maxHandSize do
         if #game.deck == 0 and #game.discardPile > 0 then
             while #game.discardPile > 0 do
@@ -938,12 +1076,302 @@ local function discardSelected()
     Sound.play("card_deal")
 end
 
+local function useConsumable(idx)
+    game.consumables = game.consumables or {}
+    local c = game.consumables[idx]
+    if not c then return false end
+
+    -- 1. Celestial / Planet card
+    if c.category == "celestial" or (c.id and c.id:find("planet_")) then
+        game.handLevels = game.handLevels or {}
+        if c.handId == "random" then
+            local allHands = {}
+            for _, ht in pairs(Poker.HAND_TYPES) do table.insert(allHands, ht) end
+            local h = allHands[love.math and love.math.random(#allHands) or math.random(#allHands)]
+            game.handLevels[h.id] = (game.handLevels[h.id] or 1) + 3
+            Sound.play("round_win")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, {
+                text = "🌟 Siêu Tân Tinh: Nâng cấp " .. h.vnName .. " lên Cấp " .. game.handLevels[h.id] .. "!",
+                color = UI.COLORS.goldYellow,
+                x = 640,
+                y = 350,
+                alpha = 3.0,
+            })
+            return true
+        elseif c.handId == "all" then
+            for _, ht in pairs(Poker.HAND_TYPES) do
+                game.handLevels[ht.id] = (game.handLevels[ht.id] or 1) + 1
+            end
+            Sound.play("xmult_boom")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, {
+                text = "🕳️ Hố Đen: TẤT CẢ 9 thế bài tăng +1 Cấp độ!",
+                color = { 0.85, 0.45, 0.95, 1 },
+                x = 640,
+                y = 350,
+                alpha = 3.0,
+            })
+            return true
+        else
+            game.handLevels[c.handId] = (game.handLevels[c.handId] or 1) + 1
+            local hType = nil
+            for _, ht in pairs(Poker.HAND_TYPES) do if ht.id == c.handId then hType = ht break end end
+            local vName = hType and hType.vnName or c.name
+            Sound.play("round_win")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, {
+                text = "🪐 " .. c.name .. ": Thế bài " .. vName .. " lên Cấp " .. game.handLevels[c.handId] .. "!",
+                color = UI.COLORS.goldYellow,
+                x = 640,
+                y = 350,
+                alpha = 3.0,
+            })
+            return true
+        end
+
+    -- 2. Joker Spells
+    elseif c.category == "joker_spell" or (c.id and c.id:find("spell_")) then
+        local deityList = {}
+        for di = 1, 10 do
+            if game.deities and game.deities[di] then
+                table.insert(deityList, { slot = di, deity = game.deities[di] })
+            end
+        end
+        if #deityList == 0 then
+            Sound.play("cant_afford")
+            table.insert(anim.floatingTexts, {
+                text = "Không có Thần Hộ Mệnh nào để dùng phép!",
+                color = { 0.95, 0.35, 0.35, 1 },
+                x = 640,
+                y = 350,
+                alpha = 2.5,
+            })
+            return false
+        end
+
+        if c.id == "spell_aura" then
+            local chosen = deityList[love.math and love.math.random(#deityList) or math.random(#deityList)]
+            local edPool = { "foil", "holo", "polychrome" }
+            chosen.deity.edition = edPool[love.math and love.math.random(#edPool) or math.random(#edPool)]
+            Sound.play("round_win")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, {
+                text = "✨ Aura: Thần [" .. chosen.deity.name .. "] nhận " .. chosen.deity.edition:upper() .. "!",
+                color = UI.COLORS.goldYellow,
+                x = 640,
+                y = 350,
+                alpha = 3.0,
+            })
+            return true
+        elseif c.id == "spell_ectoplasm" then
+            local chosen = deityList[love.math and love.math.random(#deityList) or math.random(#deityList)]
+            chosen.deity.edition = "negative"
+            game.maxHandSize = math.max(1, (game.maxHandSize or 3) - 1)
+            Sound.play("xmult_boom")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, {
+                text = "🧪 Ectoplasm: [" .. chosen.deity.name .. "] nhận NEGATIVE (+1 Ô Thần), Hand Size: " .. game.maxHandSize .. "!",
+                color = { 0.3, 0.9, 0.6, 1 },
+                x = 640,
+                y = 350,
+                alpha = 3.0,
+            })
+            return true
+        elseif c.id == "spell_ankh" then
+            local chosen = deityList[love.math and love.math.random(#deityList) or math.random(#deityList)]
+            local cloned = {}
+            for k, v in pairs(chosen.deity) do cloned[k] = v end
+            game.deities = { [1] = chosen.deity, [2] = cloned }
+            Sound.play("xmult_boom")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, {
+                text = "🪞 Ankh: Nhân bản [" .. cloned.name .. "], hủy diệt các Thần còn lại!",
+                color = UI.COLORS.xmultGold,
+                x = 640,
+                y = 350,
+                alpha = 3.0,
+            })
+            return true
+        elseif c.id == "spell_hex" then
+            local chosen = deityList[love.math and love.math.random(#deityList) or math.random(#deityList)]
+            chosen.deity.edition = "polychrome"
+            local kept = chosen.deity
+            game.deities = { [1] = kept }
+            Sound.play("xmult_boom")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, {
+                text = "🔮 Hex: [" .. kept.name .. "] nhận POLYCHROME, hủy diệt các Thần còn lại!",
+                color = UI.COLORS.xmultGold,
+                x = 640,
+                y = 350,
+                alpha = 3.0,
+            })
+            return true
+        end
+
+    -- 3. Seals
+    elseif c.category == "seal" or (c.id and c.id:find("seal_")) then
+        local target = nil
+        if game.selectedIndices and #game.selectedIndices > 0 and game.hand and game.hand[game.selectedIndices[1]] then
+            target = game.hand[game.selectedIndices[1]]
+        elseif game.hand and #game.hand > 0 then
+            target = game.hand[1]
+        elseif game.persistentDeck and #game.persistentDeck > 0 then
+            target = game.persistentDeck[1]
+        end
+        if not target then
+            Sound.play("cant_afford")
+            return false
+        end
+        target.seal = c.sealType
+        if game.persistentDeck then
+            for _, pc in ipairs(game.persistentDeck) do
+                if pc.id == target.id then pc.seal = c.sealType break end
+            end
+        end
+        Sound.play("round_win")
+        table.remove(game.consumables, idx)
+        table.insert(anim.floatingTexts, {
+            text = "Đóng ấn [" .. (c.sealName or c.name) .. "] lên lá " .. (target.rankName or "") .. (target.suitSymbol or "") .. "!",
+            color = UI.COLORS.goldYellow,
+            x = 640,
+            y = 350,
+            alpha = 3.0,
+        })
+        return true
+
+    -- 4. Spectral cards
+    elseif c.category == "spectral" or (c.id and c.id:find("spec_")) then
+        local userFaction = game.selectedFaction or game.selectedSuit or "aurelia"
+        if c.id == "spec_familiar" then
+            if game.hand and #game.hand > 0 then table.remove(game.hand, love.math and love.math.random(#game.hand) or 1) end
+            if game.persistentDeck and #game.persistentDeck > 0 then table.remove(game.persistentDeck, love.math and love.math.random(#game.persistentDeck) or 1) end
+            local ranks = { 11, 12, 13 }
+            for i = 1, 3 do
+                local nc = Deck.newCard(ranks[i], userFaction)
+                nc.equipments = { Equipment.getRandomEquipment() }
+                Deck.addCardToDeck(game, nc)
+            end
+            Sound.play("round_win")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, { text = "👻 Familiar: Thêm 3 lá J/Q/K có trang bị!", color = UI.COLORS.goldYellow, x = 640, y = 350, alpha = 3.0 })
+            return true
+        elseif c.id == "spec_grim" then
+            if game.hand and #game.hand > 0 then table.remove(game.hand, love.math and love.math.random(#game.hand) or 1) end
+            if game.persistentDeck and #game.persistentDeck > 0 then table.remove(game.persistentDeck, love.math and love.math.random(#game.persistentDeck) or 1) end
+            for i = 1, 2 do
+                local nc = Deck.newCard(14, userFaction)
+                nc.equipments = { Equipment.getRandomEquipment() }
+                Deck.addCardToDeck(game, nc)
+            end
+            Sound.play("round_win")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, { text = "💀 Grim: Thêm 2 lá Át (A) có trang bị!", color = UI.COLORS.goldYellow, x = 640, y = 350, alpha = 3.0 })
+            return true
+        elseif c.id == "spec_incantation" then
+            if game.hand and #game.hand > 0 then table.remove(game.hand, love.math and love.math.random(#game.hand) or 1) end
+            if game.persistentDeck and #game.persistentDeck > 0 then table.remove(game.persistentDeck, love.math and love.math.random(#game.persistentDeck) or 1) end
+            for i = 1, 4 do
+                local r = love.math and love.math.random(2, 10) or math.random(2, 10)
+                local nc = Deck.newCard(r, userFaction)
+                nc.equipments = { Equipment.getRandomEquipment() }
+                Deck.addCardToDeck(game, nc)
+            end
+            Sound.play("round_win")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, { text = "🕯️ Incantation: Thêm 4 lá Quân Số có trang bị!", color = UI.COLORS.goldYellow, x = 640, y = 350, alpha = 3.0 })
+            return true
+        elseif c.id == "spec_cryptid" then
+            local target = nil
+            if game.selectedIndices and #game.selectedIndices > 0 and game.hand and game.hand[game.selectedIndices[1]] then
+                target = game.hand[game.selectedIndices[1]]
+            elseif game.hand and #game.hand > 0 then
+                target = game.hand[1]
+            elseif game.persistentDeck and #game.persistentDeck > 0 then
+                target = game.persistentDeck[1]
+            end
+            if not target then Sound.play("cant_afford") return false end
+            local cl1 = Deck.cloneCard(target)
+            local cl2 = Deck.cloneCard(target)
+            Deck.addCardToDeck(game, cl1)
+            Deck.addCardToDeck(game, cl2)
+            if game.hand then table.insert(game.hand, cl1) table.insert(game.hand, cl2) end
+            Sound.play("round_win")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, { text = "🧬 Cryptid: Tạo 2 bản sao của lá " .. (target.rankName or "") .. (target.suitSymbol or "") .. "!", color = UI.COLORS.goldYellow, x = 640, y = 350, alpha = 3.0 })
+            return true
+        elseif c.id == "spec_immolate" then
+            local destroyed = 0
+            while game.hand and #game.hand > 0 and destroyed < 5 do
+                table.remove(game.hand, 1)
+                destroyed = destroyed + 1
+            end
+            if game.persistentDeck then
+                local dDeck = 0
+                while #game.persistentDeck > 3 and dDeck < destroyed do
+                    table.remove(game.persistentDeck, 1)
+                    dDeck = dDeck + 1
+                end
+            end
+            game.gold = (game.gold or 0) + 20
+            Sound.play("xmult_boom")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, { text = "🔥 Immolate: Thiêu rụi " .. destroyed .. " lá, +$20 Vàng!", color = UI.COLORS.goldYellow, x = 640, y = 350, alpha = 3.0 })
+            return true
+        elseif c.id == "spec_sigil" then
+            local factions = { "aurelia", "elaris", "vharos", "valoria" }
+            local targetFaction = factions[love.math and love.math.random(#factions) or math.random(#factions)]
+            local fInfo = Deck.FACTIONS[targetFaction]
+            if game.hand then
+                for _, ch in ipairs(game.hand) do
+                    ch.suit = targetFaction
+                    ch.suitName = fInfo.name
+                    ch.suitSymbol = fInfo.symbol
+                    ch.color = fInfo.color
+                end
+            end
+            Sound.play("round_win")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, { text = "🌀 Sigil: Tất cả lá bài đổi sang Phe " .. fInfo.name .. "!", color = UI.COLORS.goldYellow, x = 640, y = 350, alpha = 3.0 })
+            return true
+        elseif c.id == "spec_ouija" then
+            local r = love.math and love.math.random(2, 14) or math.random(2, 14)
+            local rName = Deck.RANK_NAMES[r] or tostring(r)
+            if game.hand then
+                for _, ch in ipairs(game.hand) do
+                    ch.rank = r
+                    ch.rankName = rName
+                    ch.baseChips = Deck.getChipValue(r)
+                end
+            end
+            game.maxHandSize = math.max(1, (game.maxHandSize or 3) - 1)
+            Sound.play("round_win")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, { text = "👁️ Ouija: Đổi bài sang Rank " .. rName .. ", Hand Size: " .. game.maxHandSize .. "!", color = UI.COLORS.goldYellow, x = 640, y = 350, alpha = 3.0 })
+            return true
+        elseif c.id == "spec_black_hole" then
+            game.handLevels = game.handLevels or {}
+            for _, ht in pairs(Poker.HAND_TYPES) do
+                game.handLevels[ht.id] = (game.handLevels[ht.id] or 1) + 1
+            end
+            Sound.play("xmult_boom")
+            table.remove(game.consumables, idx)
+            table.insert(anim.floatingTexts, { text = "🕳️ Black Hole: TẤT CẢ các thế bài tăng +1 Cấp độ!", color = { 0.85, 0.45, 0.95, 1 }, x = 640, y = 350, alpha = 3.0 })
+            return true
+        end
+    end
+
+    return false
+end
+
 local function playSelectedHand()
     if #game.selectedIndices == 0 or game.handsRemaining <= 0 then return end
 
     local playedCards = getSelectedCards()
-    local evalResult = Poker.evaluate(playedCards, game.unlockedHands)
+    local evalResult = Poker.evaluate(playedCards, game.unlockedHands, game.handLevels)
     if not evalResult then return end
+    game.lastPlayedHandId = evalResult.type and evalResult.type.id
 
     screenShake = math.max(screenShake or 0, 2.5)
 
@@ -1005,7 +1433,7 @@ local function playSelectedHand()
         gameState = game,
         drawCards = function(n)
             local drawnCount = 0
-            local maxHand = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris" or game.selectedFaction == "clubs" or game.selectedFaction == "feral_swarm") and 9 or 8
+            local maxHand = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris" or game.selectedFaction == "clubs" or game.selectedFaction == "feral_swarm") and ((game.maxHandSize or 3) + 1) or (game.maxHandSize or 3)
             while #game.hand < maxHand and #game.deck > 0 and drawnCount < n do
                 local drawn = table.remove(game.deck)
                 if drawn then
@@ -1392,7 +1820,7 @@ function love.update(dt)
     -- Check hand rank bounce when cards selected change hand evaluation
     if state == "playing" then
         local selCards = getSelectedCards()
-        local curHand = (#selCards > 0) and Poker.evaluate(selCards, game.unlockedHands) or nil
+        local curHand = (#selCards > 0) and Poker.evaluate(selCards, game.unlockedHands, game.handLevels) or nil
         local curName = (curHand and curHand.type) and curHand.type.vnName or ""
         if curName ~= juice.lastEvaluatedRank then
             if juice.lastEvaluatedRank ~= nil and curName ~= "" then
@@ -1767,6 +2195,70 @@ function love.update(dt)
                     anim.stepCategory = "THẦN BÀI: " .. (st.deity and st.deity.name or "BỔ TRỢ"):upper()
                     anim.stepLog = st.message
 
+                elseif st.type == "seal_trigger" then
+                    anim.activeCardIndex = st.cardIndex
+                    anim.stepCategory = "CON DẤU (SEAL)"
+                    anim.stepLog = st.message
+                    Sound.play("jackpot", pitch)
+                    anim.targetStepDelay = 0.34
+                    table.insert(anim.floatingTexts, {
+                        text = "KÍCH HOẠT LẠI (DẤU ĐỎ)!",
+                        color = { 0.95, 0.25, 0.25, 1 },
+                        x = 295 + (st.cardIndex - 1) * (96 + 16) + 48,
+                        y = 300,
+                        alpha = 1.8,
+                    })
+
+                elseif st.type == "deity_edition" then
+                    anim.activeCardIndex = nil
+                    local dIdx = st.slotIndex or 1
+                    local dCenterX = 295 + (dIdx - 1) * (112 + 12) + 56
+                    local dCenterY = 15 + 22 + 44
+                    anim.deityBounce[dIdx] = 1.45
+
+                    if st.edition == "foil" then
+                        anim.displayChips = st.resultingChips or (anim.displayChips + (st.addedChips or 50))
+                        anim.bounceScale.chips = 1.40
+                        Sound.play("chip_tick", pitch)
+                        spawnSparks(dCenterX, dCenterY, 20, { 0.4, 0.7, 1.0, 1 })
+                        table.insert(anim.floatingTexts, {
+                            text = "+50 CHIPS (FOIL)",
+                            color = { 0.4, 0.7, 1.0, 1 },
+                            x = dCenterX,
+                            y = dCenterY - 20,
+                            alpha = 1.6,
+                        })
+                    elseif st.edition == "holo" then
+                        anim.displayMult = st.resultingMult or (anim.displayMult + (st.addedMult or 10))
+                        anim.bounceScale.mult = 1.45
+                        Sound.play("mult_pop", pitch)
+                        spawnSparks(dCenterX, dCenterY, 20, { 0.9, 0.4, 0.9, 1 })
+                        table.insert(anim.floatingTexts, {
+                            text = "+10 MULT (HOLO)",
+                            color = { 0.9, 0.4, 0.9, 1 },
+                            x = dCenterX,
+                            y = dCenterY - 20,
+                            alpha = 1.6,
+                        })
+                    elseif st.edition == "polychrome" then
+                        anim.displayMult = st.resultingMult or math.floor(anim.displayMult * 1.5)
+                        anim.bounceScale.xMult = 1.65
+                        anim.bounceScale.mult = 1.65
+                        Sound.play("xmult_boom", pitch)
+                        spawnSparks(dCenterX, dCenterY, 28, UI.COLORS.xmultGold)
+                        table.insert(anim.floatingTexts, {
+                            text = "x1.5 MULT (POLY)",
+                            color = UI.COLORS.xmultGold,
+                            x = dCenterX,
+                            y = dCenterY - 20,
+                            alpha = 1.8,
+                        })
+                    end
+                    anim.displayFinalScore = math.floor(anim.displayChips * anim.displayMult)
+                    anim.stepCategory = "PHÙ PHÉP JOKER"
+                    anim.stepLog = st.message
+                    anim.targetStepDelay = 0.38
+
                 elseif st.type == "final_score" then
                     anim.activeCardIndex = nil
                     local shakeAmt = math.min(6.5, 2.0 + math.log10(math.max(10, st.finalScore)) * 0.9)
@@ -1968,6 +2460,53 @@ function love.update(dt)
                             end
                         end
 
+                        -- Blue Seal (Trance): Đóng Dấu Xanh Lam tạo lá bài Hành Tinh của thế bài chiến thắng cuối cùng nếu giữ trên tay
+                        if game.hand and #game.hand > 0 and game.lastPlayedHandId then
+                            for _, c in ipairs(game.hand) do
+                                if c.seal == "blue" then
+                                    local pScaling = Poker.HAND_LEVEL_SCALING[game.lastPlayedHandId]
+                                    if pScaling and pScaling.planetId then
+                                        local planetCard = nil
+                                        for _, pc in ipairs(Poker.PLANET_CARDS) do
+                                            if pc.id == pScaling.planetId then
+                                                planetCard = pc
+                                                break
+                                            end
+                                        end
+                                        if planetCard then
+                                            game.consumables = game.consumables or {}
+                                            if #game.consumables < 2 then
+                                                table.insert(game.consumables, {
+                                                    id = planetCard.id,
+                                                    category = "celestial",
+                                                    name = planetCard.name,
+                                                    handId = planetCard.handId,
+                                                    desc = planetCard.desc,
+                                                    icon = planetCard.icon,
+                                                    color = planetCard.color,
+                                                })
+                                                table.insert(anim.floatingTexts, {
+                                                    text = "🔵 [DẤU LAM] Tạo lá bài " .. planetCard.name .. "!",
+                                                    color = { 0.35, 0.75, 1.0, 1 },
+                                                    x = 640,
+                                                    y = 360,
+                                                    alpha = 3.0,
+                                                })
+                                            else
+                                                table.insert(anim.floatingTexts, {
+                                                    text = "🔵 [DẤU LAM] Ô Tiêu Hao đã đầy (2/2)!",
+                                                    color = { 0.8, 0.8, 0.8, 1 },
+                                                    x = 640,
+                                                    y = 360,
+                                                    alpha = 2.5,
+                                                })
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+
                         -- Increment encounter count for next monster (starts at 10 HP, +50% each encounter indefinitely)
                         game.monsterEncounterCount = (game.monsterEncounterCount or 1) + 1
 
@@ -2097,8 +2636,8 @@ function love.update(dt)
                         state = "gameover"
                         Sound.play("game_over")
                     else
-                        -- Refill hand to 3 cards while deck/discard has cards
-                        local maxHandSize = Deck.DEFAULT_HAND_SIZE or 3
+                        -- Refill hand to maxHandSize cards while deck/discard has cards
+                        local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and ((game.maxHandSize or 3) + 1) or (game.maxHandSize or 3)
                         while #game.hand < maxHandSize do
                             if #game.deck == 0 and #game.discardPile > 0 then
                                 while #game.discardPile > 0 do
@@ -3128,7 +3667,7 @@ local function drawPlayingState()
 
     -- Check selected hand
     local selectedCards = getSelectedCards()
-    local eval = (#selectedCards > 0) and Poker.evaluate(selectedCards, game.unlockedHands) or nil
+    local eval = (#selectedCards > 0) and Poker.evaluate(selectedCards, game.unlockedHands, game.handLevels) or nil
     local scPreview = eval and Scoring.calculate(eval, game.deities, {
         handsRemaining = game.handsRemaining,
         discardsRemaining = game.discardsRemaining,
@@ -3141,7 +3680,7 @@ local function drawPlayingState()
     }) or nil
 
     if state == "scoring" and anim.active then
-        local handTitle = (anim.evalResult and anim.evalResult.type and anim.evalResult.type.vnName) or "ĐIỂM VÁN"
+        local handTitle = (anim.evalResult and anim.evalResult.type and ((anim.evalResult.type.vnName) .. " (Lv. " .. (anim.evalResult.level or 1) .. ")")) or "ĐIỂM VÁN"
         love.graphics.setFont(UI.fonts.small)
         love.graphics.setColor(UI.COLORS.goldYellow)
         love.graphics.printf(handTitle, sbX, sbY + 30, sbW, "center")
@@ -3196,6 +3735,7 @@ local function drawPlayingState()
     elseif eval and scPreview then
         love.graphics.setFont(UI.fonts.small)
         love.graphics.setColor(UI.COLORS.goldYellow)
+        local hNameWithLvl = eval.type.vnName .. (eval.level and (" (Lv. " .. eval.level .. ")") or "")
         if juice.handRankBounce and juice.handRankBounce > 1.01 then
             local bCX = sbX + sbW / 2
             local bCY = sbY + 36
@@ -3203,10 +3743,10 @@ local function drawPlayingState()
             love.graphics.translate(bCX, bCY)
             love.graphics.scale(juice.handRankBounce, juice.handRankBounce)
             love.graphics.translate(-bCX, -bCY)
-            love.graphics.printf(eval.type.vnName, sbX, sbY + 30, sbW, "center")
+            love.graphics.printf(hNameWithLvl, sbX, sbY + 30, sbW, "center")
             love.graphics.pop()
         else
-            love.graphics.printf(eval.type.vnName, sbX, sbY + 30, sbW, "center")
+            love.graphics.printf(hNameWithLvl, sbX, sbY + 30, sbW, "center")
         end
 
         -- Chips box (Blue)
@@ -3481,23 +4021,19 @@ local function drawPlayingState()
 
     -- Consumables Section (0/2)
     local conStartX = topStartX + 5 * (deitySlotW + deityGap) + 20
+    game.consumables = game.consumables or {}
+    local conCount = #game.consumables
     love.graphics.setFont(UI.fonts.small)
-    love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.print("TIÊU HAO (0/2)", conStartX + 4, topStartY)
+    love.graphics.setColor({ 0.45, 0.85, 0.65, 1 })
+    love.graphics.print("TIÊU HAO (" .. conCount .. "/2)", conStartX + 4, topStartY)
 
     local conSlotW = 82
     local conSlotH = 118
     local conGap = 14
     for j = 1, 2 do
         local cx = conStartX + (j - 1) * (conSlotW + conGap)
-        love.graphics.setColor(0.09, 0.11, 0.13, 0.6)
-        UI.drawRoundedRect("fill", cx, deityY, conSlotW, conSlotH, 6)
-        love.graphics.setLineWidth(1)
-        love.graphics.setColor(0.24, 0.28, 0.34, 0.5)
-        UI.drawRoundedRect("line", cx, deityY, conSlotW, conSlotH, 6)
-        love.graphics.setFont(UI.fonts.small)
-        love.graphics.setColor(0.32, 0.36, 0.42, 0.5)
-        love.graphics.printf("Trống", cx, deityY + conSlotH / 2 - 10, conSlotW, "center")
+        local c = game.consumables[j]
+        drawConsumableSlot(c, cx, deityY, conSlotW, conSlotH, j, mx, my)
     end
 
     ----------------------------------------------------------------------------
@@ -3571,8 +4107,8 @@ local function drawPlayingState()
         UI.drawCardHoverBadge(hoveredCard, hoveredCard.visualX or 0, hoveredCard.visualY or 0, cardW, cardH)
     end
 
-    -- Hand count badge (e.g. 8/8) above action buttons
-    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and 9 or 8
+    -- Hand count badge (e.g. 3/3) above action buttons
+    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and ((game.maxHandSize or 3) + 1) or (game.maxHandSize or 3)
     local handCountText = #game.hand .. "/" .. maxHandSize
     local hcW = 60
     local hcH = 22
@@ -3589,7 +4125,7 @@ local function drawPlayingState()
     ----------------------------------------------------------------------------
     -- 5. BALATRO ACTION BUTTONS ROW
     ----------------------------------------------------------------------------
-    local hasSelection = (#selectedCards >= 1 and #selectedCards <= 5)
+    local hasSelection = (#selectedCards >= 1 and #selectedCards <= getMaxSelectableCards())
     local actionY = 636
 
     -- Left: Chơi Tay Bài [Space]
@@ -5576,8 +6112,11 @@ local function drawHandbookModal()
             UI.drawRoundedRect("line", modalX + 25, cy, modalW - 50, rowH, 8)
         end
 
+        local handLvl = (game.handLevels and game.handLevels[h.id]) or 1
+        local stats = Poker.getHandStats(h.id, handLvl)
+
         -- Status Badge (Left)
-        local badgeW = 125
+        local badgeW = 95
         local badgeH = 30
         local badgeX = modalX + 38
         local badgeY = cy + (rowH - badgeH) / 2
@@ -5586,7 +6125,7 @@ local function drawHandbookModal()
             UI.drawRoundedRect("fill", badgeX, badgeY, badgeW, badgeH, 6)
             love.graphics.setFont(UI.fonts.small)
             love.graphics.setColor(0.3, 1.0, 0.5, 1)
-            love.graphics.printf("ĐÃ MỞ KHÓA", badgeX, badgeY + 5, badgeW, "center")
+            love.graphics.printf("ĐÃ MỞ", badgeX, badgeY + 5, badgeW, "center")
         else
             love.graphics.setColor(0.35, 0.15, 0.15, 0.85)
             UI.drawRoundedRect("fill", badgeX, badgeY, badgeW, badgeH, 6)
@@ -5595,8 +6134,19 @@ local function drawHandbookModal()
             love.graphics.printf("ĐANG KHÓA", badgeX, badgeY + 5, badgeW, "center")
         end
 
+        -- Level Badge (Lv. X)
+        local lvlBadgeW = 58
+        local lvlBadgeX = badgeX + badgeW + 8
+        love.graphics.setColor(handLvl > 1 and { 0.20, 0.45, 0.85, 0.95 } or { 0.18, 0.22, 0.28, 0.9 })
+        UI.drawRoundedRect("fill", lvlBadgeX, badgeY, lvlBadgeW, badgeH, 6)
+        love.graphics.setColor(handLvl > 1 and UI.COLORS.goldYellow or { 0.35, 0.45, 0.55, 0.8 })
+        UI.drawRoundedRect("line", lvlBadgeX, badgeY, lvlBadgeW, badgeH, 6)
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(handLvl > 1 and UI.COLORS.goldYellow or UI.COLORS.textLight)
+        love.graphics.printf("Lv. " .. stats.level, lvlBadgeX, badgeY + 5, lvlBadgeW, "center")
+
         -- Hand Title & Requirements
-        local textX = badgeX + badgeW + 16
+        local textX = lvlBadgeX + lvlBadgeW + 14
         love.graphics.setFont(UI.fonts.regular)
         love.graphics.setColor(isUnlocked and UI.COLORS.goldYellow or { 0.6, 0.65, 0.7, 0.7 })
         love.graphics.print(h.vnName .. " (" .. h.name .. ")", textX, cy + 6)
@@ -5606,19 +6156,19 @@ local function drawHandbookModal()
         local reqStr = handDescriptions[h.id] or (h.subtitle .. " (" .. h.requiredCards .. " lá)")
         love.graphics.print(reqStr, textX, cy + 32)
 
-        -- Base Stats (Right)
-        local statsW = 200
+        -- Leveled Stats (Right)
+        local statsW = 210
         local statsX = modalX + modalW - 25 - statsW - 15
         love.graphics.setColor(0.07, 0.08, 0.11, 0.8)
         UI.drawRoundedRect("fill", statsX, cy + 8, statsW, rowH - 16, 6)
 
         love.graphics.setFont(UI.fonts.small)
         love.graphics.setColor(UI.COLORS.chipsBlue)
-        love.graphics.print(h.baseChips .. " Chips", statsX + 14, cy + 18)
+        love.graphics.printf(stats.chips .. " Chips", statsX + 6, cy + 18, 85, "center")
         love.graphics.setColor(UI.COLORS.textLight)
-        love.graphics.print(" × ", statsX + 92, cy + 18)
+        love.graphics.print(" × ", statsX + 93, cy + 18)
         love.graphics.setColor(UI.COLORS.multRed)
-        love.graphics.print(h.baseMult .. " Mult", statsX + 116, cy + 18)
+        love.graphics.printf(stats.mult .. " Mult", statsX + 115, cy + 18, 85, "center")
     end
 end
 
@@ -6083,21 +6633,17 @@ local function drawShopState()
     love.graphics.setColor(0.20, 0.26, 0.32, 0.4)
     UI.drawRoundedRect("line", conStartX - 8, 14, 196, 140, 8)
 
+    game.consumables = game.consumables or {}
+    local conCount = #game.consumables
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor({ 0.45, 0.85, 0.65, 1 })
-    love.graphics.print("TIÊU HAO (0/2)", conStartX + 4, 14)
+    love.graphics.print("TIÊU HAO (" .. conCount .. "/2)", conStartX + 4, 14)
 
     for i = 1, 2 do
         local cx = conStartX + (i - 1) * (conSlotW + conGap)
         local cy = deiSlotY
-        love.graphics.setColor(0.09, 0.11, 0.13, 0.6)
-        UI.drawRoundedRect("fill", cx, cy, conSlotW, conSlotH, 6)
-        love.graphics.setLineWidth(1)
-        love.graphics.setColor(0.24, 0.28, 0.34, 0.5)
-        UI.drawRoundedRect("line", cx, cy, conSlotW, conSlotH, 6)
-        love.graphics.setFont(UI.fonts.small)
-        love.graphics.setColor(0.32, 0.36, 0.42, 0.5)
-        love.graphics.printf("Trống", cx, cy + conSlotH / 2 - 10, conSlotW, "center")
+        local c = game.consumables[i]
+        drawConsumableSlot(c, cx, cy, conSlotW, conSlotH, i, mx, my)
     end
 
     -- Top Right [MENU] button
@@ -6757,6 +7303,71 @@ local function drawShopState()
                 love.graphics.setFont(UI.fonts.tiny)
                 love.graphics.setColor(UI.COLORS.textLight)
                 love.graphics.printf(card.desc or "", cx + 8, drawCY + 145, cW - 16, "center")
+
+            elseif pack.packType == "joker_edition" then
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor({ 0.95, 0.45, 0.85, 1 })
+                love.graphics.printf("PHÙ PHÉP JOKER", cx + 4, drawCY + 12, cW - 8, "center")
+                love.graphics.setFont(UI.fonts.huge)
+                love.graphics.printf(card.icon or "✨", cx, drawCY + 45, cW, "center")
+                love.graphics.setFont(UI.fonts.small)
+                love.graphics.setColor(1, 1, 1, 1)
+                love.graphics.printf(card.name, cx + 6, drawCY + 115, cW - 12, "center")
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor(UI.COLORS.textLight)
+                love.graphics.printf(card.desc or "", cx + 8, drawCY + 145, cW - 16, "center")
+
+            elseif pack.packType == "seal" then
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor(card.color or { 0.85, 0.75, 0.35, 1 })
+                love.graphics.printf(card.subtitle or "CON DẤU", cx + 4, drawCY + 12, cW - 8, "center")
+                love.graphics.setFont(UI.fonts.huge)
+                love.graphics.printf(card.icon or "🔴", cx, drawCY + 45, cW, "center")
+                love.graphics.setFont(UI.fonts.small)
+                love.graphics.setColor(1, 1, 1, 1)
+                love.graphics.printf(card.name, cx + 6, drawCY + 115, cW - 12, "center")
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor(UI.COLORS.textLight)
+                love.graphics.printf(card.desc or "", cx + 8, drawCY + 145, cW - 16, "center")
+
+            elseif pack.packType == "spectral" then
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor({ 0.45, 0.85, 0.85, 1 })
+                love.graphics.printf("QUANG PHỔ", cx + 4, drawCY + 12, cW - 8, "center")
+                love.graphics.setFont(UI.fonts.huge)
+                love.graphics.printf(card.icon or "👻", cx, drawCY + 45, cW, "center")
+                love.graphics.setFont(UI.fonts.small)
+                love.graphics.setColor(1, 1, 1, 1)
+                love.graphics.printf(card.name, cx + 6, drawCY + 115, cW - 12, "center")
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor(UI.COLORS.textLight)
+                love.graphics.printf(card.desc or "", cx + 8, drawCY + 145, cW - 16, "center")
+
+            elseif pack.packType == "celestial" then
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor(card.color or { 0.35, 0.75, 0.95, 1 })
+                love.graphics.printf(card.subtitle or "HÀNH TINH", cx + 4, drawCY + 12, cW - 8, "center")
+                love.graphics.setFont(UI.fonts.huge)
+                love.graphics.printf(card.icon or "🪐", cx, drawCY + 45, cW, "center")
+                love.graphics.setFont(UI.fonts.small)
+                love.graphics.setColor(1, 1, 1, 1)
+                love.graphics.printf(card.name, cx + 6, drawCY + 115, cW - 12, "center")
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor(UI.COLORS.textLight)
+                love.graphics.printf(card.desc or "", cx + 8, drawCY + 145, cW - 16, "center")
+
+            else
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor(card.color or UI.COLORS.goldYellow)
+                love.graphics.printf(card.subtitle or "THẺ BÀI", cx + 4, drawCY + 12, cW - 8, "center")
+                love.graphics.setFont(UI.fonts.huge)
+                love.graphics.printf(card.icon or "🃏", cx, drawCY + 45, cW, "center")
+                love.graphics.setFont(UI.fonts.small)
+                love.graphics.setColor(1, 1, 1, 1)
+                love.graphics.printf(card.name or "Thẻ", cx + 6, drawCY + 115, cW - 12, "center")
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor(UI.COLORS.textLight)
+                love.graphics.printf(card.desc or "", cx + 8, drawCY + 145, cW - 16, "center")
             end
 
             local btnPick = {
@@ -7013,23 +7624,299 @@ end
 -- INPUT HANDLING
 --------------------------------------------------------------------------------
 
-function love.mousepressed(x, y, button)
-    local mx, my = toVirtual(x, y)
-
-    -- Track pressed button id for juice animation, tactile mechanical sound & micro-screenshake
-    for _, btn in ipairs(buttons or {}) do
+local function handlePlayingMousepressed(mx, my, button)
+    for _, btn in ipairs(buttons) do
         if not btn.disabled and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
-            juice.buttonPressedId = btn.id
-            Sound.play("ui_click")
-            if btn.id == "play" or btn.id == "discard" or btn.id == "fight" or btn.id == "fight_blind"
-               or btn.id == "reroll" or btn.id == "leave_shop" or btn.id == "btn_select_combat"
-               or btn.id == "cashout_continue" or btn.id == "skip_blind" or btn.id == "start_game" then
-                juice.screenShake = math.max(juice.screenShake or 0, 2.5)
+            if btn.id == "play" then
+                playSelectedHand()
+                return true
+            elseif btn.id == "discard" then
+                discardSelected()
+                return true
+            elseif btn.id == "sort_rank" then
+                game.sortMode = "rank"
+                Deck.sortByRank(game.hand)
+                clearAllSelections()
+                syncCardSelections()
+                Sound.play("card_deal")
+                return true
+            elseif btn.id == "sort_suit" then
+                game.sortMode = "suit"
+                Deck.sortBySuit(game.hand)
+                clearAllSelections()
+                syncCardSelections()
+                Sound.play("card_deal")
+                return true
+            elseif btn.id == "open_handbook" then
+                isHandbookOpen = true
+                Sound.play("card_deal")
+                return true
+            elseif btn.id == "open_deck_viewer" then
+                isDeckViewerOpen = true
+                Sound.play("card_deal")
+                return true
+            elseif btn.id:sub(1, 15) == "use_consumable_" then
+                useConsumable(btn.consumableIndex)
+                return true
             end
-            break
         end
     end
 
+    -- Check Deity Slots in Top Bar for Drag & Drop Reordering
+    for i = 1, 5 do
+        local dx, dy, dw, dh = getDeitySlotRect(i, "playing")
+        if mx >= dx and mx <= dx + dw and my >= dy and my <= dy + dh then
+            if game.deities and game.deities[i] then
+                deityDrag.active = true
+                deityDrag.isDragging = false
+                deityDrag.deityIndex = i
+                deityDrag.startX = mx
+                deityDrag.startY = my
+                deityDrag.currentX = mx
+                deityDrag.currentY = my
+                deityDrag.cardW = dw
+                deityDrag.cardH = dh
+                deityDrag.offsetX = dx - mx
+                deityDrag.offsetY = dy - my
+                deityDrag.visualX = dx
+                deityDrag.visualY = dy
+                return true
+            end
+        end
+    end
+
+    for i = #game.hand, 1, -1 do
+        local c = game.hand[i]
+        local cx = c.visualX or 0
+        local cy = c.visualY or 0
+        local cardW = 100
+        local cardH = 145
+
+        if mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH then
+            handDrag.active = true
+            handDrag.cardIndex = i
+            handDrag.startX = mx
+            handDrag.startY = my
+            handDrag.currentX = mx
+            handDrag.currentY = my
+            handDrag.offsetX = cx - mx
+            handDrag.offsetY = cy - my
+            handDrag.isDragging = false
+            return true
+        end
+    end
+
+    return false
+end
+
+local function handleShopMousepressed(mx, my, button)
+    if isShopTransferOpen then
+        for _, btn in ipairs(buttons) do
+            if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+                if btn.id == "close_shop_transfer" then
+                    isShopTransferOpen = false
+                    transferSourceCard = nil
+                    transferSourceEqIndex = nil
+                    transferMessage = nil
+                    Sound.play("card_deal")
+                    return true
+                end
+            end
+        end
+
+        local allCards = getAllDeckCards()
+
+        local cw = 90
+        local ch = 130
+        local gap = 18
+        local totalW = #allCards * cw + math.max(0, #allCards - 1) * gap
+        local startX = math.max(80, (V_WIDTH - totalW) / 2)
+        local cardY = 125
+
+        -- Step 1 click: source card
+        for i, c in ipairs(allCards) do
+            local cx = startX + (i - 1) * (cw + gap)
+            if mx >= cx and mx <= cx + cw and my >= cardY and my <= cardY + ch then
+                transferSourceCard = c
+                transferSourceEqIndex = nil
+                transferMessage = nil
+                Sound.play("card_select")
+                return true
+            end
+        end
+
+        -- Step 2 click: equipment slot
+        if transferSourceCard and transferSourceCard.equipments then
+            local eqBoxW = 210
+            local eqBoxH = 65
+            for idx, eq in ipairs(transferSourceCard.equipments) do
+                local ex = 80 + (idx - 1) * (eqBoxW + 16)
+                local ey = 320
+                if mx >= ex and mx <= ex + eqBoxW and my >= ey and my <= ey + eqBoxH then
+                    transferSourceEqIndex = idx
+                    transferMessage = nil
+                    Sound.play("card_select")
+                    return true
+                end
+            end
+        end
+
+        -- Step 3 click: target card
+        if transferSourceCard and transferSourceEqIndex and transferSourceCard.equipments and transferSourceCard.equipments[transferSourceEqIndex] then
+            local targetY = 445
+            for i, c in ipairs(allCards) do
+                local cx = startX + (i - 1) * (cw + gap)
+                if c ~= transferSourceCard and (not c.equipments or #c.equipments < 5) and mx >= cx and mx <= cx + cw and my >= targetY and my <= targetY + ch then
+                    local ok, msg = Shop.transferEquipment(transferSourceCard, transferSourceEqIndex, c)
+                    transferMessage = msg
+                    if ok then
+                        transferSourceEqIndex = nil
+                    end
+                    return true
+                end
+            end
+        end
+
+        return true
+    end
+
+    -- Intercept clicks if Booster Pack is currently being opened
+    if shopData and shopData.currentPackOpening then
+        for _, btn in ipairs(buttons) do
+            if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+                if btn.id:sub(1, 12) == "choose_pack_" then
+                    local ok, action, eq = Shop.choosePackCard(shopData, btn.cardIndex, game)
+                    if ok and action == "open_socketing" and eq then
+                        pendingEquipment = eq
+                        socketingReturnState = "shop"
+                        state = "socketing"
+                    elseif ok and type(action) == "string" then
+                        table.insert(anim.floatingTexts, {
+                            text = action,
+                            color = UI.COLORS.goldYellow,
+                            x = 640,
+                            y = 200,
+                            alpha = 3.0,
+                        })
+                    elseif not ok and type(action) == "string" then
+                        table.insert(anim.floatingTexts, {
+                            text = action,
+                            color = { 0.95, 0.35, 0.35, 1 },
+                            x = 640,
+                            y = 200,
+                            alpha = 2.5,
+                        })
+                    end
+                    return true
+                elseif btn.id == "skip_pack" then
+                    Shop.skipPack(shopData)
+                    return true
+                end
+            end
+        end
+        return true
+    end
+
+    for _, btn in ipairs(buttons) do
+        if not btn.disabled and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+            if btn.id:sub(1, 4) == "buy_" then
+                local gIdx = btn.itemIndex
+                local it = shopData.items and shopData.items[gIdx]
+                if it then
+                    shopDrag.active = true
+                    shopDrag.isDragging = false
+                    shopDrag.itemIndex = gIdx
+                    shopDrag.item = it
+                    shopDrag.startX = mx
+                    shopDrag.startY = my
+                    shopDrag.currentX = mx
+                    shopDrag.currentY = my
+                    shopDrag.origX = btn.x
+                    shopDrag.origY = btn.y
+                    shopDrag.visualX = btn.x
+                    shopDrag.visualY = btn.y
+                    shopDrag.cardW = btn.w
+                    shopDrag.cardH = btn.h
+                    shopDrag.tiltX = 0
+                    shopDrag.tiltY = 0
+                    return true
+                end
+            elseif btn.id:sub(1, 6) == "deity_" then
+                local dIdx = btn.deityIndex
+                if game.deities and game.deities[dIdx] then
+                    deityDrag.active = true
+                    deityDrag.isDragging = false
+                    deityDrag.deityIndex = dIdx
+                    deityDrag.startX = mx
+                    deityDrag.startY = my
+                    deityDrag.currentX = mx
+                    deityDrag.currentY = my
+                    deityDrag.origX = btn.x
+                    deityDrag.origY = btn.y
+                    deityDrag.cardW = 82
+                    deityDrag.cardH = 118
+                    deityDrag.offsetX = btn.x - mx
+                    deityDrag.offsetY = btn.y - my
+                    deityDrag.visualX = btn.x
+                    deityDrag.visualY = btn.y
+                    return true
+                end
+            elseif btn.id:sub(1, 5) == "sell_" then
+                Shop.sellDeity(game, btn.deityIndex)
+                return true
+            elseif btn.id:sub(1, 15) == "use_consumable_" then
+                useConsumable(btn.consumableIndex)
+                return true
+            elseif btn.id == "reroll" then
+                Shop.reroll(shopData, game)
+                return true
+            elseif btn.id == "open_shop_transfer" then
+                isShopTransferOpen = true
+                transferSourceCard = nil
+                transferSourceEqIndex = nil
+                transferMessage = nil
+                Sound.play("card_deal")
+                return true
+            elseif btn.id == "open_handbook" or btn.id == "shop_round_info" then
+                isHandbookOpen = true
+                Sound.play("card_deal")
+                return true
+            elseif btn.id == "open_deck_viewer" then
+                isDeckViewerOpen = true
+                Sound.play("card_deal")
+                return true
+            elseif btn.id == "shop_options" then
+                isPauseMenuOpen = true
+                Sound.play("ui_click")
+                return true
+            elseif btn.id == "leave_shop" or btn.id == "next_round" then
+                if game.run then
+                    local continues, reason = RunManager.advanceAfterShop(game.run, game)
+                    if not continues and reason == "victory" then
+                        state = "victory"
+                        lastActiveState = "victory"
+                        Sound.play("round_win")
+                    else
+                        state = "BLIND_SELECT"
+                        lastActiveState = "BLIND_SELECT"
+                        Sound.play("card_deal")
+                    end
+                    return true
+                end
+                if game.currentNodeId and game.map then
+                    Map.onNodeCompleted(game.map, game.currentNodeId)
+                end
+                state = "map"
+                Sound.play("card_deal")
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+local function handleModalsMousepressed(mx, my, button)
     -- 0. Settings Modal Handling
     if isSettingsOpen then
         if button == 1 then
@@ -7038,31 +7925,31 @@ function love.mousepressed(x, y, button)
                     if btn.id == "close_settings" then
                         isSettingsOpen = false
                         Sound.play("ui_click")
-                        return
+                        return true
                     elseif btn.id == "setting_voldown" then
                         settings.sfxVolume = math.max(0, settings.sfxVolume - 0.1)
                         Sound.setVolume(settings.sfxVolume)
                         Sound.play("ui_click")
-                        return
+                        return true
                     elseif btn.id == "setting_volup" then
                         settings.sfxVolume = math.min(1.0, settings.sfxVolume + 0.1)
                         Sound.setVolume(settings.sfxVolume)
                         Sound.play("ui_click")
-                        return
+                        return true
                     elseif btn.id == "setting_speed" then
                         settings.fastScoring = not settings.fastScoring
                         Sound.play("ui_click")
-                        return
+                        return true
                     elseif btn.id == "setting_fullscreen" then
                         settings.fullscreen = not settings.fullscreen
                         love.window.setFullscreen(settings.fullscreen, "desktop")
                         updateScale()
                         Sound.play("ui_click")
-                        return
+                        return true
                     elseif btn.id == "setting_crt" then
                         settings.crtEnabled = not settings.crtEnabled
                         Sound.play("ui_click")
-                        return
+                        return true
                     end
                 end
             end
@@ -7074,8 +7961,9 @@ function love.mousepressed(x, y, button)
                 isSettingsOpen = false
                 Sound.play("ui_click")
             end
-            return
+            return true
         end
+        return true
     end
 
     -- 0b. Pause Menu Modal Handling
@@ -7086,25 +7974,25 @@ function love.mousepressed(x, y, button)
                     if btn.id == "pause_resume" then
                         isPauseMenuOpen = false
                         Sound.play("ui_click")
-                        return
+                        return true
                     elseif btn.id == "pause_handbook" then
                         isHandbookOpen = true
                         Sound.play("ui_click")
-                        return
+                        return true
                     elseif btn.id == "pause_settings" then
                         isSettingsOpen = true
                         Sound.play("ui_click")
-                        return
+                        return true
                     elseif btn.id == "pause_abandon" then
                         isPauseMenuOpen = false
                         state = "menu"
                         menuMode = "title"
                         hasRunStarted = false
                         Sound.play("ui_click")
-                        return
+                        return true
                     elseif btn.id == "pause_quit" then
                         love.event.quit()
-                        return
+                        return true
                     end
                 end
             end
@@ -7116,8 +8004,9 @@ function love.mousepressed(x, y, button)
                 isPauseMenuOpen = false
                 Sound.play("ui_click")
             end
-            return
+            return true
         end
+        return true
     end
 
     -- 0c. Handbook Modal Dismissal
@@ -7127,7 +8016,7 @@ function love.mousepressed(x, y, button)
                 if btn.id == "close_handbook" and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
                     isHandbookOpen = false
                     Sound.play("card_deal")
-                    return
+                    return true
                 end
             end
             local modalW = 960
@@ -7137,10 +8026,11 @@ function love.mousepressed(x, y, button)
             if mx < modalX or mx > modalX + modalW or my < modalY or my > modalY + modalH then
                 isHandbookOpen = false
                 Sound.play("card_deal")
-                return
+                return true
             end
-            return
+            return true
         end
+        return true
     end
 
     -- 0d. Collection Compendium Modal Dismissal & Interaction
@@ -7153,7 +8043,7 @@ function love.mousepressed(x, y, button)
                         collectionCategory = nil
                         selectedCollectionItem = nil
                         Sound.play("card_deal")
-                        return
+                        return true
                     end
                 end
                 -- Check card clicks to select inspector item
@@ -7177,7 +8067,7 @@ function love.mousepressed(x, y, button)
                     if mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH then
                         selectedCollectionItem = it
                         Sound.play("ui_click")
-                        return
+                        return true
                     end
                 end
             else
@@ -7187,12 +8077,12 @@ function love.mousepressed(x, y, button)
                         if btn.id == "coll_close" then
                             isCollectionOpen = false
                             Sound.play("card_deal")
-                            return
+                            return true
                         elseif btn.catId then
                             collectionCategory = btn.catId
                             selectedCollectionItem = nil
                             Sound.play("ui_click")
-                            return
+                            return true
                         end
                     end
                 end
@@ -7203,11 +8093,12 @@ function love.mousepressed(x, y, button)
                 if mx < modalX or mx > modalX + modalW or my < modalY or my > modalY + modalH then
                     isCollectionOpen = false
                     Sound.play("card_deal")
-                    return
+                    return true
                 end
             end
-            return
+            return true
         end
+        return true
     end
 
     -- 1. Right-Click Inspector Modal Dismissal
@@ -7215,13 +8106,13 @@ function love.mousepressed(x, y, button)
         if button == 2 then
             inspectCardModal = nil
             Sound.play("card_deal")
-            return
+            return true
         elseif button == 1 then
             for _, btn in ipairs(buttons) do
                 if btn.id == "close_inspector" and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
                     inspectCardModal = nil
                     Sound.play("card_deal")
-                    return
+                    return true
                 end
             end
             local modalW = 860
@@ -7231,10 +8122,11 @@ function love.mousepressed(x, y, button)
             if mx < modalX or mx > modalX + modalW or my < modalY or my > modalY + modalH then
                 inspectCardModal = nil
                 Sound.play("card_deal")
-                return
+                return true
             end
-            return
+            return true
         end
+        return true
     end
 
     -- 2. Right-Click (button == 2) on any card opens Card Inspector Modal
@@ -7278,7 +8170,7 @@ function love.mousepressed(x, y, button)
                     if mx >= cx and mx <= cx + cw and my >= cy and my <= cy + ch then
                         inspectCardModal = c
                         Sound.play("card_deal")
-                        return
+                        return true
                     end
                 end
             end
@@ -7296,15 +8188,13 @@ function love.mousepressed(x, y, button)
                 if mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH then
                     inspectCardModal = c
                     Sound.play("card_deal")
-                    return
+                    return true
                 end
             end
         end
 
-        return
+        return true
     end
-
-    if button ~= 1 then return end
 
     -- Check in-game Pause Menu button at top right
     if state ~= "menu" then
@@ -7312,7 +8202,7 @@ function love.mousepressed(x, y, button)
             if btn.id == "open_pause_menu" and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
                 isPauseMenuOpen = true
                 Sound.play("ui_click")
-                return
+                return true
             end
         end
     end
@@ -7330,7 +8220,7 @@ function love.mousepressed(x, y, button)
         if mx >= closeX and mx <= closeX + 140 and my >= closeY and my <= closeY + 38 then
             isDeckViewerOpen = false
             Sound.play("card_deal")
-            return
+            return true
         end
 
         -- Filter tabs
@@ -7344,7 +8234,7 @@ function love.mousepressed(x, y, button)
             if mx >= tx and mx <= tx + tabW and my >= tabY and my <= tabY + tabH then
                 deckViewerFilter = fid
                 Sound.play("card_deal")
-                return
+                return true
             end
         end
 
@@ -7352,9 +8242,34 @@ function love.mousepressed(x, y, button)
         if mx < modalX or mx > modalX + modalW or my < modalY or my > modalY + modalH then
             isDeckViewerOpen = false
             Sound.play("card_deal")
-            return
+            return true
         end
 
+        return true
+    end
+
+    return false
+end
+
+function love.mousepressed(x, y, button)
+    local mx, my = toVirtual(x, y)
+
+    -- Track pressed button id for juice animation, tactile mechanical sound & micro-screenshake
+    for _, btn in ipairs(buttons or {}) do
+        if not btn.disabled and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+            juice.buttonPressedId = btn.id
+            Sound.play("ui_click")
+            if btn.id == "play" or btn.id == "discard" or btn.id == "fight" or btn.id == "fight_blind"
+               or btn.id == "reroll" or btn.id == "leave_shop" or btn.id == "btn_select_combat"
+               or btn.id == "cashout_continue" or btn.id == "skip_blind" or btn.id == "start_game" then
+                juice.screenShake = math.max(juice.screenShake or 0, 2.5)
+            end
+            break
+        end
+    end
+
+    -- Modals & Popups Handling
+    if handleModalsMousepressed(mx, my, button) then
         return
     end
 
@@ -7617,82 +8532,8 @@ function love.mousepressed(x, y, button)
         end
 
     elseif state == "playing" then
-        for _, btn in ipairs(buttons) do
-            if not btn.disabled and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
-                if btn.id == "play" then
-                    playSelectedHand()
-                    return
-                elseif btn.id == "discard" then
-                    discardSelected()
-                    return
-                elseif btn.id == "sort_rank" then
-                    game.sortMode = "rank"
-                    Deck.sortByRank(game.hand)
-                    clearAllSelections()
-                    syncCardSelections()
-                    Sound.play("card_deal")
-                    return
-                elseif btn.id == "sort_suit" then
-                    game.sortMode = "suit"
-                    Deck.sortBySuit(game.hand)
-                    clearAllSelections()
-                    syncCardSelections()
-                    Sound.play("card_deal")
-                    return
-                elseif btn.id == "open_handbook" then
-                    isHandbookOpen = true
-                    Sound.play("card_deal")
-                    return
-                elseif btn.id == "open_deck_viewer" then
-                    isDeckViewerOpen = true
-                    Sound.play("card_deal")
-                    return
-                end
-            end
-        end
-
-        -- Check Deity Slots in Top Bar for Drag & Drop Reordering
-        for i = 1, 5 do
-            local dx, dy, dw, dh = getDeitySlotRect(i, "playing")
-            if mx >= dx and mx <= dx + dw and my >= dy and my <= dy + dh then
-                if game.deities and game.deities[i] then
-                    deityDrag.active = true
-                    deityDrag.isDragging = false
-                    deityDrag.deityIndex = i
-                    deityDrag.startX = mx
-                    deityDrag.startY = my
-                    deityDrag.currentX = mx
-                    deityDrag.currentY = my
-                    deityDrag.cardW = dw
-                    deityDrag.cardH = dh
-                    deityDrag.offsetX = dx - mx
-                    deityDrag.offsetY = dy - my
-                    deityDrag.visualX = dx
-                    deityDrag.visualY = dy
-                    return
-                end
-            end
-        end
-
-        for i = #game.hand, 1, -1 do
-            local c = game.hand[i]
-            local cx = c.visualX or 0
-            local cy = c.visualY or 0
-            local cardW = 100
-            local cardH = 145
-
-            if mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH then
-                handDrag.active = true
-                handDrag.cardIndex = i
-                handDrag.startX = mx
-                handDrag.startY = my
-                handDrag.currentX = mx
-                handDrag.currentY = my
-                handDrag.offsetX = cx - mx
-                handDrag.offsetY = cy - my
-                handDrag.isDragging = false
-                return
-            end
+        if handlePlayingMousepressed(mx, my, button) then
+            return
         end
 
     elseif state == "scoring" then
@@ -7953,188 +8794,8 @@ function love.mousepressed(x, y, button)
         end
 
     elseif state == "shop" then
-        if isShopTransferOpen then
-            for _, btn in ipairs(buttons) do
-                if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
-                    if btn.id == "close_shop_transfer" then
-                        isShopTransferOpen = false
-                        transferSourceCard = nil
-                        transferSourceEqIndex = nil
-                        transferMessage = nil
-                        Sound.play("card_deal")
-                        return
-                    end
-                end
-            end
-
-            local allCards = getAllDeckCards()
-
-            local cw = 90
-            local ch = 130
-            local gap = 18
-            local totalW = #allCards * cw + math.max(0, #allCards - 1) * gap
-            local startX = math.max(80, (V_WIDTH - totalW) / 2)
-            local cardY = 125
-
-            -- Step 1 click: source card
-            for i, c in ipairs(allCards) do
-                local cx = startX + (i - 1) * (cw + gap)
-                if mx >= cx and mx <= cx + cw and my >= cardY and my <= cardY + ch then
-                    transferSourceCard = c
-                    transferSourceEqIndex = nil
-                    transferMessage = nil
-                    Sound.play("card_select")
-                    return
-                end
-            end
-
-            -- Step 2 click: equipment slot
-            if transferSourceCard and transferSourceCard.equipments then
-                local eqBoxW = 210
-                local eqBoxH = 65
-                for idx, eq in ipairs(transferSourceCard.equipments) do
-                    local ex = 80 + (idx - 1) * (eqBoxW + 16)
-                    local ey = 320
-                    if mx >= ex and mx <= ex + eqBoxW and my >= ey and my <= ey + eqBoxH then
-                        transferSourceEqIndex = idx
-                        transferMessage = nil
-                        Sound.play("card_select")
-                        return
-                    end
-                end
-            end
-
-            -- Step 3 click: target card
-            if transferSourceCard and transferSourceEqIndex and transferSourceCard.equipments and transferSourceCard.equipments[transferSourceEqIndex] then
-                local targetY = 445
-                for i, c in ipairs(allCards) do
-                    local cx = startX + (i - 1) * (cw + gap)
-                    if c ~= transferSourceCard and (not c.equipments or #c.equipments < 5) and mx >= cx and mx <= cx + cw and my >= targetY and my <= targetY + ch then
-                        local ok, msg = Shop.transferEquipment(transferSourceCard, transferSourceEqIndex, c)
-                        transferMessage = msg
-                        if ok then
-                            transferSourceEqIndex = nil
-                        end
-                        return
-                    end
-                end
-            end
-
+        if handleShopMousepressed(mx, my, button) then
             return
-        end
-
-        -- Intercept clicks if Booster Pack is currently being opened
-        if shopData and shopData.currentPackOpening then
-            for _, btn in ipairs(buttons) do
-                if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
-                    if btn.id:sub(1, 12) == "choose_pack_" then
-                        local ok, action, eq = Shop.choosePackCard(shopData, btn.cardIndex, game)
-                        if ok and action == "open_socketing" and eq then
-                            pendingEquipment = eq
-                            socketingReturnState = "shop"
-                            state = "socketing"
-                        end
-                        return
-                    elseif btn.id == "skip_pack" then
-                        Shop.skipPack(shopData)
-                        return
-                    end
-                end
-            end
-            return
-        end
-
-        for _, btn in ipairs(buttons) do
-            if not btn.disabled and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
-                if btn.id:sub(1, 4) == "buy_" then
-                    local gIdx = btn.itemIndex
-                    local it = shopData.items and shopData.items[gIdx]
-                    if it then
-                        shopDrag.active = true
-                        shopDrag.isDragging = false
-                        shopDrag.itemIndex = gIdx
-                        shopDrag.item = it
-                        shopDrag.startX = mx
-                        shopDrag.startY = my
-                        shopDrag.currentX = mx
-                        shopDrag.currentY = my
-                        shopDrag.origX = btn.x
-                        shopDrag.origY = btn.y
-                        shopDrag.visualX = btn.x
-                        shopDrag.visualY = btn.y
-                        shopDrag.cardW = btn.w
-                        shopDrag.cardH = btn.h
-                        shopDrag.tiltX = 0
-                        shopDrag.tiltY = 0
-                        return
-                    end
-                elseif btn.id:sub(1, 6) == "deity_" then
-                    local dIdx = btn.deityIndex
-                    if game.deities and game.deities[dIdx] then
-                        deityDrag.active = true
-                        deityDrag.isDragging = false
-                        deityDrag.deityIndex = dIdx
-                        deityDrag.startX = mx
-                        deityDrag.startY = my
-                        deityDrag.currentX = mx
-                        deityDrag.currentY = my
-                        deityDrag.origX = btn.x
-                        deityDrag.origY = btn.y
-                        deityDrag.cardW = 82
-                        deityDrag.cardH = 118
-                        deityDrag.offsetX = btn.x - mx
-                        deityDrag.offsetY = btn.y - my
-                        deityDrag.visualX = btn.x
-                        deityDrag.visualY = btn.y
-                        return
-                    end
-                elseif btn.id:sub(1, 5) == "sell_" then
-                    Shop.sellDeity(game, btn.deityIndex)
-                    return
-                elseif btn.id == "reroll" then
-                    Shop.reroll(shopData, game)
-                    return
-                elseif btn.id == "open_shop_transfer" then
-                    isShopTransferOpen = true
-                    transferSourceCard = nil
-                    transferSourceEqIndex = nil
-                    transferMessage = nil
-                    Sound.play("card_deal")
-                    return
-                elseif btn.id == "open_handbook" or btn.id == "shop_round_info" then
-                    isHandbookOpen = true
-                    Sound.play("card_deal")
-                    return
-                elseif btn.id == "open_deck_viewer" then
-                    isDeckViewerOpen = true
-                    Sound.play("card_deal")
-                    return
-                elseif btn.id == "shop_options" then
-                    isPauseMenuOpen = true
-                    Sound.play("ui_click")
-                    return
-                elseif btn.id == "leave_shop" or btn.id == "next_round" then
-                    if game.run then
-                        local continues, reason = RunManager.advanceAfterShop(game.run, game)
-                        if not continues and reason == "victory" then
-                            state = "victory"
-                            lastActiveState = "victory"
-                            Sound.play("round_win")
-                        else
-                            state = "BLIND_SELECT"
-                            lastActiveState = "BLIND_SELECT"
-                            Sound.play("card_deal")
-                        end
-                        return
-                    end
-                    if game.currentNodeId and game.map then
-                        Map.onNodeCompleted(game.map, game.currentNodeId)
-                    end
-                    state = "map"
-                    Sound.play("card_deal")
-                    return
-                end
-            end
         end
 
     elseif state == "gameover" then

@@ -99,6 +99,57 @@ Poker.SKILL_BOOKS = {
     },
 }
 
+Poker.HAND_LEVEL_SCALING = {
+    high_card       = { chips = 10, mult = 1, planetName = "Sao Diêm Vương (Pluto)", planetId = "planet_pluto" },
+    pair            = { chips = 15, mult = 1, planetName = "Sao Thủy (Mercury)",     planetId = "planet_mercury" },
+    two_pair        = { chips = 20, mult = 1, planetName = "Sao Thiên Vương (Uranus)",planetId = "planet_uranus" },
+    three_of_a_kind = { chips = 20, mult = 2, planetName = "Sao Kim (Venus)",       planetId = "planet_venus" },
+    straight        = { chips = 30, mult = 3, planetName = "Sao Thổ (Saturn)",      planetId = "planet_saturn" },
+    flush           = { chips = 15, mult = 2, planetName = "Sao Mộc (Jupiter)",     planetId = "planet_jupiter" },
+    full_house      = { chips = 25, mult = 2, planetName = "Địa Cầu (Earth)",        planetId = "planet_earth" },
+    four_of_a_kind  = { chips = 30, mult = 3, planetName = "Sao Hỏa (Mars)",        planetId = "planet_mars" },
+    straight_flush  = { chips = 40, mult = 4, planetName = "Sao Hải Vương (Neptune)",planetId = "planet_neptune" },
+}
+
+Poker.PLANET_CARDS = {
+    { id = "planet_pluto", handId = "high_card", name = "Sao Diêm Vương (Pluto)", subtitle = "HÀNH TINH", desc = "+1 Cấp cho ĐƠN THỦ (+10 Chips, +1 Mult)", icon = "🪐", color = { 0.45, 0.55, 0.70, 1 } },
+    { id = "planet_mercury", handId = "pair", name = "Sao Thủy (Mercury)", subtitle = "HÀNH TINH", desc = "+1 Cấp cho SONG ĐAO (+15 Chips, +1 Mult)", icon = "🪐", color = { 0.35, 0.75, 0.95, 1 } },
+    { id = "planet_uranus", handId = "two_pair", name = "Sao Thiên Vương (Uranus)", subtitle = "HÀNH TINH", desc = "+1 Cấp cho SONG ĐÔI (+20 Chips, +1 Mult)", icon = "🪐", color = { 0.30, 0.85, 0.85, 1 } },
+    { id = "planet_venus", handId = "three_of_a_kind", name = "Sao Kim (Venus)", subtitle = "HÀNH TINH", desc = "+1 Cấp cho TAM HOA (+20 Chips, +2 Mult)", icon = "🪐", color = { 0.95, 0.75, 0.25, 1 } },
+    { id = "planet_saturn", handId = "straight", name = "Sao Thổ (Saturn)", subtitle = "HÀNH TINH", desc = "+1 Cấp cho TRƯỜNG LONG (+30 Chips, +3 Mult)", icon = "🪐", color = { 0.90, 0.60, 0.25, 1 } },
+    { id = "planet_jupiter", handId = "flush", name = "Sao Mộc (Jupiter)", subtitle = "HÀNH TINH", desc = "+1 Cấp cho ĐỒNG KHÍ (+15 Chips, +2 Mult)", icon = "🪐", color = { 0.85, 0.35, 0.45, 1 } },
+    { id = "planet_earth", handId = "full_house", name = "Địa Cầu (Earth)", subtitle = "HÀNH TINH", desc = "+1 Cấp cho HỖN NGUYÊN (+25 Chips, +2 Mult)", icon = "🌍", color = { 0.25, 0.75, 0.45, 1 } },
+    { id = "planet_mars", handId = "four_of_a_kind", name = "Sao Hỏa (Mars)", subtitle = "HÀNH TINH", desc = "+1 Cấp cho TỨ TƯỢNG (+30 Chips, +3 Mult)", icon = "🪐", color = { 0.95, 0.30, 0.25, 1 } },
+    { id = "planet_neptune", handId = "straight_flush", name = "Sao Hải Vương (Neptune)", subtitle = "HÀNH TINH", desc = "+1 Cấp cho VẠN KIẾM QUY TÔNG (+40 Chips, +4 Mult)", icon = "🪐", color = { 0.25, 0.45, 0.95, 1 } },
+    { id = "planet_supernova", handId = "random", name = "Siêu Tân Tinh (Supernova)", subtitle = "KỲ QUAN", desc = "Nâng ngẫu nhiên 1 thế bài lên +3 Cấp độ!", icon = "🌟", color = { 0.98, 0.88, 0.25, 1 } },
+    { id = "planet_black_hole", handId = "all", name = "Hố Đen (Black Hole)", subtitle = "HỐ ĐEN", desc = "Nâng cấp TẤT CẢ 9 thế bài Poker lên +1 Cấp độ!", icon = "🕳️", color = { 0.45, 0.25, 0.65, 1 } },
+}
+
+function Poker.getHandStats(handId, level)
+    if type(handId) == "table" and handId.id then handId = handId.id end
+    local hType = nil
+    for _, ht in pairs(Poker.HAND_TYPES) do
+        if ht.id == handId then
+            hType = ht
+            break
+        end
+    end
+    if not hType then return { chips = 5, mult = 1, level = 1, baseChips = 5, baseMult = 1, scaleChips = 10, scaleMult = 1 } end
+    local lvl = math.max(1, level or 1)
+    local scale = Poker.HAND_LEVEL_SCALING[handId] or { chips = 10, mult = 1 }
+    local c = hType.baseChips + (lvl - 1) * scale.chips
+    local m = hType.baseMult + (lvl - 1) * scale.mult
+    return {
+        chips = c,
+        mult = m,
+        level = lvl,
+        scaleChips = scale.chips,
+        scaleMult = scale.mult,
+        baseChips = hType.baseChips,
+        baseMult = hType.baseMult,
+    }
+end
+
 -- Helper to check if hand contains Queen of Clubs (Tổ Mẫu Đồng Hóa)
 local function hasQueenOfClubs(cards)
     for _, c in ipairs(cards or {}) do
@@ -345,7 +396,7 @@ local function getPossibleHands(sorted)
     return hands
 end
 
-function Poker.evaluate(cards, unlockedHands)
+function Poker.evaluate(cards, unlockedHands, handLevels)
     if not cards or #cards == 0 then return nil end
 
     -- Shallow copy sorted descending by rank
@@ -361,9 +412,20 @@ function Poker.evaluate(cards, unlockedHands)
 
     local naturalHand = possibleHands[1]
 
+    local function finalizeHand(hand)
+        if not hand then return nil end
+        local handId = hand.type.id
+        local lvl = (handLevels and handLevels[handId]) or 1
+        local stats = Poker.getHandStats(handId, lvl)
+        hand.level = lvl
+        hand.chips = stats.chips
+        hand.mult = stats.mult
+        return hand
+    end
+
     -- If unlockedHands not specified, allow all (standard poker evaluation)
     if not unlockedHands then
-        return naturalHand
+        return finalizeHand(naturalHand)
     end
 
     -- Return the highest-ranking valid hand that has been unlocked
@@ -372,7 +434,7 @@ function Poker.evaluate(cards, unlockedHands)
             if hand.type.order < naturalHand.type.order then
                 hand.lockedHandAttempted = naturalHand.type.vnName
             end
-            return hand
+            return finalizeHand(hand)
         end
     end
 
@@ -381,7 +443,7 @@ function Poker.evaluate(cards, unlockedHands)
     if naturalHand.type.order > fallback.type.order then
         fallback.lockedHandAttempted = naturalHand.type.vnName
     end
-    return fallback
+    return finalizeHand(fallback)
 end
 
 return Poker

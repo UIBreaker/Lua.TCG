@@ -176,6 +176,7 @@ function Deck.newCard(rank, suit)
         isWildSuit = isAceOfClubs,
         isDualRankAce = isAceOfSpades,
         isPrimalDrone = false,
+        seal = nil, -- "gold" | "red" | "blue" | "purple"
         -- Visual properties
         x = 0,
         y = 0,
@@ -276,6 +277,7 @@ function Deck.cloneCard(card)
     newC.isPrimalDrone = card.isPrimalDrone or false
     newC.isWildSuit = card.isWildSuit or false
     newC.isDualRankAce = card.isDualRankAce or false
+    newC.seal = card.seal
     newC.unlockedSockets = card.unlockedSockets or newC.unlockedSockets
     newC.maxSockets = card.maxSockets or 5
     newC.equipments = {}

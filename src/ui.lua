@@ -945,6 +945,34 @@ function UI.drawCard(card, x, y, w, h)
     local cW = UI.fonts.tiny:getWidth(chipStr)
     love.graphics.print(chipStr, sealCX - cW / 2, sealCY - UI.fonts.tiny:getHeight() / 2)
 
+    -- Top-Right Decorative Wax Seal (Gold, Red, Blue, Purple)
+    if card.seal then
+        local sCX = w - 16
+        local sCY = 16
+        local sR = 9
+        local sealColor = { 0.95, 0.75, 0.20, 1 }
+        local sealText = "G"
+        if card.seal == "red" then
+            sealColor = { 0.88, 0.20, 0.25, 1 }
+            sealText = "R"
+        elseif card.seal == "blue" then
+            sealColor = { 0.25, 0.55, 0.95, 1 }
+            sealText = "B"
+        elseif card.seal == "purple" then
+            sealColor = { 0.75, 0.25, 0.90, 1 }
+            sealText = "P"
+        end
+        love.graphics.setColor(0, 0, 0, 0.4)
+        love.graphics.circle("fill", sCX + 1, sCY + 1, sR)
+        love.graphics.setColor(sealColor[1] * 0.7, sealColor[2] * 0.7, sealColor[3] * 0.7, 1)
+        love.graphics.circle("fill", sCX, sCY, sR)
+        love.graphics.setColor(sealColor)
+        love.graphics.circle("fill", sCX, sCY, sR - 2)
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf(sealText, sCX - 8, sCY - 7, 16, "center")
+    end
+
     love.graphics.pop()
 end
 
@@ -1200,6 +1228,31 @@ function UI.drawPatronCard(d, x, y, w, h, isHovered, isPressed, isDropTarget, co
         love.graphics.setFont(UI.fonts.tiny)
         love.graphics.setColor(UI.COLORS.goldYellow)
         love.graphics.printf("⇄", 4, h - 22, w - 8, "center")
+    end
+
+    -- Joker Edition Badge (Foil, Holo, Polychrome, Negative)
+    if d.edition then
+        local edW = w - 8
+        local edH = 16
+        local edY = h - 20
+        local edCol = { 0.25, 0.65, 0.95, 0.95 }
+        local edText = "FOIL +50c"
+        if d.edition == "holo" then
+            edCol = { 0.95, 0.35, 0.85, 0.95 }
+            edText = "HOLO +10m"
+        elseif d.edition == "polychrome" then
+            edCol = { 0.95, 0.75, 0.20, 0.95 }
+            edText = "POLY x1.5"
+        elseif d.edition == "negative" then
+            edCol = { 0.15, 0.18, 0.22, 0.95 }
+            edText = "NEGATIVE +1"
+        end
+        love.graphics.setColor(edCol)
+        UI.drawRoundedRect("fill", 4, edY, edW, edH, 3)
+        love.graphics.setColor(1, 1, 1, 0.9)
+        UI.drawRoundedRect("line", 4, edY, edW, edH, 3)
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.printf(edText, 4, edY + 1, edW, "center")
     end
 
     if isDropTarget then

@@ -584,12 +584,31 @@ function Deities.getBossDraftPool(ownedDeities, count)
     return pool
 end
 
+function Deities.getMaxSlots(gameState)
+    local maxSlots = 5
+    local deitiesList = nil
+    if gameState and gameState.deities then
+        deitiesList = gameState.deities
+    elseif type(gameState) == "table" and not gameState.deities then
+        deitiesList = gameState
+    end
+    if deitiesList then
+        for _, d in pairs(deitiesList) do
+            if d and d.edition == "negative" then
+                maxSlots = maxSlots + 1
+            end
+        end
+    end
+    return maxSlots
+end
+
 function Deities.addDeity(gameState, deity, preferredSlot)
     if not gameState.deities then
         gameState.deities = {}
     end
+    local maxSlots = Deities.getMaxSlots(gameState)
     local count = Deities.getCount(gameState.deities)
-    if count >= 5 then
+    if count >= maxSlots then
         return false
     end
     -- Clone deity so instance state (such as currentMult or extinct) is isolated
@@ -598,12 +617,12 @@ function Deities.addDeity(gameState, deity, preferredSlot)
         instance[k] = v
     end
 
-    if preferredSlot and preferredSlot >= 1 and preferredSlot <= 5 and gameState.deities[preferredSlot] == nil then
+    if preferredSlot and preferredSlot >= 1 and preferredSlot <= maxSlots and gameState.deities[preferredSlot] == nil then
         gameState.deities[preferredSlot] = instance
         return true
     end
 
-    for i = 1, 5 do
+    for i = 1, maxSlots do
         if gameState.deities[i] == nil then
             gameState.deities[i] = instance
             return true

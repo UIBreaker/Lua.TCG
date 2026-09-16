@@ -30,8 +30,9 @@ Damage to Monster = Score * (1 + Total Extra Damage Pct)
 
 function Scoring.calculate(handInfo, deities, context)
     local handType = handInfo.type
-    local baseChips = handType.baseChips
-    local baseMult = handType.baseMult
+    local baseChips = handInfo.chips or (handType and handType.baseChips) or 10
+    local baseMult = handInfo.mult or (handType and handType.baseMult) or 1
+    local handLevel = handInfo.level or 1
 
     local bonusChips = 0
     local bonusMult = 0
@@ -47,13 +48,15 @@ function Scoring.calculate(handInfo, deities, context)
     local steps = {}
 
     -- Step 1: Base hand values
+    local lvlStr = handLevel > 1 and (" (Lv. " .. handLevel .. ")") or ""
     table.insert(steps, {
         type = "base_hand",
-        handName = handType.name,
-        vnName = handType.vnName,
+        handName = handType and handType.name or "Hand",
+        vnName = handType and handType.vnName or "Tay Bài",
         chips = baseChips,
         mult = baseMult,
-        message = handType.vnName .. " (" .. baseChips .. " Chips × " .. baseMult .. " Mult)"
+        level = handLevel,
+        message = (handType and handType.vnName or "Tay Bài") .. lvlStr .. ": " .. baseChips .. " Chips × " .. baseMult .. " Mult"
     })
 
     -- Step 1b: Tactical Discard Buffs
@@ -167,17 +170,28 @@ function Scoring.calculate(handInfo, deities, context)
                 message = "🚫 " .. debuffReason
             })
         else
-            local cardChips = (card.baseChips or 0) + (card.bonusBaseChips or 0)
-            bonusChips = bonusChips + cardChips
+            local cardTriggers = (card.seal == "red") and 2 or 1
+            for cTrig = 1, cardTriggers do
+                if cTrig == 2 then
+                    table.insert(steps, {
+                        type = "seal_trigger",
+                        card = card,
+                        cardIndex = idx,
+                        seal = "red",
+                        message = "🔴 DẤU ĐỎ (Red Seal): Kích hoạt lại " .. (card.rankName or "") .. (card.suitSymbol or "") .. " thêm 1 lần nữa!"
+                    })
+                end
+                local cardChips = (card.baseChips or 0) + (card.bonusBaseChips or 0)
+                bonusChips = bonusChips + cardChips
 
-            local cardEvent = {
-                type = "card_scored",
-                card = card,
-                cardIndex = idx,
-                addedChips = cardChips,
-                addedMult = 0,
-                message = (card.roleIcon or "") .. " " .. card.rankName .. (card.suitSymbol or "") .. " +" .. cardChips .. " Chips"
-            }
+                local cardEvent = {
+                    type = "card_scored",
+                    card = card,
+                    cardIndex = idx,
+                    addedChips = cardChips,
+                    addedMult = 0,
+                    message = (card.roleIcon or "") .. " " .. card.rankName .. (card.suitSymbol or "") .. " +" .. cardChips .. " Chips"
+                }
 
             -- Faction Passives per card
             -- 1. ♠️ THIẾT QUÂN THỨ: Chỉ Số Thép (+20 Chips per scored Spade; +40 for legacy Vharos)
@@ -481,10 +495,19 @@ function Scoring.calculate(handInfo, deities, context)
                     end
                 end
             end
+
+            -- Gold Seal: +$3 when card scores
+            if card.seal == "gold" then
+                bonusGoldAwarded = bonusGoldAwarded + 3
+                cardEvent.addedGold = (cardEvent.addedGold or 0) + 3
+                cardEvent.message = cardEvent.message .. " | 🪙 Dấu Vàng (+$3)"
+            end
+
             cardEvent.deityTriggers = deityTriggers
             table.insert(steps, cardEvent)
         end
     end
+end
 
     -- Check Card Equipments on unscored played cards (Survival equipment activates on play)
     for _, ucard in ipairs(handInfo.unscoredCards or {}) do
@@ -629,13 +652,22 @@ function Scoring.calculate(handInfo, deities, context)
         })
     end
 
-    -- Step 3: Deities hand-level triggers (+Chips, +Mult, XMult) - Sequentially evaluated Left-to-Right (Slot 1 -> 5)
+    -- Step 3: Deities hand-level triggers (+Chips, +Mult, XMult) - Sequentially evaluated Left-to-Right (Slot 1 -> maxSlots)
     local currentChips = baseChips + bonusChips
     local currentMult = baseMult + bonusMult
     local cardXMultTotal = xMultTotal
     local deityXMultProduct = 1.0
 
-    for di = 1, 5 do
+    local maxDeitySlots = 5
+    if deities then
+        for k in pairs(deities) do
+            if type(k) == "number" and k > maxDeitySlots then
+                maxDeitySlots = k
+            end
+        end
+    end
+
+    for di = 1, maxDeitySlots do
         local deity = deities and deities[di]
         if deity then
             local effectiveDeity = Deities.resolveDeity and Deities.resolveDeity(deities, di) or deity
@@ -668,6 +700,50 @@ function Scoring.calculate(handInfo, deities, context)
                         resultingChips = currentChips,
                         resultingMult = currentMult,
                         message = displayName .. ": " .. (res.message or effectiveDeity.desc or deity.desc)
+                    })
+                end
+            end
+
+            -- Joker Edition Trigger (Foil +50c, Holo +10m, Polychrome x1.5m)
+            if deity.edition then
+                if deity.edition == "foil" then
+                    currentChips = currentChips + 50
+                    bonusChips = bonusChips + 50
+                    table.insert(steps, {
+                        type = "deity_edition",
+                        slotIndex = di,
+                        deity = deity,
+                        edition = "foil",
+                        addedChips = 50,
+                        resultingChips = currentChips,
+                        resultingMult = currentMult,
+                        message = "✨ FOIL: " .. deity.name .. " (+50 Chips)!"
+                    })
+                elseif deity.edition == "holo" then
+                    currentMult = currentMult + 10
+                    bonusMult = bonusMult + 10
+                    table.insert(steps, {
+                        type = "deity_edition",
+                        slotIndex = di,
+                        deity = deity,
+                        edition = "holo",
+                        addedMult = 10,
+                        resultingChips = currentChips,
+                        resultingMult = currentMult,
+                        message = "🌈 HOLOGRAPHIC: " .. deity.name .. " (+10 Mult)!"
+                    })
+                elseif deity.edition == "polychrome" then
+                    currentMult = math.floor(currentMult * 1.5)
+                    deityXMultProduct = deityXMultProduct * 1.5
+                    table.insert(steps, {
+                        type = "deity_edition",
+                        slotIndex = di,
+                        deity = deity,
+                        edition = "polychrome",
+                        xMult = 1.5,
+                        resultingChips = currentChips,
+                        resultingMult = currentMult,
+                        message = "🌟 POLYCHROME: " .. deity.name .. " (x1.5 Mult)!"
                     })
                 end
             end
