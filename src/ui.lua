@@ -79,9 +79,13 @@ function UI.toUpperUtf8(str)
 end
 
 function UI.initFonts()
-    local fontPath = "fonts/arial.ttf"
+    local fontBoldPath = "fonts/arialbd.ttf"
+    local fontRegularPath = "fonts/arial.ttf"
     local function loadFont(size)
-        local ok, font = pcall(love.graphics.newFont, fontPath, size)
+        local ok, font = pcall(love.graphics.newFont, fontBoldPath, size)
+        if not (ok and font) then
+            ok, font = pcall(love.graphics.newFont, fontRegularPath, size)
+        end
         if not (ok and font) then
             font = love.graphics.newFont(size)
         end
@@ -452,9 +456,17 @@ function UI.drawButton(btn, isHovered, isPressed)
     elseif btn.sub then
         local fMain = font
         local fSub = UI.fonts.small or font
+        if btn.h <= 55 then
+            fMain = UI.fonts.small or font
+            fSub = UI.fonts.tiny or font
+        end
+        local gap = 2
+        local totalH = fMain:getHeight() + gap + fSub:getHeight()
+        local mainY = faceY + math.floor((faceH - totalH) / 2)
+        local subY = mainY + fMain:getHeight() + gap
+
         love.graphics.setFont(fMain)
         local mainW = fMain:getWidth(cleanText)
-        local mainY = faceY + faceH * 0.16
         love.graphics.setColor(0.04, 0.04, 0.06, 0.95)
         love.graphics.print(cleanText, btn.x + (btn.w - mainW) / 2, mainY + 1.5)
         love.graphics.setColor(textColor)
@@ -464,7 +476,6 @@ function UI.drawButton(btn, isHovered, isPressed)
         if not btn.preserveCase then subText = UI.toUpperUtf8(subText) end
         love.graphics.setFont(fSub)
         local subW = fSub:getWidth(subText)
-        local subY = faceY + faceH * 0.56
         love.graphics.setColor(0.04, 0.04, 0.06, 0.95)
         love.graphics.print(subText, btn.x + (btn.w - subW) / 2, subY + 1.5)
         love.graphics.setColor(btn.disabled and textColor or { 0.92, 0.94, 0.98, 0.92 })

@@ -231,7 +231,7 @@ local BOSS_KEYS = {
 -- Big Blind: round(1.5 * Small HP)
 -- Boss Blind: round(2.0 * Small HP)
 function RunManager.calculateBlindHp(ante, blindType)
-    local a = math.max(1, math.min(RunManager.MAX_ANTE, ante or 1))
+    local a = math.max(1, ante or 1)
     local smallHp = math.floor(76 * (1.6 ^ (a - 1)) + 0.5)
 
     if blindType == "small" then
@@ -252,7 +252,7 @@ end
 
 -- Generate 3 blinds for a given Ante
 function RunManager.generateAnteBlinds(ante, starterFaction)
-    local a = math.max(1, math.min(RunManager.MAX_ANTE, ante or 1))
+    local a = math.max(1, ante or 1)
 
     local smallHp = RunManager.calculateBlindHp(a, "small")
     local bigHp = RunManager.calculateBlindHp(a, "big")
@@ -410,7 +410,7 @@ function RunManager.advanceAfterShop(run, gameState)
         return true, "next_blind"
     else
         -- Finished Boss Blind of the current Ante
-        if run.ante >= run.maxAnte then
+        if run.ante >= run.maxAnte and not run.endless then
             run.victory = true
             return false, "victory"
         else

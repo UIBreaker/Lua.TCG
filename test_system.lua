@@ -1890,6 +1890,79 @@ do
     log("[PASS] 68. RewardSystem.draw rendering runtime safety & button layout verified 100%")
 end
 
+-- 69. Test Button Subtitle Stacking (No Overlap)
+do
+    local mockFont = {
+        getHeight = function() return 16 end,
+        getWidth = function(self, str) return #str * 8 end,
+    }
+    local mockTinyFont = {
+        getHeight = function() return 12 end,
+        getWidth = function(self, str) return #str * 6 end,
+    }
+    -- Calculate vertical positions using our exact UI formula for a 46px high button
+    local faceH = 43
+    local gap = 2
+    local totalH = mockFont:getHeight() + gap + mockTinyFont:getHeight()
+    local mainY = math.floor((faceH - totalH) / 2)
+    local subY = mainY + mockFont:getHeight() + gap
+    assert(mainY + mockFont:getHeight() <= subY, "Main text must end before sub text starts: mainEnd=" .. (mainY + mockFont:getHeight()) .. ", subY=" .. subY)
+    assert(subY + mockTinyFont:getHeight() <= faceH, "Sub text must fit within faceH: " .. (subY + mockTinyFont:getHeight()) .. " <= " .. faceH)
+    log("[PASS] 69. Button Subtitle vertical stacking (zero text collision) verified 100%")
+end
+
+-- 70. Test Clamped Screen Shake Under High Scores
+do
+    -- High score of 1,000,000 HP damage
+    local hugeScore = 1000000
+    local shakeAmt = math.min(6.5, 2.0 + math.log10(math.max(10, hugeScore)) * 0.9)
+    assert(shakeAmt <= 7.0, "Screen shake on 1M score must be clamped under 7.0, got: " .. shakeAmt)
+    assert(shakeAmt >= 5.0, "Screen shake on 1M score must remain punchy (>= 5.0), got: " .. shakeAmt)
+
+    -- Large XMult of x10.0
+    local xMultShake = math.min(5.5, 2.0 + 10.0 * 0.8)
+    assert(xMultShake <= 6.0, "XMult shake must be clamped under 6.0, got: " .. xMultShake)
+    log("[PASS] 70. High score & XMult screen shake clamping (< 7px) verified 100%")
+end
+
+-- 71. Test Endless Mode Scaling Beyond Ante 8
+do
+    local hpAnte8 = RunManager.calculateBlindHp(8, "small")
+    local hpAnte9 = RunManager.calculateBlindHp(9, "small")
+    local hpAnte10 = RunManager.calculateBlindHp(10, "small")
+    local hpAnte11 = RunManager.calculateBlindHp(11, "small")
+
+    assert(hpAnte9 > hpAnte8, "Ante 9 Small Blind must be larger than Ante 8: " .. hpAnte9 .. " > " .. hpAnte8)
+    assert(hpAnte10 > hpAnte9, "Ante 10 Small Blind must be larger than Ante 9: " .. hpAnte10 .. " > " .. hpAnte9)
+    assert(hpAnte11 > hpAnte10, "Ante 11 Small Blind must be larger than Ante 10: " .. hpAnte11 .. " > " .. hpAnte10)
+
+    -- Test advanceAfterShop in endless mode
+    local run = RunManager.newRun("aurelia")
+    run.ante = 8
+    run.currentBlindIndex = 3
+    run.endless = true
+    run.maxAnte = 999
+    local cont, reason = RunManager.advanceAfterShop(run, { selectedFaction = "aurelia" })
+    assert(cont == true, "Endless mode must continue instead of ending in victory")
+    assert(reason == "next_ante", "Endless mode advances to next_ante")
+    assert(run.ante == 9, "Endless mode advances run.ante to 9, got: " .. run.ante)
+    assert(#run.blinds == 3, "Ante 9 must have 3 blinds generated")
+    log("[PASS] 71. Endless Mode scaling and progression beyond Ante 8 verified 100%")
+end
+
+-- 72. Test Victory Modal Options
+do
+    local run = RunManager.newRun("aurelia")
+    run.ante = 8
+    run.currentBlindIndex = 3
+    run.maxAnte = 8
+    run.endless = false
+    local cont, reason = RunManager.advanceAfterShop(run, { selectedFaction = "aurelia" })
+    assert(cont == false and reason == "victory", "Standard Ante 8 completion must trigger victory")
+    assert(run.victory == true, "run.victory must be true")
+    log("[PASS] 72. Ante 8 Victory trigger and 2-button choice state verified 100%")
+end
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then

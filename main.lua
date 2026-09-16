@@ -277,37 +277,81 @@ end
 
 local function spawnFireEmbers(bx, by, bw, bh, tier)
     tier = tier or 1
-    local col
-    if tier >= 3 then
-        col = (math.random() < 0.6) and { 0.20, 0.85, 1.0 } or { 0.70, 0.40, 1.0 }
-    elseif tier == 2 then
-        col = (math.random() < 0.6) and { 0.95, 0.18, 0.35 } or { 0.85, 0.25, 0.90 }
-    else
-        col = (math.random() < 0.6) and { 1.0, 0.65, 0.15 } or { 1.0, 0.35, 0.05 }
-    end
-
-    local count = 2
+    local count = (tier >= 3) and 4 or ((tier == 2) and 3 or 2)
     for i = 1, count do
-        local px = bx + math.random(6, bw - 6)
-        local py = by + bh - math.random(2, 10)
+        local px = bx + math.random(4, bw - 4)
+        local py = by + bh - math.random(2, 8)
+        local isEmber = (math.random() < 0.35)
+        local pType = isEmber and "ember" or "flame"
+
+        -- Multi-temperature fire colors (Core white-hot, vibrant body, dark glowing boundary)
+        local colCore, colBody, colOuter
+        if tier >= 3 then
+            -- Cosmic blue/plasma flame
+            colCore = { 0.95, 0.98, 1.0 }
+            colBody = (math.random() < 0.5) and { 0.20, 0.85, 1.0 } or { 0.45, 0.40, 1.0 }
+            colOuter = { 0.10, 0.30, 0.80 }
+        elseif tier == 2 then
+            -- Blazing magenta/violet flame
+            colCore = { 1.0, 0.95, 0.90 }
+            colBody = (math.random() < 0.5) and { 0.98, 0.35, 0.15 } or { 0.90, 0.20, 0.65 }
+            colOuter = { 0.65, 0.10, 0.30 }
+        else
+            -- Realistic natural inferno (white-hot -> gold -> orange -> deep red)
+            colCore = { 1.0, 0.98, 0.88 }
+            colBody = (math.random() < 0.5) and { 1.0, 0.60, 0.10 } or { 1.0, 0.35, 0.05 }
+            colOuter = { 0.85, 0.12, 0.02 }
+        end
+
+        local pLife = isEmber and (0.45 + math.random() * 0.45) or (0.35 + math.random() * 0.35)
         table.insert(anim.fireParticles, {
             x = px,
             y = py,
-            vx = math.random(-25, 25),
-            vy = -math.random(70, 150),
-            size = math.random(4, 9),
-            r = col[1],
-            g = col[2],
-            b = col[3],
+            vx = (math.random() - 0.5) * (isEmber and 60 or 30),
+            vy = - (isEmber and (100 + math.random() * 120) or (75 + math.random() * 85)),
+            size = isEmber and (1.8 + math.random() * 2.2) or (5.5 + math.random() * 6.5),
+            coreCol = colCore,
+            bodyCol = colBody,
+            outerCol = colOuter,
             alpha = 1.0,
-            life = math.random(0.30, 0.60),
-            maxLife = 0.60,
+            life = pLife,
+            maxLife = pLife,
+            age = 0,
+            phase = math.random() * math.pi * 2,
             tier = tier,
+            pType = pType,
         })
     end
-    while #anim.fireParticles > 90 do
+    while #anim.fireParticles > 120 do
         table.remove(anim.fireParticles, 1)
     end
+end
+
+local function drawRealisticFireParticles()
+    if not (anim.fireParticles and #anim.fireParticles > 0) then return end
+    love.graphics.setBlendMode("add")
+    for _, p in ipairs(anim.fireParticles) do
+        local progress = p.life / p.maxLife
+        local curAlpha = math.max(0, progress * (p.alpha or 0.85))
+        local curSize = p.size * (0.3 + 0.7 * progress)
+
+        if p.pType == "ember" then
+            -- Intense glowing ember / spark
+            love.graphics.setColor(p.outerCol[1], p.outerCol[2], p.outerCol[3], curAlpha * 0.5)
+            love.graphics.circle("fill", p.x, p.y, curSize * 2.2)
+            love.graphics.setColor(p.coreCol[1], p.coreCol[2], p.coreCol[3], curAlpha)
+            love.graphics.circle("fill", p.x, p.y, curSize)
+        else
+            -- 3-layer organic flame: outer glow -> body flame -> white-hot core
+            love.graphics.setColor(p.outerCol[1], p.outerCol[2], p.outerCol[3], curAlpha * 0.45)
+            love.graphics.circle("fill", p.x, p.y, curSize * 1.8)
+            love.graphics.setColor(p.bodyCol[1], p.bodyCol[2], p.bodyCol[3], curAlpha * 0.85)
+            love.graphics.circle("fill", p.x, p.y, curSize)
+            love.graphics.setColor(p.coreCol[1], p.coreCol[2], p.coreCol[3], curAlpha * 0.95)
+            love.graphics.circle("fill", p.x, p.y, curSize * 0.45)
+        end
+    end
+    love.graphics.setBlendMode("alpha")
 end
 
 -- Screen shake
@@ -1518,10 +1562,11 @@ function love.update(dt)
         for i = #anim.fireParticles, 1, -1 do
             local p = anim.fireParticles[i]
             p.life = p.life - dt
+            p.age = (p.age or 0) + dt
             if p.life <= 0 then
                 table.remove(anim.fireParticles, i)
             else
-                p.x = p.x + p.vx * dt
+                p.x = p.x + (p.vx + math.sin(p.age * 12 + (p.phase or 0)) * 28) * dt
                 p.y = p.y + p.vy * dt
                 p.alpha = math.max(0, p.life / p.maxLife)
             end
@@ -1692,7 +1737,7 @@ function love.update(dt)
                         anim.bounceScale.xMult = 1.65
                         anim.bounceScale.mult = 1.65
                         anim.bounceScale.score = 1.70
-                        screenShake = math.max(screenShake, math.min(22, 7 + st.xMult * 4))
+                        screenShake = math.max(screenShake, math.min(5.5, 2.0 + st.xMult * 0.8))
                         Sound.play("xmult_boom", pitch)
                         spawnSparks(dCenterX, dCenterY, 28, UI.COLORS.xmultGold)
                         anim.targetStepDelay = 0.54 -- Suspense micro-pause!
@@ -1724,7 +1769,7 @@ function love.update(dt)
 
                 elseif st.type == "final_score" then
                     anim.activeCardIndex = nil
-                    local shakeAmt = math.min(25, 8 + math.log10(math.max(10, st.finalScore)) * 3.5)
+                    local shakeAmt = math.min(6.5, 2.0 + math.log10(math.max(10, st.finalScore)) * 0.9)
                     screenShake = math.max(screenShake, shakeAmt)
                     anim.bounceScale.score = 1.85
                     Sound.play("xmult_boom", 0.95)
@@ -2469,11 +2514,12 @@ end
 
 local function drawCollectionModal()
     local mx, my = toVirtual(love.mouse.getPosition())
+    buttons = {} -- Clear previous menu buttons so they don't draw or capture clicks inside the modal!
     -- Dim background
-    love.graphics.setColor(0, 0, 0, 0.65)
+    love.graphics.setColor(0.06, 0.07, 0.10, 1.0)
     love.graphics.rectangle("fill", 0, 0, V_WIDTH, V_HEIGHT)
 
-    local modalW = 760
+    local modalW = 820
     local modalH = 590
     local modalX = (V_WIDTH - modalW) / 2
     local modalY = (V_HEIGHT - modalH) / 2
@@ -2584,7 +2630,7 @@ local function drawCollectionModal()
         rb.x = colRX
         rb.w = colW
         rb.color = { 0.92, 0.28, 0.22, 1 }
-        rb.font = UI.fonts.medium
+        rb.font = UI.fonts.regular
         table.insert(buttons, rb)
     end
 
@@ -2614,7 +2660,7 @@ local function drawCollectionDetailView()
     buttons = {}
 
     -- Dim background
-    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.setColor(0.06, 0.07, 0.10, 1.0)
     love.graphics.rectangle("fill", 0, 0, V_WIDTH, V_HEIGHT)
 
     local cat = Collection.getCategoryById(collectionCategory) or { title = "Danh Mục", sub = "" }
@@ -3000,55 +3046,58 @@ local function drawPlayingState()
     UI.drawRoundedRect("line", mbX, mbY, mbW, mbH, 6)
 
     -- Monster Banner Header
+    local curAnte = (game.currentRun and game.currentRun.ante) or 1
+    local anteTag = game.currentRun and (game.currentRun.endless and (" (Ante " .. curAnte .. " - Vô Tận)") or (" (Ante " .. curAnte .. ")")) or ""
     local bannerColor = isBoss and { 0.85, 0.22, 0.25, 1 } or (isElite and { 0.88, 0.55, 0.15, 1 } or { 0.90, 0.45, 0.15, 1 })
-    local bannerText = isBoss and "BOSS BLIND" or (isElite and "ELITE BLIND" or "SMALL BLIND")
+    local bannerPrefix = isBoss and "BOSS BLIND" or (isElite and "BIG BLIND" or "SMALL BLIND")
+    local bannerText = bannerPrefix .. anteTag .. ": " .. (m and m.name or "Quái")
     love.graphics.setColor(bannerColor)
     UI.drawRoundedRect("fill", mbX, mbY, mbW, 30, 6)
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.printf(bannerText .. ": " .. (m and m.name or "Quái"), mbX, mbY + 6, mbW, "center")
+    love.graphics.printf(bannerText, mbX, mbY + 6, mbW, "center")
 
     -- Monster Emblem / Badge
-    local emblemCX = mbX + 36
-    local emblemCY = mbY + 66
-    local emblemR = 22
+    local emblemCX = mbX + 30
+    local emblemCY = mbY + 60
+    local emblemR = 18
     love.graphics.setColor(0.16, 0.20, 0.25, 1)
     love.graphics.circle("fill", emblemCX, emblemCY, emblemR)
     love.graphics.setColor(bannerColor)
     love.graphics.circle("line", emblemCX, emblemCY, emblemR)
-    UI.drawSuitSymbol(game.selectedSuit, emblemCX, emblemCY, 24, bannerColor)
+    UI.drawSuitSymbol(game.selectedSuit, emblemCX, emblemCY, 20, bannerColor)
 
-    -- Target HP info right of emblem
+    -- Target HP info right of emblem (Uncrowded, full width)
     love.graphics.setFont(UI.fonts.tiny)
     love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.print("Đạt ít nhất:", mbX + 68, mbY + 44)
+    love.graphics.print("Đạt ít nhất:", mbX + 58, mbY + 40)
 
     love.graphics.setFont(UI.fonts.large)
     love.graphics.setColor(isBoss and UI.COLORS.hpRed or UI.COLORS.goldYellow)
-    love.graphics.print(m and (m.hp .. " HP") or "0 HP", mbX + 68, mbY + 58)
+    local targetHpStr = m and (UI.formatNumber(m.hp) .. " HP") or "0 HP"
+    love.graphics.print(targetHpStr, mbX + 58, mbY + 56)
 
-    -- Monster Intent Badge right next to HP
-    local intentW = 86
-    local intentH = 36
+    -- Status & Intent Row (Y = mbY + 92 to mbY + 118)
+    -- Left: Reward pill
+    local curBlind = game.currentRun and RunManager.getCurrentBlind(game.currentRun)
+    local baseReward = curBlind and curBlind.reward or ((m and m.isBoss) and 5 or ((m and m.isElite) and 4 or 3))
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    local rewStr = "Thưởng: +$" .. baseReward
+    love.graphics.print(rewStr, mbX + 12, mbY + 96)
+
+    -- Right: Monster Intent Badge
+    local intentW = 118
+    local intentH = 26
     local intentX = mbX + mbW - intentW - 10
-    local intentY = mbY + 44
+    local intentY = mbY + 92
     love.graphics.setColor(0.24, 0.08, 0.10, 0.95)
     UI.drawRoundedRect("fill", intentX, intentY, intentW, intentH, 4)
     love.graphics.setColor(0.85, 0.30, 0.30, 1)
     UI.drawRoundedRect("line", intentX, intentY, intentW, intentH, 4)
-    love.graphics.setFont(UI.fonts.tiny)
-    love.graphics.setColor(1, 0.65, 0.65, 1)
-    love.graphics.printf("Ý ĐỊNH", intentX, intentY + 3, intentW, "center")
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(UI.COLORS.hpRed)
-    love.graphics.printf("ĐÁNH: " .. (m and m.attack or 12) .. " DMG", intentX, intentY + 16, intentW, "center")
-
-    -- Reward text
-    local baseReward = (m and m.isBoss) and 15 or ((m and m.isElite) and 10 or 4)
-    love.graphics.setFont(UI.fonts.tiny)
-    love.graphics.setColor(UI.COLORS.goldYellow)
-    local rewStr = "Thưởng: " .. string.rep("$", math.min(5, baseReward)) .. " ($" .. baseReward .. ")"
-    love.graphics.printf(rewStr, mbX, mbY + 102, mbW, "center")
+    love.graphics.printf("Ý ĐỊNH: " .. (m and m.attack or 12) .. " DMG", intentX, intentY + 5, intentW, "center")
 
     -- HP Bar
     if m then
@@ -3132,13 +3181,7 @@ local function drawPlayingState()
 
         -- Fire particles around Left Sidebar Mult box if displayMult >= 20
         if anim.fireParticles and #anim.fireParticles > 0 and (anim.displayMult or 0) >= 20 then
-            love.graphics.setBlendMode("add")
-            for _, p in ipairs(anim.fireParticles) do
-                local alpha = math.max(0, (p.life / p.maxLife) * (p.alpha or 0.8))
-                love.graphics.setColor(p.r, p.g, p.b, alpha)
-                love.graphics.circle("fill", p.x, p.y, p.size * (p.life / p.maxLife))
-            end
-            love.graphics.setBlendMode("alpha")
+            drawRealisticFireParticles()
         end
 
         -- Sát thương dự kiến / đã tích tụ
@@ -3349,33 +3392,20 @@ local function drawPlayingState()
     love.graphics.setColor(UI.COLORS.goldYellow)
     love.graphics.printf("Lãi: +$" .. curInterest .. "/trận (Max $5)", goldBoxX, matrixY + 110, goldBoxW, "center")
 
-    -- Ante & Round Info (Footer)
+    -- Round Info (Footer)
     local footerY = matrixY + 146
-    local footerH = 82
+    local footerH = 76
     love.graphics.setColor(0.10, 0.13, 0.16, 0.95)
     UI.drawRoundedRect("fill", panelX + 10, footerY, panelW - 20, footerH, 6)
     love.graphics.setColor(0.24, 0.32, 0.40, 1)
     UI.drawRoundedRect("line", panelX + 10, footerY, panelW - 20, footerH, 6)
 
-    -- Divider
-    love.graphics.line(panelX + 10 + (panelW - 20) / 2, footerY + 6, panelX + 10 + (panelW - 20) / 2, footerY + footerH - 6)
-
-    -- Left: Ante
-    local halfW = (panelW - 20) / 2
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.printf("Ante", panelX + 10, footerY + 12, halfW, "center")
-    love.graphics.setFont(UI.fonts.medium)
+    love.graphics.printf("VÁN ĐẤU HIỆN TẠI", panelX + 10, footerY + 14, panelW - 20, "center")
+    love.graphics.setFont(UI.fonts.large)
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.printf((game.map and game.map.currentFloor or 1) .. "/20", panelX + 10, footerY + 38, halfW, "center")
-
-    -- Right: Round (Ván)
-    love.graphics.setFont(UI.fonts.small)
-    love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.printf("Ván", panelX + 10 + halfW, footerY + 12, halfW, "center")
-    love.graphics.setFont(UI.fonts.medium)
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.printf(tostring(game.round), panelX + 10 + halfW, footerY + 38, halfW, "center")
+    love.graphics.printf("Ván " .. tostring(game.round or 1), panelX + 10, footerY + 36, panelW - 20, "center")
 
     ----------------------------------------------------------------------------
     -- 2. TOP BAR: DEITIES (0/5) & CONSUMABLES (0/2)
@@ -3827,15 +3857,7 @@ local function drawScoringState()
     end
 
     -- 3. Sparks and Fire Particles directly on board
-    if anim.fireParticles and #anim.fireParticles > 0 then
-        love.graphics.setBlendMode("add")
-        for _, p in ipairs(anim.fireParticles) do
-            local alpha = math.max(0, (p.life / p.maxLife) * (p.alpha or 0.8))
-            love.graphics.setColor(p.r, p.g, p.b, alpha)
-            love.graphics.circle("fill", p.x, p.y, p.size * (p.life / p.maxLife))
-        end
-        love.graphics.setBlendMode("alpha")
-    end
+    drawRealisticFireParticles()
 
     if anim.particles and #anim.particles > 0 then
         love.graphics.setBlendMode("add")
@@ -4174,18 +4196,34 @@ local function drawVictoryState()
         rY = rY + 42
     end
 
+    local btnW = 280
+    local btnH = 50
+    local btnY = modalY + modalH - 72
+
     local btnMenu = {
         id = "victory_menu",
-        text = "VỀ TRANG CHỦ",
-        x = modalX + (modalW - 280) / 2,
-        y = modalY + modalH - 68,
-        w = 280,
-        h = 48,
-        color = { 0.22, 0.70, 0.38, 1 },
+        text = "VỀ MÀN HÌNH CHÍNH",
+        x = modalX + 45,
+        y = btnY,
+        w = btnW,
+        h = btnH,
+        color = { 0.32, 0.38, 0.46, 1 },
+        font = UI.fonts.regular,
+    }
+    local btnEndless = {
+        id = "victory_endless",
+        text = "CHẾ ĐỘ VÔ TẬN ➔",
+        x = modalX + modalW - 45 - btnW,
+        y = btnY,
+        w = btnW,
+        h = btnH,
+        color = UI.COLORS.btnPlay,
         font = UI.fonts.regular,
     }
     table.insert(buttons, btnMenu)
-    UI.drawButton(btnMenu, mx >= btnMenu.x and mx <= btnMenu.x + btnMenu.w and my >= btnMenu.y and my <= btnMenu.y + btnMenu.h)
+    table.insert(buttons, btnEndless)
+    UI.drawButton(btnMenu, mx >= btnMenu.x and mx <= btnMenu.x + btnMenu.w and my >= btnMenu.y and my <= btnMenu.y + btnMenu.h, juice.buttonPressedId == btnMenu.id)
+    UI.drawButton(btnEndless, mx >= btnEndless.x and mx <= btnEndless.x + btnEndless.w and my >= btnEndless.y and my <= btnEndless.y + btnEndless.h, juice.buttonPressedId == btnEndless.id)
 end
 
 local function drawMap()
@@ -8118,6 +8156,25 @@ function love.mousepressed(x, y, button)
                     state = "menu"
                     menuMode = "title"
                     hasRunStarted = false
+                    return
+                elseif btn.id == "victory_endless" then
+                    if game.run then
+                        game.run.endless = true
+                        game.run.victory = false
+                        game.run.maxAnte = 999
+                        game.run.ante = (game.run.ante or 8) + 1
+                        game.run.currentBlindIndex = 1
+                        game.run.shopsVisitedInAnte = 0
+                        game.run.blinds = RunManager.generateAnteBlinds(game.run.ante, game.selectedFaction)
+                        state = "BLIND_SELECT"
+                        lastActiveState = "BLIND_SELECT"
+                        Sound.play("card_deal")
+                        hasRunStarted = true
+                    else
+                        state = "menu"
+                        menuMode = "title"
+                        hasRunStarted = false
+                    end
                     return
                 end
             end
