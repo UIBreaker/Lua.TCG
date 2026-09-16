@@ -9,6 +9,8 @@ local Monster = require("src.monster")
 local Equipment = require("src.equipment")
 local Map = require("src.map")
 local Events = require("src.events")
+local RunManager = require("src.run_manager")
+local RewardSystem = require("src.reward_system")
 
 io.stdout:setvbuf("no")
 local isCaptureMode = false
@@ -22,7 +24,7 @@ for _, a in ipairs(arg or {}) do
 end
 local Capture = isCaptureMode and require("capture_screens") or nil
 
--- Game States: "menu", "map", "playing", "scoring", "shop", "event", "boss_deity", "chest", "socketing", "gameover", "victory"
+-- Game States: "menu", "BLIND_SELECT", "map", "playing", "scoring", "CASH_OUT", "shop", "event", "boss_deity", "chest", "socketing", "gameover", "victory"
 local state = "menu"
 
 -- Virtual Resolution
@@ -74,6 +76,7 @@ local game = {
 }
 
 local pendingCombatNode = nil -- For Encounter / Skip Blind modal
+local cashOutAnim = nil -- For Cash Out Modal Breakdown
 local shopData = nil
 local chestRewards = {}
 local pendingEquipment = nil
@@ -155,6 +158,26 @@ local deityDrag = {
     origX = 0,
     origY = 0,
 }
+
+local function getDeitySlotRect(i, currentState)
+    currentState = currentState or state
+    if currentState == "shop" then
+        local deiSlotW = 98
+        local deiSlotH = 74
+        local deiGap = 10
+        local deiStartX = 295
+        local sy = 15 + 18
+        return deiStartX + (i - 1) * (deiSlotW + deiGap), sy, deiSlotW, deiSlotH
+    else
+        local topStartX = 295
+        local topStartY = 15
+        local deitySlotW = 112
+        local deitySlotH = 88
+        local deityGap = 12
+        local deityY = topStartY + 22
+        return topStartX + (i - 1) * (deitySlotW + deityGap), deityY, deitySlotW, deitySlotH
+    end
+end
 
 -- Micro-Animation & Juice System
 local juice = {
@@ -417,8 +440,9 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
     end
 
     -- Trigger deities onRoundStart
-    for _, d in ipairs(game.deities) do
-        if d.onRoundStart then
+    for di = 1, 5 do
+        local d = game.deities and game.deities[di]
+        if d and d.onRoundStart then
             local res = d.onRoundStart(game)
             if res and res.addDiscards then
                 game.discardsRemaining = game.discardsRemaining + res.addDiscards
@@ -427,6 +451,24 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
                 game.handsRemaining = game.handsRemaining + res.addHands
             end
         end
+    end
+
+    game.martyrStacks = 0
+    game.jHeartDiscardUsed = false
+
+    -- Sát Khí carryover (A♠ Overkill)
+    if game.storedSlaughterChips and game.storedSlaughterChips > 0 then
+        local slaughter = game.storedSlaughterChips
+        game.discardBuffs = game.discardBuffs or {}
+        game.discardBuffs.chips = (game.discardBuffs.chips or 0) + slaughter
+        game.storedSlaughterChips = 0
+        table.insert(anim.floatingTexts, {
+            text = "⚔️ SÁT KHÍ BỘC PHÁT (A♠): +" .. slaughter .. " Starting Chips!",
+            color = UI.COLORS.goldYellow,
+            x = 640,
+            y = 350,
+            alpha = 3.0,
+        })
     end
 
     -- Restore persistentDeck back to original baseRank and rebuild active deck
@@ -441,13 +483,13 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
     end
     game.discardPile = {}
     game.hand = {}
-    game.discardBuffs = { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 }
+    game.discardBuffs = game.discardBuffs or { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 }
     game.playedHandsHistory = {}
     Deck.shuffle(game.deck)
     clearAllSelections()
 
-    -- Elaris Passive: Sức Sống Rừng Già (draw up to 9 cards instead of 8)
-    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and 9 or 8
+    -- Elaris / Feral Swarm Passive: Bầy Đàn (9-card hand size)
+    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris" or game.selectedFaction == "clubs" or game.selectedFaction == "feral_swarm") and 9 or 8
     while #game.hand < maxHandSize and #game.deck > 0 do
         local drawn = table.remove(game.deck)
         drawn.selected = false
@@ -455,10 +497,15 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
         drawn.visualY = 620
         drawn.visualAngle = 0
         drawn.visualScale = 0.7
+        local isSpadeCard = (drawn.suit == "spades" or drawn.suit == "vharos" or drawn.suit == "iron_axiom")
+        if not isSpadeCard and game.monster and game.monster.isBoss and game.monster.bossData and (game.monster.bossData.id == "the_fish" or game.monster.bossData.debuffId == "the_fish") then
+            drawn.faceDown = true
+        end
         table.insert(game.hand, drawn)
     end
 
-    if game.sortMode == "rank" then
+    -- ♠️ Thiết Quân Thứ: Axiom Lock (Luôn auto-sort theo Rank tăng dần)
+    if (game.selectedFaction == "vharos" or game.selectedFaction == "spades" or game.selectedFaction == "iron_axiom") or game.sortMode == "rank" then
         Deck.sortByRank(game.hand)
     else
         Deck.sortBySuit(game.hand)
@@ -468,6 +515,106 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
     syncCardSelections()
 
     state = "playing"
+    Sound.play("card_deal")
+end
+
+local function startBlindCombat(blind)
+    if not blind then return end
+    game.round = blind.ante or 1
+    game.monster = RunManager.createBlindMonster(blind, game)
+    game.handsRemaining = game.maxHands
+
+    -- Valoria Passive: +1 Discard per combat
+    if game.selectedFaction == "valoria" or game.selectedSuit == "valoria" then
+        game.discardsRemaining = game.maxDiscards + 1
+    else
+        game.discardsRemaining = game.maxDiscards
+    end
+
+    -- Apply Boss modifier if any
+    if game.monster.isBoss and game.monster.bossData and game.monster.bossData.applyModifier then
+        game.monster.bossData.applyModifier(game)
+    end
+
+    -- Trigger deities onRoundStart
+    for di = 1, 5 do
+        local d = game.deities and game.deities[di]
+        if d and d.onRoundStart then
+            local res = d.onRoundStart(game)
+            if res and res.addDiscards then
+                game.discardsRemaining = game.discardsRemaining + res.addDiscards
+            end
+            if res and res.addHands then
+                game.handsRemaining = game.handsRemaining + res.addHands
+            end
+        end
+    end
+
+    game.martyrStacks = 0
+    game.jHeartDiscardUsed = false
+
+    -- Sát Khí carryover (A♠ Overkill)
+    if game.storedSlaughterChips and game.storedSlaughterChips > 0 then
+        local slaughter = game.storedSlaughterChips
+        game.discardBuffs = game.discardBuffs or {}
+        game.discardBuffs.chips = (game.discardBuffs.chips or 0) + slaughter
+        game.storedSlaughterChips = 0
+        table.insert(anim.floatingTexts, {
+            text = "⚔️ SÁT KHÍ BỘC PHÁT (A♠): +" .. slaughter .. " Starting Chips!",
+            color = UI.COLORS.goldYellow,
+            x = 640,
+            y = 350,
+            alpha = 3.0,
+        })
+    end
+
+    -- Restore persistentDeck back to original baseRank and rebuild active deck
+    if not game.persistentDeck or #game.persistentDeck == 0 then
+        game.persistentDeck = Deck.createStarterDeck(game.selectedFaction or game.selectedSuit or "aurelia")
+    end
+    Deck.restoreDeck(game.persistentDeck)
+    game.masterDeck = game.persistentDeck
+    game.deck = {}
+    for _, c in ipairs(game.persistentDeck) do
+        table.insert(game.deck, Deck.cloneCard(c))
+    end
+    game.discardPile = {}
+    game.hand = {}
+    game.discardBuffs = game.discardBuffs or { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 }
+    game.playedHandsHistory = {}
+    Deck.shuffle(game.deck)
+    clearAllSelections()
+
+    -- Elaris / Feral Swarm Passive: Bầy Đàn (9-card hand size)
+    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris" or game.selectedFaction == "clubs" or game.selectedFaction == "feral_swarm") and 9 or 8
+    while #game.hand < maxHandSize and #game.deck > 0 do
+        local drawn = table.remove(game.deck)
+        if drawn then
+            drawn.selected = false
+            drawn.visualX = 1180
+            drawn.visualY = 620
+            drawn.visualAngle = 0
+            drawn.visualScale = 0.7
+            local isSpadeCard = (drawn.suit == "spades" or drawn.suit == "vharos" or drawn.suit == "iron_axiom")
+            if not isSpadeCard and game.monster and game.monster.isBoss and game.monster.bossData and (game.monster.bossData.id == "the_fish" or game.monster.bossData.debuffId == "the_fish") then
+                drawn.faceDown = true
+            end
+            table.insert(game.hand, drawn)
+        end
+    end
+
+    -- ♠️ Thiết Quân Thứ: Axiom Lock (Luôn auto-sort theo Rank tăng dần)
+    if (game.selectedFaction == "vharos" or game.selectedFaction == "spades" or game.selectedFaction == "iron_axiom") or game.sortMode == "rank" then
+        Deck.sortByRank(game.hand)
+    else
+        Deck.sortBySuit(game.hand)
+    end
+
+    clearAllSelections()
+    syncCardSelections()
+
+    state = "playing"
+    lastActiveState = "playing"
     Sound.play("card_deal")
 end
 
@@ -485,9 +632,13 @@ local function startNewGame(chosenFaction)
     game.playerHp = 100
     game.maxPlayerHp = 100
     game.playerShield = 0
-    game.hand = {}
-    game.discardPile = {}
-    game.discardBuffs = { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 }
+    game.martyrStacks = 0
+    game.storedSlaughterChips = 0
+    game.jHeartDiscardUsed = false
+    game.isGildedConclave = (game.selectedFaction == "diamonds" or game.selectedFaction == "aurelia" or game.selectedFaction == "gilded_conclave")
+    game.isAxiom = (game.selectedFaction == "spades" or game.selectedFaction == "vharos" or game.selectedFaction == "iron_axiom")
+    game.isSanguine = (game.selectedFaction == "hearts" or game.selectedFaction == "valoria" or game.selectedFaction == "sanguine_covenant")
+    game.isSwarm = (game.selectedFaction == "clubs" or game.selectedFaction == "elaris" or game.selectedFaction == "feral_swarm")
     pendingCombatNode = nil
 
     inspectCardModal = nil
@@ -512,9 +663,12 @@ local function startNewGame(chosenFaction)
 
     -- 2. Generate Act 1 Map (20 floors)
     game.map = Map.generate(1)
-    state = "map"
+
+    -- 3. Initialize Balatro Run Loop (8 Ante, 3 Blinds per Ante)
+    game.run = RunManager.newRun(game.selectedFaction)
+    state = "BLIND_SELECT"
     hasRunStarted = true
-    lastActiveState = "map"
+    lastActiveState = "BLIND_SELECT"
     isPauseMenuOpen = false
     isSettingsOpen = false
     Sound.play("card_deal")
@@ -596,60 +750,69 @@ local function discardSelected()
     end
     clearAllSelections()
 
-    -- Process Faction Passives on Discard
+    -- Process Grimdark Faction Passives on Discard
     game.discardBuffs = game.discardBuffs or { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 }
-
-    local isVharosFaction = (game.selectedFaction == "vharos" or game.selectedSuit == "vharos")
-    local isElarisFaction = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris")
-    local isAureliaFaction = (game.selectedFaction == "aurelia" or game.selectedSuit == "aurelia")
-    local isValoriaFaction = (game.selectedFaction == "valoria" or game.selectedSuit == "valoria")
 
     for _, card in ipairs(discardedCards) do
         local suit = card.suit or game.selectedFaction or "aurelia"
-        local isAurelia = (suit == "aurelia" or isAureliaFaction)
-        local isElaris = (suit == "elaris" or isElarisFaction)
-        local isVharos = (suit == "vharos" or isVharosFaction)
-        local isValoria = (suit == "valoria" or isValoriaFaction)
+        local isSpadeCard = (suit == "spades" or suit == "vharos" or suit == "iron_axiom")
+        local isHeartCard = (suit == "hearts" or suit == "valoria" or suit == "sanguine_covenant")
+        local isDiamondCard = (suit == "diamonds" or suit == "aurelia" or suit == "gilded_conclave")
+        local isClubCard = (suit == "clubs" or suit == "elaris" or suit == "feral_swarm" or card.isWildSuit)
 
-        -- 1. ☀️ AURELIA: Thánh Quang Tích Lũy (+6 Chips for Soldier, +12 Chips & +1 Mult for Royal, recycles to deck)
-        if isAurelia then
-            local isRoyal = (card.rank >= 11)
-            local addC = isRoyal and 12 or 6
-            local addM = isRoyal and 1 or 0
+        -- 1. ♥️ GIÁO HỘI HUYẾT ƯỚC: Huyết Tế Discard, Dấu Ấn Tử Đạo, J♥ Hồi Hand
+        if isHeartCard then
+            table.insert(game.discardPile, card)
 
-            game.discardBuffs.chips = (game.discardBuffs.chips or 0) + addC
-            game.discardBuffs.mult = (game.discardBuffs.mult or 0) + addM
+            -- J♥ Kẻ Hành Quyết Tội Lỗi: hồi +1 Hand (1 lần mỗi trận)
+            if card.rank == 11 and not game.jHeartDiscardUsed then
+                game.handsRemaining = (game.handsRemaining or 4) + 1
+                game.jHeartDiscardUsed = true
+                table.insert(anim.floatingTexts, {
+                    text = "🩸 [Kẻ Hành Quyết] J♥ hồi +1 Hand!",
+                    color = { 0.95, 0.25, 0.35, 1 },
+                    x = 640,
+                    y = 410,
+                    alpha = 2.5,
+                })
+                Sound.play("jackpot")
+            end
 
-            -- Blessed card returns to draw deck
-            table.insert(game.deck, 1, card)
+            -- Chiến Binh Cơ (2-10): Sát thương chuẩn = Rank trực tiếp vào máu quái
+            if card.rank >= 2 and card.rank <= 10 then
+                local trueDmg = card.rank
+                if game.monster and game.monster.hp > 0 then
+                    local actualDmg, defeated = Monster.takeDamage(game.monster, trueDmg)
+                    table.insert(anim.floatingTexts, {
+                        text = "🩸 [Huyết Tế] " .. card.rankName .. "♥: -" .. actualDmg .. " Sát Thương Chuẩn!",
+                        color = { 0.95, 0.25, 0.35, 1 },
+                        x = 640,
+                        y = 440,
+                        alpha = 2.2,
+                    })
+                    Sound.play("xmult_boom")
+                    if defeated then
+                        anim.monsterDefeated = true
+                        Sound.play("round_win")
+                    end
+                end
+            end
 
-            local txt = isRoyal and ("[Thánh Quang] " .. card.rankName .. ": +" .. addC .. "c, +" .. addM .. "m!") or ("[Thánh Quang] " .. card.rankName .. ": +" .. addC .. "c!")
+            -- Dấu Ấn Tử Đạo (+1 điểm mỗi lá Cơ hy sinh, max 5)
+            game.martyrStacks = math.min(5, (game.martyrStacks or 0) + 1)
             table.insert(anim.floatingTexts, {
-                text = txt,
-                color = UI.COLORS.goldYellow,
+                text = "🩸 +1 Dấu Ấn Tử Đạo (" .. game.martyrStacks .. "/5)",
+                color = { 0.95, 0.3, 0.4, 1 },
                 x = 640,
-                y = 440,
+                y = 470,
                 alpha = 2.0,
             })
-            Sound.play("chip_tick")
 
-        -- 2. ELARIS: Nảy Mầm Tái Sinh (Heal degraded rank by 1 up to baseRank, or +4 Chips if full, recycles to deck)
-        elseif isElaris then
-            local healed = false
-            if card.rank < card.baseRank then
-                card.rank = math.min(card.baseRank, card.rank + 1)
-                card.rankName = Deck.getRankName(card.rank)
-                card.baseChips = Deck.getBaseChips(card.rank)
-                card.durability = math.min(1.0, (card.durability or 1.0) + 0.3)
-                healed = true
-            else
-                game.discardBuffs.chips = (game.discardBuffs.chips or 0) + 4
-            end
+        -- 2. ♣️ BẦY NGUYÊN SINH: Tuần Hoàn Thể (chui xuống đáy bộ bài bốc)
+        elseif isClubCard then
             table.insert(game.deck, 1, card)
-
-            local txt = healed and ("[Phục Hồi] Lá " .. card.rankName .. " khôi phục +1 Rank!") or ("[Nảy Mầm] " .. card.rankName .. ": +4 Chips!")
             table.insert(anim.floatingTexts, {
-                text = txt,
+                text = "🌿 [Tuần Hoàn Thể] " .. card.rankName .. "♣ chui xuống đáy bộ bài!",
                 color = { 0.2, 0.85, 0.4, 1 },
                 x = 640,
                 y = 440,
@@ -657,51 +820,11 @@ local function discardSelected()
             })
             Sound.play("card_deal")
 
-        -- 3. VHAROS: Huyết Tế Bùng Nổ (Sacrifice card to discardPile for 3/6 flat True Damage chip)
-        elseif isVharos then
+        -- 3. ♠️ THIẾT QUÂN THỨ: Rơi vào mộ bài
+        elseif isSpadeCard then
             table.insert(game.discardPile, card)
-            local isRoyal = (card.rank >= 11)
-            local trueDmg = isRoyal and 6 or 3
 
-            if game.monster and game.monster.hp > 0 then
-                local actualDmg, defeated = Monster.takeDamage(game.monster, trueDmg)
-                table.insert(anim.floatingTexts, {
-                    text = "[Huyết Tế] " .. card.rankName .. ": -" .. actualDmg .. " Sát Thương Chuẩn!",
-                    color = { 0.95, 0.25, 0.35, 1 },
-                    x = 640,
-                    y = 440,
-                    alpha = 2.0,
-                })
-                Sound.play("xmult_boom")
-                if defeated then
-                    local baseReward = game.monster.isBoss and 15 or (game.monster.isElite and 10 or 4)
-                    game.gold = game.gold + baseReward
-                    Sound.play("round_win")
-                end
-            end
-
-        -- 4. VALORIA: Hậu Cần Quân Nhu & Mài Kiếm (+5 Chips for Soldier, +8 Chips & +$1 Gold for Royal, recycles to deck)
-        elseif isValoria then
-            local isRoyal = (card.rank >= 11)
-            local addC = isRoyal and 8 or 5
-            game.discardBuffs.chips = (game.discardBuffs.chips or 0) + addC
-
-            local goldAmt = isRoyal and 1 or 0
-            if goldAmt > 0 then
-                game.gold = game.gold + goldAmt
-            end
-
-            table.insert(game.deck, 1, card)
-
-            local txt = isRoyal and ("[Quân Nhu] " .. card.rankName .. ": +$1 Vàng & +" .. addC .. " Chips!") or ("[Mài Kiếm] " .. card.rankName .. ": +" .. addC .. " Chips!")
-            table.insert(anim.floatingTexts, {
-                text = txt,
-                color = { 0.35, 0.70, 0.98, 1 },
-                x = 640,
-                y = 440,
-                alpha = 2.0,
-            })
-            Sound.play("card_deal")
+        -- 4. ♦️ TRẬT TỰ HOÀNG KIM: Rơi vào mộ bài
         else
             table.insert(game.discardPile, card)
         end
@@ -813,8 +936,31 @@ local function playSelectedHand()
         selectedSuit = game.selectedSuit,
         selectedFaction = game.selectedFaction,
         playedHandsHistory = game.playedHandsHistory,
+        martyrStacks = game.martyrStacks or 0,
+        gold = game.gold or 0,
+        unplayedCards = game.hand,
+        gameState = game,
+        drawCards = function(n)
+            local drawnCount = 0
+            local maxHand = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris" or game.selectedFaction == "clubs" or game.selectedFaction == "feral_swarm") and 9 or 8
+            while #game.hand < maxHand and #game.deck > 0 and drawnCount < n do
+                local drawn = table.remove(game.deck)
+                if drawn then
+                    drawn.selected = false
+                    drawn.visualX = 1180
+                    drawn.visualY = 620
+                    drawn.visualAngle = 0
+                    drawn.visualScale = 0.7
+                    table.insert(game.hand, drawn)
+                    drawnCount = drawnCount + 1
+                end
+            end
+            return drawnCount
+        end,
     }
     local scoreResult = Scoring.calculate(evalResult, game.deities, context)
+    -- Reset consumed martyr stacks
+    game.martyrStacks = 0
     -- Record played hand in history for repeated hand bonuses (e.g. Thần Điệp Kích)
     game.playedHandsHistory = game.playedHandsHistory or {}
     if evalResult and evalResult.type and evalResult.type.id then
@@ -1217,6 +1363,14 @@ function love.update(dt)
         targetA = { 0.11, 0.06, 0.18 }
         targetB = { 0.22, 0.10, 0.32 }
         targetC = { 0.55, 0.32, 0.12 }
+    elseif state == "CASH_OUT" then
+        targetA = { 0.14, 0.11, 0.05 }
+        targetB = { 0.28, 0.22, 0.08 }
+        targetC = { 0.60, 0.48, 0.14 }
+    elseif state == "BLIND_SELECT" then
+        targetA = { 0.05, 0.07, 0.14 }
+        targetB = { 0.09, 0.14, 0.26 }
+        targetC = { 0.18, 0.32, 0.55 }
     elseif (state == "playing" or state == "scoring") and game.monster and game.monster.isBoss then
         targetA = { 0.18, 0.04, 0.06 }
         targetB = { 0.38, 0.08, 0.10 }
@@ -1229,6 +1383,10 @@ function love.update(dt)
         targetA = { 0.06, 0.08, 0.14 }
         targetB = { 0.12, 0.15, 0.24 }
         targetC = { 0.25, 0.35, 0.50 }
+    end
+
+    if state == "CASH_OUT" and cashOutAnim then
+        RewardSystem.update(cashOutAnim, dt)
     end
 
     local colLerp = math.min(1.0, dt * 4.0)
@@ -1431,10 +1589,11 @@ function love.update(dt)
                         anim.bounceScale.mult = 1.45
                     end
 
-                    local dIdx = nil
-                    if st.deity then
-                        for di, d in ipairs(game.deities) do
-                            if d == st.deity or d.id == st.deity.id then dIdx = di break end
+                    local dIdx = st.slotIndex
+                    if not dIdx and st.deity then
+                        for di = 1, 5 do
+                            local d = game.deities and game.deities[di]
+                            if d == st.deity or (d and d.id == st.deity.id) then dIdx = di break end
                         end
                     end
                     local dCenterX = 295 + 56
@@ -1445,21 +1604,29 @@ function love.update(dt)
                     local dCenterY = 15 + 22 + 44
 
                     if st.xMult > 1.0 then
-                        anim.displayXMult = anim.displayXMult * st.xMult
+                        if st.resultingMult then
+                            anim.displayMult = st.resultingMult
+                        else
+                            anim.displayMult = math.floor(anim.displayMult * st.xMult)
+                        end
                         anim.bounceScale.xMult = 1.65
+                        anim.bounceScale.mult = 1.65
                         anim.bounceScale.score = 1.70
                         screenShake = math.max(screenShake, math.min(22, 7 + st.xMult * 4))
                         Sound.play("xmult_boom", pitch)
                         spawnSparks(dCenterX, dCenterY, 28, UI.COLORS.xmultGold)
                         anim.targetStepDelay = 0.54 -- Suspense micro-pause!
                         table.insert(anim.floatingTexts, {
-                            text = "x" .. st.xMult .. " XMult!",
+                            text = "x" .. string.format("%.2f", st.xMult) .. " XMult!",
                             color = UI.COLORS.xmultGold,
                             x = dCenterX,
                             y = dCenterY - 20,
                             alpha = 1.5,
                         })
                     else
+                        if st.resultingMult then
+                            anim.displayMult = st.resultingMult
+                        end
                         anim.targetStepDelay = 0.30
                         Sound.play("mult_pop", pitch)
                         spawnSparks(dCenterX, dCenterY, 16, UI.COLORS.multRed)
@@ -1471,7 +1638,7 @@ function love.update(dt)
                             alpha = 1.3,
                         })
                     end
-                    anim.displayFinalScore = math.floor(anim.displayChips * anim.displayMult * anim.displayXMult)
+                    anim.displayFinalScore = math.floor(anim.displayChips * anim.displayMult)
                     anim.stepCategory = "THẦN BÀI: " .. (st.deity and st.deity.name or "BỔ TRỢ"):upper()
                     anim.stepLog = st.message
 
@@ -1485,6 +1652,7 @@ function love.update(dt)
                     anim.stepCategory = "TỔNG SÁT THƯƠNG"
                     anim.stepLog = anim.displayChips .. " Chips × " .. anim.displayMult .. " Mult" .. (anim.displayXMult > 1.0 and (" × " .. anim.displayXMult .. " XMult") or "") .. " = " .. st.finalScore .. " Sát thương!"
 
+                    local monsterHpBeforeHit = (game.monster and game.monster.hp) or 0
                     local actualDmg, defeated = Monster.takeDamage(game.monster, st.finalScore)
                     anim.damageDealt = actualDmg
                     anim.monsterDefeated = defeated
@@ -1505,6 +1673,86 @@ function love.update(dt)
                         Sound.play("jackpot")
                         spawnSparks(mCenterX, mCenterY, 40, UI.COLORS.goldYellow)
                         anim.targetStepDelay = 0.60
+
+                        -- 1. A♠ Sát Khí tích lũy khi Overkill
+                        if st.hasAceOfSpades then
+                            local overkill = math.max(0, st.finalScore - monsterHpBeforeHit)
+                            if overkill > 0 then
+                                game.storedSlaughterChips = (game.storedSlaughterChips or 0) + overkill
+                                table.insert(anim.floatingTexts, {
+                                    text = "⚔️ SÁT KHÍ TÍCH LŨY (A♠): +" .. overkill .. " Chips ván sau!",
+                                    color = UI.COLORS.goldYellow,
+                                    x = 640,
+                                    y = 330,
+                                    alpha = 3.0,
+                                })
+                            end
+                        end
+
+                        -- 2. A♥ Chén Thánh Khát Máu (5% Máu tối đa của Boss thành Vàng, max $6)
+                        if st.hasAceOfHearts then
+                            local bloodGold = math.min(6, math.max(1, math.floor(((game.monster and game.monster.maxHp) or 100) * 0.05)))
+                            game.gold = (game.gold or 0) + bloodGold
+                            table.insert(anim.floatingTexts, {
+                                text = "🩸 [Chén Thánh Khát Máu] Hút +" .. bloodGold .. "$ Vàng!",
+                                color = UI.COLORS.goldYellow,
+                                x = 640,
+                                y = 360,
+                                alpha = 3.0,
+                            })
+                        end
+
+                        -- 3. ♣️ Bầy Nguyên Sinh: Tiến Hóa Nuốt Chửng (Predatory Evolution)
+                        if anim.evalResult and anim.evalResult.scoringCards then
+                            for _, sc in ipairs(anim.evalResult.scoringCards) do
+                                local isClubSc = (sc.suit == "clubs" or sc.suit == "elaris" or sc.suit == "feral_swarm" or sc.isWildSuit)
+                                if isClubSc and sc.rank >= 2 and sc.rank <= 10 and not sc.isPrimalDrone then
+                                    if sc.rank < 10 then
+                                        sc.rank = sc.rank + 1
+                                        sc.baseRank = sc.rank
+                                        sc.rankName = Deck.RANK_NAMES[sc.rank] or tostring(sc.rank)
+                                        sc.baseChips = Deck.getChipValue(sc.rank)
+                                        table.insert(anim.floatingTexts, {
+                                            text = "🧬 TIẾN HÓA: " .. sc.rankName .. "♣ lên Rank " .. sc.rank .. " vĩnh viễn!",
+                                            color = { 0.2, 0.95, 0.4, 1 },
+                                            x = 640,
+                                            y = 390,
+                                            alpha = 3.0,
+                                        })
+                                    elseif sc.rank == 10 then
+                                        sc.isPrimalDrone = true
+                                        sc.bonusBaseChips = (sc.bonusBaseChips or 0) + 50
+                                        sc.bonusMult = (sc.bonusMult or 0) + 5
+                                        sc.name = "Chân Rết Nguyên Thủy"
+                                        sc.roleTitle = "Chân Rết Nguyên Thủy"
+                                        sc.roleIcon = "🐛"
+                                        table.insert(anim.floatingTexts, {
+                                            text = "🦗 ĐỘT BIẾN TỘT CÙNG: Chân Rết Nguyên Thủy (+50c, +5m) vĩnh viễn!",
+                                            color = UI.COLORS.goldYellow,
+                                            x = 640,
+                                            y = 390,
+                                            alpha = 3.5,
+                                        })
+                                    end
+                                    if game.persistentDeck then
+                                        for _, pc in ipairs(game.persistentDeck) do
+                                            if pc.id == sc.id then
+                                                pc.baseRank = sc.baseRank or sc.rank
+                                                pc.rank = pc.baseRank
+                                                pc.rankName = Deck.RANK_NAMES[pc.baseRank] or tostring(pc.baseRank)
+                                                pc.baseChips = Deck.getChipValue(pc.baseRank) + (sc.bonusBaseChips or 0)
+                                                pc.bonusBaseChips = sc.bonusBaseChips or 0
+                                                pc.bonusMult = sc.bonusMult or 0
+                                                pc.isPrimalDrone = sc.isPrimalDrone
+                                                pc.roleTitle = sc.roleTitle
+                                                pc.roleIcon = sc.roleIcon
+                                                break
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
                     else
                         anim.targetStepDelay = 0.45
                     end
@@ -1525,28 +1773,29 @@ function love.update(dt)
                         local baseReward = game.monster.isBoss and 15 or (game.monster.isElite and 10 or 4)
                         local unusedHandsBonus = game.handsRemaining * 1
                         local deityBonus = 0
-                        local survivingDeities = {}
-                        for di, d in ipairs(game.deities) do
-                            local effectiveDeity = Deities.resolveDeity and Deities.resolveDeity(game.deities, di) or d
-                            if effectiveDeity and effectiveDeity.onRoundWin then
-                                local r = effectiveDeity.onRoundWin(game, effectiveDeity)
-                                if r and r.addGold then deityBonus = deityBonus + r.addGold end
-                                if r and r.message then
-                                    local msg = d.isCopyDeity and (d.name .. " (Sao chép): " .. r.message) or r.message
-                                    table.insert(anim.floatingTexts, {
-                                        text = msg,
-                                        color = UI.COLORS.goldYellow,
-                                        x = 640,
-                                        y = 190 - (di * 22),
-                                        alpha = 2.8,
-                                    })
+                        for di = 1, 5 do
+                            local d = game.deities and game.deities[di]
+                            if d then
+                                local effectiveDeity = Deities.resolveDeity and Deities.resolveDeity(game.deities, di) or d
+                                if effectiveDeity and effectiveDeity.onRoundWin then
+                                    local r = effectiveDeity.onRoundWin(game, effectiveDeity)
+                                    if r and r.addGold then deityBonus = deityBonus + r.addGold end
+                                    if r and r.message then
+                                        local msg = d.isCopyDeity and (d.name .. " (Sao chép): " .. r.message) or r.message
+                                        table.insert(anim.floatingTexts, {
+                                            text = msg,
+                                            color = UI.COLORS.goldYellow,
+                                            x = 640,
+                                            y = 190 - (di * 22),
+                                            alpha = 2.8,
+                                        })
+                                    end
+                                end
+                                if d.extinct then
+                                    game.deities[di] = nil
                                 end
                             end
-                            if not d.extinct then
-                                table.insert(survivingDeities, d)
-                            end
                         end
-                        game.deities = survivingDeities
 
                         -- Tiền Lãi (Interest): Cứ mỗi $5 vàng tích trữ trong túi, sau trận được nhận thêm $1 tiền lãi (tối đa +$5)
                         local interestBonus = math.min(5, math.floor(game.gold / 5))
@@ -1672,7 +1921,16 @@ function love.update(dt)
                             clearAllSelections()
                         end
 
-                        if game.monster.isBoss then
+                        if game.run then
+                            local curBlind = RunManager.getCurrentBlind(game.run)
+                            RunManager.completeCurrentBlind(game.run)
+                            local breakdown = RewardSystem.calculate(curBlind, game, false)
+                            game.gold = (game.gold or 0) + breakdown.totalGold
+                            cashOutAnim = RewardSystem.newAnimation(breakdown)
+                            state = "CASH_OUT"
+                            lastActiveState = "CASH_OUT"
+                            Sound.play("round_win")
+                        elseif game.monster.isBoss then
                             -- Boss defeated: 2 Deities appear, pick 1 of 2!
                             game.bossDeityDraft = Deities.getBossDraftPool(game.deities, 2)
                             state = "boss_deity"
@@ -1890,35 +2148,35 @@ local function drawFactionSelect()
     love.graphics.setColor(UI.COLORS.textLight)
     love.graphics.printf("Mỗi phe sở hữu bộ bài và ban ơn thần thánh đặc trưng (Bắt đầu với 3 lá ngẫu nhiên):", 0, 85, V_WIDTH, "center")
 
-    -- 4 Faction Selection Cards
+    -- 4 Faction Selection Cards (Grimdark Archetypes)
     local factions = {
         {
-            id = "aurelia",
-            title = "AURELIA",
-            color = Deck.FACTIONS.aurelia.color,
-            badge = "Phe Ánh Sáng ♦",
-            blessing = "• Hào Quang Thánh Thiện:\nĐòn đánh có thẻ Aurelia nhận x1.15 XMult.\n• Kỷ Luật Thần Thánh:\nBài hình (J, Q, K) cố định điểm, miễn nhiễm suy yếu từ quái vật.",
-        },
-        {
-            id = "elaris",
-            title = "ELARIS",
-            color = Deck.FACTIONS.elaris.color,
-            badge = "Phe Thiên Nhiên ♣",
-            blessing = "• Sức Sống Rừng Già:\nCầm tối đa 9 lá bài & tái chế Chiến Binh (2-10) khi đổi bài.\n• Lộc Biếc Đâm Chồi:\nThắng không quá nửa lượt đánh giúp tôi luyện hoàn hảo 1 lá bài.",
-        },
-        {
             id = "vharos",
-            title = "VHAROS",
+            title = "THIẾT QUÂN THỨ",
             color = Deck.FACTIONS.vharos.color,
-            badge = "Phe Hắc Ám ♠",
-            blessing = "• Hơi Thở Ma Quỷ:\nThẻ Vharos khi xuất trận cộng trực tiếp +40 Chips.\n• Huyết Tế Bóng Đêm:\nKhi Chiến Binh (2-10) bị hy sinh, gây sát thương chuẩn bằng số của lá.",
+            badge = "The Iron Axiom ♠",
+            blessing = "• Chỉ Số Thép: +20 Chips & Miễn nhiễm 100% debuff Boss.\n• Quân Lực Phalanx: Chuỗi Rank tăng dần thưởng +(ΔRank×10) Chips.\n• Axiom Lock: Cố định bài Bích trên tay theo Rank tăng dần.",
         },
         {
             id = "valoria",
-            title = "VALORIA",
+            title = "GIÁO HỘI HUYẾT ƯỚC",
             color = Deck.FACTIONS.valoria.color,
-            badge = "Phe Nhân Loại ♥",
-            blessing = "• Chiến Thuật Hành Quân:\nNhận thêm +1 Lượt Đổi Bài miễn phí mỗi trận (4 lượt đổi).\n• Hậu Cần Quân Khí:\nTiêu diệt quái vật tăng +25% vàng thu thập.",
+            badge = "Sanguine Covenant ♥",
+            blessing = "• Huyết Tế: Discard Chiến Binh Cơ gây True Damage = Rank.\n• Dấu Ấn Tử Đạo: Discard tích ấn (max 5), bùng nổ +8 Mult & x(1+0.15×ấn).\n• Huyết Ước: +5 Mult mỗi lá Cơ.",
+        },
+        {
+            id = "aurelia",
+            title = "TRẬT TỰ HOÀNG KIM",
+            color = Deck.FACTIONS.aurelia.color,
+            badge = "Gilded Conclave ♦",
+            blessing = "• Kim Ngân: +$1 Vàng mỗi lá Rô ghi điểm.\n• Trần Lãi Siêu Việt: +$1 lãi mỗi $4 sở hữu (Không giới hạn trần!).\n• Khảm Nén Quặng: Mở sẵn 2 Lỗ Khảm, đá khảm tăng +50% hiệu lực.",
+        },
+        {
+            id = "elaris",
+            title = "BẦY NGUYÊN SINH",
+            color = Deck.FACTIONS.elaris.color,
+            badge = "The Feral Swarm ♣",
+            blessing = "• Bầy Đàn: Cầm 9 lá bài trên tay.\n• Tuần Hoàn Thể: Discard Chuồn chui xuống đáy bộ bài.\n• Tiến Hóa Nuốt Chửng: Dứt điểm tăng +1 Rank (Rank 10 -> Chân Rết +50c/+5m).",
         },
     }
 
@@ -2424,20 +2682,30 @@ local function drawPlayingState()
     -- Deities Section
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(UI.COLORS.goldYellow)
-    love.graphics.print("THẦN HỘ MỆNH (" .. #game.deities .. "/5)", topStartX + 4, topStartY)
-
-    local deitySlotW = 112
-    local deitySlotH = 88
-    local deityGap = 12
-    local deityY = topStartY + 22
+    local curDeiCount = Deities.getCount(game.deities)
+    love.graphics.print("THẦN HỘ MỆNH (" .. curDeiCount .. "/5)", topStartX + 4, topStartY)
 
     for i = 1, 5 do
-        local dx = topStartX + (i - 1) * (deitySlotW + deityGap)
-        local d = game.deities[i]
+        local dx, deityY, deitySlotW, deitySlotH = getDeitySlotRect(i, "playing")
+        local d = game.deities and game.deities[i]
+        local isDraggedSource = (deityDrag.active and deityDrag.isDragging and deityDrag.deityIndex == i)
+        local isHoveredSlot = (mx >= dx and mx <= dx + deitySlotW and my >= deityY and my <= deityY + deitySlotH)
+        local isDropTarget = (deityDrag.active and deityDrag.isDragging and isHoveredSlot and deityDrag.deityIndex ~= i)
 
-        if d then
-            local isHovered = (mx >= dx and mx <= dx + deitySlotW and my >= deityY and my <= deityY + deitySlotH)
-            if isHovered then hoveredDeityTooltip = d end
+        if isDraggedSource then
+            -- Ghost / Placeholder at original position
+            love.graphics.setColor(0.12, 0.15, 0.18, 0.35)
+            UI.drawRoundedRect("fill", dx, deityY, deitySlotW, deitySlotH, 6)
+            love.graphics.setLineWidth(1.5)
+            love.graphics.setColor(0.4, 0.5, 0.6, 0.5)
+            UI.drawRoundedRect("line", dx, deityY, deitySlotW, deitySlotH, 6)
+            love.graphics.setFont(UI.fonts.tiny)
+            love.graphics.setColor(UI.COLORS.textMuted)
+            love.graphics.printf("Vị trí cũ", dx + 4, deityY + 34, deitySlotW - 8, "center")
+        elseif d then
+            if isHoveredSlot and not (deityDrag.active and deityDrag.isDragging) then
+                hoveredDeityTooltip = d
+            end
 
             local borderCol = { 0.35, 0.45, 0.55, 1 }
             if d.rarity == "uncommon" then borderCol = { 0.2, 0.8, 0.4, 1 }
@@ -2445,15 +2713,27 @@ local function drawPlayingState()
             elseif d.rarity == "legendary" then borderCol = { 0.95, 0.75, 0.1, 1 }
             end
 
+            -- Slot bounce effect
+            local bScale = anim.deityBounce and anim.deityBounce[i] or 1.0
+            love.graphics.push()
+            love.graphics.translate(dx + deitySlotW / 2, deityY + deitySlotH / 2)
+            if bScale > 1.01 then
+                love.graphics.scale(bScale, bScale)
+            end
+            if isDropTarget then
+                love.graphics.scale(1.06, 1.06)
+            end
+            love.graphics.translate(-deitySlotW / 2, -deitySlotH / 2)
+
             love.graphics.setColor(0.18, 0.22, 0.26, 1)
-            UI.drawRoundedRect("fill", dx, deityY, deitySlotW, deitySlotH, 6)
-            love.graphics.setLineWidth(1.5)
-            love.graphics.setColor(borderCol)
-            UI.drawRoundedRect("line", dx, deityY, deitySlotW, deitySlotH, 6)
+            UI.drawRoundedRect("fill", 0, 0, deitySlotW, deitySlotH, 6)
+            love.graphics.setLineWidth(isDropTarget and 2.5 or 1.5)
+            love.graphics.setColor(isDropTarget and UI.COLORS.bossPurple or borderCol)
+            UI.drawRoundedRect("line", 0, 0, deitySlotW, deitySlotH, 6)
 
             love.graphics.setFont(UI.fonts.small)
             love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.printf(d.name, dx + 4, deityY + 8, deitySlotW - 8, "center")
+            love.graphics.printf(d.name, 4, 8, deitySlotW - 8, "center")
 
             love.graphics.setFont(UI.fonts.tiny)
             love.graphics.setColor(UI.COLORS.textMuted)
@@ -2462,16 +2742,30 @@ local function drawPlayingState()
                 local target = Deities.resolveDeity and Deities.resolveDeity(game.deities, i)
                 descText = target and ("(Sao chép: " .. target.name .. ")") or "Đặt bên trái 1 Thần khác để sao chép"
             end
-            love.graphics.printf(descText, dx + 6, deityY + 34, deitySlotW - 12, "center")
+            if isDropTarget then
+                love.graphics.setColor(UI.COLORS.goldYellow)
+                love.graphics.printf("⇄ HOÁN ĐỔI", 4, 38, deitySlotW - 8, "center")
+            else
+                love.graphics.printf(descText, 6, 34, deitySlotW - 12, "center")
+            end
+            love.graphics.pop()
         else
-            love.graphics.setColor(0.12, 0.15, 0.18, 0.6)
+            -- Empty slot
+            love.graphics.setColor(0.12, 0.15, 0.18, isDropTarget and 0.85 or 0.6)
             UI.drawRoundedRect("fill", dx, deityY, deitySlotW, deitySlotH, 6)
-            love.graphics.setLineWidth(1)
-            love.graphics.setColor(0.28, 0.34, 0.40, 0.6)
+            love.graphics.setLineWidth(isDropTarget and 2.5 or 1)
+            love.graphics.setColor(isDropTarget and UI.COLORS.hpGreen or { 0.28, 0.34, 0.40, 0.6 })
             UI.drawRoundedRect("line", dx, deityY, deitySlotW, deitySlotH, 6)
-            love.graphics.setFont(UI.fonts.large)
-            love.graphics.setColor(0.35, 0.42, 0.48, 0.6)
-            love.graphics.printf("+", dx, deityY + 24, deitySlotW, "center")
+
+            if isDropTarget then
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor(UI.COLORS.hpGreen)
+                love.graphics.printf("THẢ VÀO ĐÂY", dx + 4, deityY + 36, deitySlotW - 8, "center")
+            else
+                love.graphics.setFont(UI.fonts.large)
+                love.graphics.setColor(0.35, 0.42, 0.48, 0.6)
+                love.graphics.printf("+", dx, deityY + 24, deitySlotW, "center")
+            end
         end
     end
 
@@ -2916,8 +3210,318 @@ local function drawScoringState()
     else
         love.graphics.setFont(UI.fonts.tiny)
         love.graphics.setColor(UI.COLORS.textMuted)
-        love.graphics.printf("Bước " .. math.min(anim.currentStepIndex, #anim.scoringData.steps) .. "/" .. #anim.scoringData.steps .. "  •  [Nhấp chuột hoặc bấm Phím Cách để tua nhanh]", playAreaX, footerY, playAreaW, "center")
+            love.graphics.printf("Bước " .. math.min(anim.currentStepIndex, #anim.scoringData.steps) .. "/" .. #anim.scoringData.steps .. "  •  [Nhấp chuột hoặc bấm Phím Cách để tua nhanh]", playAreaX, footerY, playAreaW, "center")
     end
+end
+
+local function drawBlindSelectState()
+    local winW, winH = love.graphics.getDimensions()
+    love.graphics.setColor(0.06, 0.08, 0.12, 1)
+    love.graphics.rectangle("fill", -offsetX / scale, -offsetY / scale, winW / scale, winH / scale)
+
+    local mx, my = toVirtual(love.mouse.getPosition())
+    buttons = {}
+
+    -- Top Header Panel
+    love.graphics.setColor(UI.COLORS.panelBg)
+    UI.drawRoundedRect("fill", 20, 15, V_WIDTH - 40, 75, 8)
+    love.graphics.setColor(UI.COLORS.panelBorder)
+    UI.drawRoundedRect("line", 20, 15, V_WIDTH - 40, 75, 8)
+
+    local currentAnte = game.run and game.run.ante or 1
+    local maxAnte = game.run and game.run.maxAnte or 8
+    love.graphics.setFont(UI.fonts.large)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.print("VÒNG ANTE " .. currentAnte .. " / " .. maxAnte .. " — CHỌN ẢI THỬ THÁCH", 40, 22)
+
+    local interestVal = math.min(5, math.floor(game.gold / 5))
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.textLight)
+    love.graphics.print("MÁU: " .. (game.playerHp or 100) .. "/" .. (game.maxPlayerHp or 100) .. " HP   |   TIỀN VÀNG: $" .. game.gold .. " (Lãi: +$" .. interestVal .. "/trận)   |   THẦN BÀI: " .. Deities.getCount(game.deities) .. "/5   |   BỘ BÀI: " .. #(game.persistentDeck or {}) .. " lá", 40, 56)
+
+    -- Right Action Buttons (Handbook, Deck Viewer, Options)
+    local btnHandbook = {
+        id = "open_handbook",
+        text = "SỔ TAY [H]",
+        x = V_WIDTH - 440,
+        y = 25,
+        w = 120,
+        h = 55,
+        color = { 0.22, 0.45, 0.35, 1 },
+        font = UI.fonts.small,
+    }
+    table.insert(buttons, btnHandbook)
+    UI.drawButton(btnHandbook, mx >= btnHandbook.x and mx <= btnHandbook.x + btnHandbook.w and my >= btnHandbook.y and my <= btnHandbook.y + btnHandbook.h)
+
+    local btnDeck = {
+        id = "open_deck_viewer",
+        text = "XEM BÀI [D]",
+        x = V_WIDTH - 305,
+        y = 25,
+        w = 125,
+        h = 55,
+        color = { 0.25, 0.35, 0.55, 1 },
+        font = UI.fonts.small,
+    }
+    table.insert(buttons, btnDeck)
+    UI.drawButton(btnDeck, mx >= btnDeck.x and mx <= btnDeck.x + btnDeck.w and my >= btnDeck.y and my <= btnDeck.y + btnDeck.h)
+
+    local btnOpts = {
+        id = "open_options",
+        text = "CÀI ĐẶT",
+        x = V_WIDTH - 165,
+        y = 25,
+        w = 125,
+        h = 55,
+        color = { 0.28, 0.32, 0.38, 1 },
+        font = UI.fonts.small,
+    }
+    table.insert(buttons, btnOpts)
+    UI.drawButton(btnOpts, mx >= btnOpts.x and mx <= btnOpts.x + btnOpts.w and my >= btnOpts.y and my <= btnOpts.y + btnOpts.h)
+
+    -- Center 3 Blind Cards
+    local blinds = (game.run and game.run.blinds) or {}
+    local cardW = 360
+    local cardH = 550
+    local gap = 40
+    local totalW = 3 * cardW + 2 * gap
+    local startX = (V_WIDTH - totalW) / 2
+    local startY = 115
+
+    for i = 1, 3 do
+        local blind = blinds[i]
+        if blind then
+            local bx = startX + (i - 1) * (cardW + gap)
+            local by = startY
+            local isCurrent = (blind.status == "current")
+            local isCompleted = (blind.status == "completed")
+            local isSkipped = (blind.status == "skipped")
+            local isUpcoming = (blind.status == "upcoming")
+
+            -- Card Body
+            if isCurrent then
+                love.graphics.setColor(0.12, 0.15, 0.21, 0.98)
+            elseif isCompleted or isSkipped then
+                love.graphics.setColor(0.08, 0.10, 0.13, 0.85)
+            else
+                love.graphics.setColor(0.09, 0.11, 0.15, 0.90)
+            end
+            UI.drawRoundedRect("fill", bx, by, cardW, cardH, 14)
+
+            -- Border
+            love.graphics.setLineWidth(isCurrent and 3 or 2)
+            if isCurrent then
+                love.graphics.setColor(blind.color or UI.COLORS.goldYellow)
+            elseif isCompleted then
+                love.graphics.setColor(0.25, 0.65, 0.35, 0.8)
+            elseif isSkipped then
+                love.graphics.setColor(0.55, 0.55, 0.55, 0.5)
+            else
+                love.graphics.setColor(0.22, 0.26, 0.34, 0.6)
+            end
+            UI.drawRoundedRect("line", bx, by, cardW, cardH, 14)
+
+            -- Header Ribbon / Badge
+            local headerColor = blind.color or { 0.3, 0.6, 0.9, 1 }
+            love.graphics.setColor(headerColor[1], headerColor[2], headerColor[3], isCurrent and 0.9 or 0.4)
+            UI.drawRoundedRect("fill", bx + 12, by + 12, cardW - 24, 44, 8)
+
+            love.graphics.setFont(UI.fonts.medium or UI.fonts.regular)
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.printf(blind.title, bx + 12, by + 22, cardW - 24, "center")
+
+            -- Icon
+            love.graphics.setFont(UI.fonts.huge or UI.fonts.title)
+            love.graphics.printf(blind.icon or "⚔️", bx, by + 70, cardW, "center")
+
+            -- Blind Name
+            love.graphics.setFont(UI.fonts.large)
+            love.graphics.setColor(isCurrent and (blind.color or UI.COLORS.goldYellow) or UI.COLORS.textLight)
+            love.graphics.printf(blind.name, bx + 10, by + 130, cardW - 20, "center")
+
+            -- HP Requirement Section
+            love.graphics.setColor(0.07, 0.09, 0.12, 0.9)
+            UI.drawRoundedRect("fill", bx + 24, by + 175, cardW - 48, 75, 8)
+            love.graphics.setColor(0.20, 0.24, 0.30, 0.8)
+            UI.drawRoundedRect("line", bx + 24, by + 175, cardW - 48, 75, 8)
+
+            love.graphics.setFont(UI.fonts.small)
+            love.graphics.setColor(UI.COLORS.textMuted)
+            love.graphics.printf("MỤC TIÊU HP", bx + 24, by + 185, cardW - 48, "center")
+
+            love.graphics.setFont(UI.fonts.large or UI.fonts.title)
+            love.graphics.setColor(UI.COLORS.chipsBlue or { 0.3, 0.7, 1, 1 })
+            love.graphics.printf(UI.formatNumber(blind.hp) .. " HP", bx + 24, by + 210, cardW - 48, "center")
+
+            -- Base Reward
+            love.graphics.setFont(UI.fonts.small)
+            love.graphics.setColor(UI.COLORS.goldYellow)
+            love.graphics.printf("Thưởng thắng: +$" .. blind.baseReward .. " Vàng", bx + 20, by + 265, cardW - 40, "center")
+
+            -- Tag or Boss Debuff Details Box
+            local detailY = by + 300
+            local detailH = 150
+            love.graphics.setColor(0.06, 0.08, 0.11, 0.95)
+            UI.drawRoundedRect("fill", bx + 18, detailY, cardW - 36, detailH, 8)
+
+            if blind.type == "boss" and blind.debuff then
+                love.graphics.setColor(0.85, 0.25, 0.35, 0.8)
+                UI.drawRoundedRect("line", bx + 18, detailY, cardW - 36, detailH, 8)
+
+                love.graphics.setFont(UI.fonts.small)
+                love.graphics.setColor(0.95, 0.35, 0.35, 1)
+                love.graphics.printf("⚠️ HIỆU ỨNG ÁP CHẾ (DEBUFF)", bx + 24, detailY + 12, cardW - 48, "center")
+
+                love.graphics.setFont(UI.fonts.medium or UI.fonts.regular)
+                love.graphics.setColor(1, 0.9, 0.9, 1)
+                love.graphics.printf(blind.debuff.title or blind.debuff.name, bx + 24, detailY + 38, cardW - 48, "center")
+
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor(UI.COLORS.textLight)
+                love.graphics.printf(blind.debuff.desc or "", bx + 26, detailY + 68, cardW - 52, "center")
+            else
+                -- Tag reward for skip
+                love.graphics.setColor(0.25, 0.35, 0.45, 0.6)
+                UI.drawRoundedRect("line", bx + 18, detailY, cardW - 36, detailH, 8)
+
+                love.graphics.setFont(UI.fonts.small)
+                love.graphics.setColor(UI.COLORS.goldYellow)
+                love.graphics.printf("BÙA THƯỞNG KHI BỎ QUA (SKIP)", bx + 24, detailY + 12, cardW - 48, "center")
+
+                if blind.tag then
+                    love.graphics.setFont(UI.fonts.medium or UI.fonts.regular)
+                    love.graphics.setColor(blind.tag.color or UI.COLORS.textLight)
+                    love.graphics.printf((blind.tag.icon or "🏷️") .. " " .. blind.tag.name, bx + 24, detailY + 40, cardW - 48, "center")
+
+                    love.graphics.setFont(UI.fonts.tiny)
+                    love.graphics.setColor(UI.COLORS.textLight)
+                    love.graphics.printf(blind.tag.desc or "", bx + 26, detailY + 74, cardW - 52, "center")
+                end
+            end
+
+            -- Status Stamp or Interactive Buttons
+            if isCompleted then
+                love.graphics.setColor(0.18, 0.65, 0.32, 0.95)
+                UI.drawRoundedRect("fill", bx + 30, by + cardH - 72, cardW - 60, 52, 8)
+                love.graphics.setFont(UI.fonts.medium)
+                love.graphics.setColor(1, 1, 1, 1)
+                love.graphics.printf("✓ ĐÃ VƯỢT QUA", bx + 30, by + cardH - 58, cardW - 60, "center")
+            elseif isSkipped then
+                love.graphics.setColor(0.35, 0.38, 0.42, 0.85)
+                UI.drawRoundedRect("fill", bx + 30, by + cardH - 72, cardW - 60, 52, 8)
+                love.graphics.setFont(UI.fonts.medium)
+                love.graphics.setColor(1, 1, 1, 1)
+                love.graphics.printf("⏭ ĐÃ BỎ QUA", bx + 30, by + cardH - 58, cardW - 60, "center")
+            elseif isUpcoming then
+                love.graphics.setColor(0.15, 0.18, 0.22, 0.7)
+                UI.drawRoundedRect("fill", bx + 30, by + cardH - 72, cardW - 60, 52, 8)
+                love.graphics.setFont(UI.fonts.regular)
+                love.graphics.setColor(UI.COLORS.textMuted)
+                love.graphics.printf("CHƯA MỞ KHÓA", bx + 30, by + cardH - 58, cardW - 60, "center")
+            elseif isCurrent then
+                local btnFightW = blind.canSkip and ((cardW - 48) * 0.58) or (cardW - 48)
+                local btnFight = {
+                    id = "fight_blind",
+                    text = "CHIẾN ĐẤU ⚔️",
+                    x = bx + 24,
+                    y = by + cardH - 72,
+                    w = btnFightW,
+                    h = 52,
+                    color = { 0.22, 0.70, 0.38, 1 },
+                    textColor = { 1, 1, 1, 1 },
+                    font = UI.fonts.medium or UI.fonts.regular,
+                }
+                table.insert(buttons, btnFight)
+                UI.drawButton(btnFight, mx >= btnFight.x and mx <= btnFight.x + btnFight.w and my >= btnFight.y and my <= btnFight.y + btnFight.h)
+
+                if blind.canSkip then
+                    local btnSkipW = (cardW - 48) * 0.38
+                    local btnSkip = {
+                        id = "skip_blind",
+                        text = "BỎ QUA ⏭️",
+                        x = bx + 24 + btnFightW + 8,
+                        y = by + cardH - 72,
+                        w = btnSkipW,
+                        h = 52,
+                        color = { 0.85, 0.55, 0.20, 1 },
+                        textColor = { 1, 1, 1, 1 },
+                        font = UI.fonts.small,
+                    }
+                    table.insert(buttons, btnSkip)
+                    UI.drawButton(btnSkip, mx >= btnSkip.x and mx <= btnSkip.x + btnSkip.w and my >= btnSkip.y and my <= btnSkip.y + btnSkip.h)
+                end
+            end
+        end
+    end
+end
+
+local function drawVictoryState()
+    local winW, winH = love.graphics.getDimensions()
+    love.graphics.setColor(0.05, 0.08, 0.12, 1)
+    love.graphics.rectangle("fill", -offsetX / scale, -offsetY / scale, winW / scale, winH / scale)
+
+    local mx, my = toVirtual(love.mouse.getPosition())
+    buttons = {}
+
+    local modalW = 700
+    local modalH = 500
+    local modalX = (V_WIDTH - modalW) / 2
+    local modalY = (V_HEIGHT - modalH) / 2
+
+    love.graphics.setColor(0.10, 0.14, 0.18, 0.98)
+    UI.drawRoundedRect("fill", modalX, modalY, modalW, modalH, 16)
+    love.graphics.setLineWidth(3)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    UI.drawRoundedRect("line", modalX, modalY, modalW, modalH, 16)
+
+    love.graphics.setFont(UI.fonts.title or UI.fonts.large)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.printf("CHIẾN THẮNG HUYỀN THOẠI! 🏆", modalX, modalY + 35, modalW, "center")
+
+    love.graphics.setFont(UI.fonts.medium or UI.fonts.regular)
+    love.graphics.setColor(UI.COLORS.textLight)
+    love.graphics.printf("Bạn đã chinh phục hoàn toàn 8 Vòng Ante của LUA.TCG!", modalX, modalY + 95, modalW, "center")
+
+    -- Divider
+    love.graphics.setColor(0.3, 0.4, 0.5, 0.5)
+    love.graphics.line(modalX + 40, modalY + 140, modalX + modalW - 40, modalY + 140)
+
+    -- Stats summary
+    local stats = game.run and game.run.stats or {}
+    local statRows = {
+        { label = "TỔ CHỨC / PHE PHÁI:", val = (game.selectedFaction or "Aurelia"):upper(), color = UI.COLORS.textLight },
+        { label = "VÒNG ĐẠT ĐƯỢC:", val = "ANTE 8 / 8 (HOÀN THÀNH)", color = UI.COLORS.goldYellow },
+        { label = "SỐ ẢI ĐÃ CHIẾN THẮNG:", val = tostring(stats.blindsWon or 0) .. " Ải", color = { 0.35, 0.85, 0.45, 1 } },
+        { label = "SỐ ẢI ĐÃ BỎ QUA (SKIP):", val = tostring(stats.blindsSkipped or 0) .. " Ải", color = { 0.85, 0.65, 0.35, 1 } },
+        { label = "TỔNG TIỀN VÀNG CÒN LẠI:", val = "$" .. tostring(game.gold or 0), color = UI.COLORS.goldYellow },
+        { label = "SỐ THẦN BÀI GIÁNG LÂM:", val = tostring(Deities.getCount(game.deities)) .. " Thần", color = { 0.85, 0.45, 0.95, 1 } },
+    }
+
+    local rY = modalY + 160
+    for _, row in ipairs(statRows) do
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(UI.COLORS.textMuted)
+        love.graphics.print(row.label, modalX + 60, rY + 4)
+
+        love.graphics.setFont(UI.fonts.medium or UI.fonts.regular)
+        love.graphics.setColor(row.color or UI.COLORS.textLight)
+        love.graphics.printf(row.val, modalX + modalW - 360, rY, 300, "right")
+
+        rY = rY + 42
+    end
+
+    local btnMenu = {
+        id = "victory_menu",
+        text = "VỀ TRANG CHỦ",
+        x = modalX + (modalW - 280) / 2,
+        y = modalY + modalH - 68,
+        w = 280,
+        h = 48,
+        color = { 0.22, 0.70, 0.38, 1 },
+        font = UI.fonts.regular,
+    }
+    table.insert(buttons, btnMenu)
+    UI.drawButton(btnMenu, mx >= btnMenu.x and mx <= btnMenu.x + btnMenu.w and my >= btnMenu.y and my <= btnMenu.y + btnMenu.h)
 end
 
 local function drawMap()
@@ -2942,7 +3546,7 @@ local function drawMap()
     local interestVal = math.min(5, math.floor(game.gold / 5))
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(UI.COLORS.textLight)
-    love.graphics.print("MÁU: " .. (game.playerHp or 100) .. "/" .. (game.maxPlayerHp or 100) .. " HP   |   TIỀN VÀNG: $" .. game.gold .. " (Lãi: +$" .. interestVal .. "/trận)   |   THẦN BÀI: " .. #game.deities .. "/5", 40, 56)
+    love.graphics.print("MÁU: " .. (game.playerHp or 100) .. "/" .. (game.maxPlayerHp or 100) .. " HP   |   TIỀN VÀNG: $" .. game.gold .. " (Lãi: +$" .. interestVal .. "/trận)   |   THẦN BÀI: " .. Deities.getCount(game.deities) .. "/5", 40, 56)
 
     -- Button Handbook & Deck Viewer
     local btnHandbookMap = {
@@ -4677,7 +5281,7 @@ local function drawShopState()
     ----------------------------------------------------------------------------
     -- 2. TOP SLOTS: THẦN HỘ MỆNH (0/5) & TIÊU HAO (0/2)
     ----------------------------------------------------------------------------
-    local deiCount = #(game.deities or {})
+    local deiCount = Deities.getCount(game.deities)
     local deiSlotW = 98
     local deiSlotH = 74
     local deiGap = 10
@@ -4697,47 +5301,63 @@ local function drawShopState()
         local sy = hy + 18
         local d = game.deities and game.deities[i]
         local isDeiDragged = (deityDrag.active and deityDrag.isDragging and deityDrag.deityIndex == i)
+        local isDeiHovered = (mx >= sx and mx <= sx + deiSlotW and my >= sy and my <= sy + deiSlotH)
+        local isDropTarget = (deityDrag.active and deityDrag.isDragging and isDeiHovered and deityDrag.deityIndex ~= i)
 
         if isDeiDragged then
-            love.graphics.setColor(0.20, 0.25, 0.32, 0.4)
+            love.graphics.setColor(0.12, 0.15, 0.18, 0.35)
+            UI.drawRoundedRect("fill", sx, sy, deiSlotW, deiSlotH, 6)
+            love.graphics.setColor(0.4, 0.5, 0.6, 0.5)
             UI.drawRoundedRect("line", sx, sy, deiSlotW, deiSlotH, 6)
+            love.graphics.setFont(UI.fonts.tiny)
+            love.graphics.setColor(UI.COLORS.textMuted)
+            love.graphics.printf("Vị trí cũ", sx + 4, sy + deiSlotH / 2 - 6, deiSlotW - 8, "center")
         elseif d then
-            local isDeiHovered = (mx >= sx and mx <= sx + deiSlotW and my >= sy and my <= sy + deiSlotH)
             local tX, tY = 0, 0
-            if isDeiHovered then
+            if isDeiHovered and not (deityDrag.active and deityDrag.isDragging) then
                 tX, tY = UI.calculateTilt(mx, my, sx, sy, deiSlotW, deiSlotH)
             end
 
             love.graphics.push()
             love.graphics.translate(sx + deiSlotW / 2, sy + deiSlotH / 2)
-            if isDeiHovered then
+            if isDeiHovered and not (deityDrag.active and deityDrag.isDragging) then
                 love.graphics.shear(tX * 0.08, tY * 0.08)
+            end
+            if isDropTarget then
+                love.graphics.scale(1.06, 1.06)
             end
             love.graphics.translate(-deiSlotW / 2, -deiSlotH / 2)
 
             love.graphics.setColor(0.16, 0.20, 0.26, 0.95)
-            UI.drawRoundedRect("fill", sx, sy, deiSlotW, deiSlotH, 6)
-            love.graphics.setColor(isDeiHovered and UI.COLORS.goldYellow or { 0.45, 0.55, 0.70, 0.8 })
-            UI.drawRoundedRect("line", sx, sy, deiSlotW, deiSlotH, 6)
+            UI.drawRoundedRect("fill", 0, 0, deiSlotW, deiSlotH, 6)
+            love.graphics.setLineWidth(isDropTarget and 2.5 or 1.5)
+            love.graphics.setColor(isDropTarget and UI.COLORS.bossPurple or (isDeiHovered and UI.COLORS.goldYellow or { 0.45, 0.55, 0.70, 0.8 }))
+            UI.drawRoundedRect("line", 0, 0, deiSlotW, deiSlotH, 6)
 
             love.graphics.setFont(UI.fonts.tiny)
             love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.printf(d.name, sx + 4, sy + 4, deiSlotW - 8, "center")
+            love.graphics.printf(d.name, 4, 4, deiSlotW - 8, "center")
 
-            local sellPrice = math.max(1, math.floor((d.cost or 4) / 2))
-            local btnSell = {
-                id = "sell_" .. i,
-                text = "Bán +$" .. sellPrice,
-                x = sx + 8,
-                y = sy + deiSlotH - 24,
-                w = deiSlotW - 16,
-                h = 20,
-                color = UI.COLORS.btnDiscard,
-                font = UI.fonts.tiny,
-                deityIndex = i,
-            }
-            table.insert(buttons, btnSell)
-            UI.drawButton(btnSell, mx >= btnSell.x and mx <= btnSell.x + btnSell.w and my >= btnSell.y and my <= btnSell.y + btnSell.h, juice.buttonPressedId == btnSell.id)
+            if isDropTarget then
+                love.graphics.setFont(UI.fonts.tiny)
+                love.graphics.setColor(UI.COLORS.goldYellow)
+                love.graphics.printf("⇄ HOÁN ĐỔI", 4, 28, deiSlotW - 8, "center")
+            else
+                local sellPrice = math.max(1, math.floor((d.cost or 4) / 2))
+                local btnSell = {
+                    id = "sell_" .. i,
+                    text = "Bán +$" .. sellPrice,
+                    x = sx + 8,
+                    y = sy + deiSlotH - 24,
+                    w = deiSlotW - 16,
+                    h = 20,
+                    color = UI.COLORS.btnDiscard,
+                    font = UI.fonts.tiny,
+                    deityIndex = i,
+                }
+                table.insert(buttons, btnSell)
+                UI.drawButton(btnSell, mx >= btnSell.x and mx <= btnSell.x + btnSell.w and my >= btnSell.y and my <= btnSell.y + btnSell.h, juice.buttonPressedId == btnSell.id)
+            end
 
             -- Drag button covering the card body
             local btnDei = {
@@ -4754,7 +5374,8 @@ local function drawShopState()
 
             love.graphics.pop()
 
-            if isDeiHovered and not (mx >= btnSell.x and mx <= btnSell.x + btnSell.w and my >= btnSell.y and my <= btnSell.y + btnSell.h) then
+            local sellPrice = math.max(1, math.floor((d.cost or 4) / 2))
+            if isDeiHovered and not (deityDrag.active and deityDrag.isDragging) and not (mx >= sx + 8 and mx <= sx + deiSlotW - 8 and my >= sy + deiSlotH - 24 and my <= sy + deiSlotH - 4) then
                 hoveredShopItem = {
                     name = d.name,
                     subtitle = "THẦN HỘ MỆNH ĐANG TRANG BỊ",
@@ -4766,13 +5387,19 @@ local function drawShopState()
                 hoveredItemPos = { x = sx, y = sy + deiSlotH + 10 }
             end
         else
-            love.graphics.setColor(0.10, 0.12, 0.15, 0.4)
+            love.graphics.setColor(0.10, 0.12, 0.15, isDropTarget and 0.85 or 0.4)
             UI.drawRoundedRect("fill", sx, sy, deiSlotW, deiSlotH, 6)
-            love.graphics.setColor(0.20, 0.24, 0.30, 0.3)
+            love.graphics.setLineWidth(isDropTarget and 2.5 or 1)
+            love.graphics.setColor(isDropTarget and UI.COLORS.hpGreen or { 0.20, 0.24, 0.30, 0.3 })
             UI.drawRoundedRect("line", sx, sy, deiSlotW, deiSlotH, 6)
             love.graphics.setFont(UI.fonts.tiny)
-            love.graphics.setColor(0.35, 0.40, 0.45, 0.5)
-            love.graphics.printf("+ Trống", sx, sy + deiSlotH / 2 - 6, deiSlotW, "center")
+            if isDropTarget then
+                love.graphics.setColor(UI.COLORS.hpGreen)
+                love.graphics.printf("THẢ VÀO ĐÂY", sx + 4, sy + deiSlotH / 2 - 6, deiSlotW - 8, "center")
+            else
+                love.graphics.setColor(0.35, 0.40, 0.45, 0.5)
+                love.graphics.printf("+ Trống", sx, sy + deiSlotH / 2 - 6, deiSlotW, "center")
+            end
         end
     end
 
@@ -5346,34 +5973,7 @@ local function drawShopState()
         love.graphics.pop()
     end
 
-    if deityDrag.active and deityDrag.isDragging and game.deities and game.deities[deityDrag.deityIndex] then
-        local d = game.deities[deityDrag.deityIndex]
-        local dw = 98
-        local dh = 74
-        love.graphics.push()
-        love.graphics.translate(deityDrag.visualX + dw / 2, deityDrag.visualY + dh / 2)
-        love.graphics.scale(1.15, 1.15)
-        love.graphics.translate(-dw / 2, -dh / 2)
 
-        love.graphics.setColor(0, 0, 0, 0.45)
-        UI.drawRoundedRect("fill", 8, 12, dw, dh, 6)
-
-        love.graphics.setColor(0.20, 0.25, 0.32, 1)
-        UI.drawRoundedRect("fill", 0, 0, dw, dh, 6)
-        love.graphics.setColor(UI.COLORS.goldYellow)
-        love.graphics.setLineWidth(2.5)
-        UI.drawRoundedRect("line", 0, 0, dw, dh, 6)
-
-        love.graphics.setFont(UI.fonts.tiny)
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.printf(d.name, 4, 8, dw - 8, "center")
-
-        love.graphics.setFont(UI.fonts.tiny)
-        love.graphics.setColor(UI.COLORS.goldYellow)
-        love.graphics.printf("ĐANG DI CHUYỂN", 4, 38, dw - 8, "center")
-
-        love.graphics.pop()
-    end
 
     ----------------------------------------------------------------------------
     -- 5. BALATRO TOOLTIP BADGE (Floating Info for Hovered Card)
@@ -5586,12 +6186,18 @@ function love.draw()
 
     if state == "menu" then
         drawMenu()
+    elseif state == "BLIND_SELECT" then
+        drawBlindSelectState()
     elseif state == "map" then
         drawMap()
     elseif state == "playing" then
         drawPlayingState()
     elseif state == "scoring" then
         drawScoringState()
+    elseif state == "CASH_OUT" then
+        local mx, my = toVirtual(love.mouse.getPosition())
+        buttons = {}
+        RewardSystem.draw(cashOutAnim, V_WIDTH, V_HEIGHT, mx, my, buttons)
     elseif state == "event" then
         drawEventState()
     elseif state == "boss_deity" then
@@ -5608,6 +6214,8 @@ function love.draw()
         drawTreasureState()
     elseif state == "gameover" then
         drawGameOverState()
+    elseif state == "victory" then
+        drawVictoryState()
     end
 
     if isDeckViewerOpen then
@@ -5658,6 +6266,46 @@ function love.draw()
             local tw = UI.fonts.medium:getWidth(cleanStr)
             love.graphics.print(cleanStr, ft.x - tw / 2, ft.y)
         end
+    end
+
+    -- Dragged Deity floating on top with shadow & glowing border
+    if deityDrag.active and deityDrag.isDragging and game.deities and game.deities[deityDrag.deityIndex] then
+        local d = game.deities[deityDrag.deityIndex]
+        local dw = deityDrag.cardW or 105
+        local dh = deityDrag.cardH or 82
+        local dx = deityDrag.visualX
+        local dy = deityDrag.visualY
+
+        love.graphics.push()
+        love.graphics.translate(dx + dw / 2, dy + dh / 2)
+        love.graphics.scale(1.15, 1.15)
+        love.graphics.translate(-dw / 2, -dh / 2)
+
+        -- Elevation drop shadow
+        love.graphics.setColor(0, 0, 0, 0.45)
+        UI.drawRoundedRect("fill", 6, 8, dw, dh, 8)
+
+        -- Card Body
+        love.graphics.setColor(0.18, 0.22, 0.28, 0.98)
+        UI.drawRoundedRect("fill", 0, 0, dw, dh, 6)
+
+        -- Glowing border
+        love.graphics.setColor(UI.COLORS.goldYellow)
+        love.graphics.setLineWidth(2.5)
+        UI.drawRoundedRect("line", 0, 0, dw, dh, 6)
+
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf(d.name, 4, 8, dw - 8, "center")
+
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(UI.COLORS.goldYellow)
+        love.graphics.printf("ĐANG SẮP XẾP", 4, 34, dw - 8, "center")
+
+        love.graphics.setColor(UI.COLORS.textMuted)
+        love.graphics.printf("Thả vào ô bất kỳ", 4, 52, dw - 8, "center")
+
+        love.graphics.pop()
     end
 
     love.graphics.pop()
@@ -6020,6 +6668,46 @@ function love.mousepressed(x, y, button)
             return
         end
 
+    elseif state == "BLIND_SELECT" then
+        for _, btn in ipairs(buttons) do
+            if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+                if btn.id == "fight_blind" then
+                    local blind = RunManager.getCurrentBlind(game.run)
+                    if blind and blind.status == "current" then
+                        startBlindCombat(blind)
+                        return
+                    end
+                elseif btn.id == "skip_blind" then
+                    local blind = RunManager.getCurrentBlind(game.run)
+                    if blind and blind.canSkip and blind.status == "current" then
+                        local ok, msg, tag = RunManager.skipCurrentBlind(game.run, game)
+                        if ok then
+                            local breakdown = RewardSystem.calculate(blind, game, true)
+                            game.gold = (game.gold or 0) + breakdown.totalGold
+                            cashOutAnim = RewardSystem.newAnimation(breakdown)
+                            state = "CASH_OUT"
+                            lastActiveState = "CASH_OUT"
+                            Sound.play("coin")
+                            return
+                        end
+                    end
+                elseif btn.id == "open_handbook" then
+                    isHandbookOpen = true
+                    Sound.play("ui_click")
+                    return
+                elseif btn.id == "open_deck_viewer" then
+                    isDeckViewerOpen = true
+                    Sound.play("card_deal")
+                    return
+                elseif btn.id == "open_options" then
+                    isPauseMenuOpen = true
+                    Sound.play("ui_click")
+                    return
+                end
+            end
+        end
+        return
+
     elseif state == "map" then
         -- Handle clicks on Encounter / Skip Blind modal if open
         if pendingCombatNode then
@@ -6165,6 +6853,29 @@ function love.mousepressed(x, y, button)
             end
         end
 
+        -- Check Deity Slots in Top Bar for Drag & Drop Reordering
+        for i = 1, 5 do
+            local dx, dy, dw, dh = getDeitySlotRect(i, "playing")
+            if mx >= dx and mx <= dx + dw and my >= dy and my <= dy + dh then
+                if game.deities and game.deities[i] then
+                    deityDrag.active = true
+                    deityDrag.isDragging = false
+                    deityDrag.deityIndex = i
+                    deityDrag.startX = mx
+                    deityDrag.startY = my
+                    deityDrag.currentX = mx
+                    deityDrag.currentY = my
+                    deityDrag.cardW = dw
+                    deityDrag.cardH = dh
+                    deityDrag.offsetX = dx - mx
+                    deityDrag.offsetY = dy - my
+                    deityDrag.visualX = dx
+                    deityDrag.visualY = dy
+                    return
+                end
+            end
+        end
+
         for i = #game.hand, 1, -1 do
             local c = game.hand[i]
             local cx = c.visualX or 0
@@ -6189,6 +6900,30 @@ function love.mousepressed(x, y, button)
     elseif state == "scoring" then
         -- Fast-forward scoring step on click
         anim.stepTimer = 999
+        return
+
+    elseif state == "CASH_OUT" then
+        if cashOutAnim then
+            if not cashOutAnim.finished then
+                RewardSystem.finishImmediately(cashOutAnim)
+                Sound.play("shop_buy")
+                return
+            else
+                for _, btn in ipairs(buttons) do
+                    if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+                        if btn.id == "cashout_continue" then
+                            if not shopData then shopData = Shop.new() end
+                            Shop.resetReroll(shopData)
+                            Shop.refresh(shopData, game)
+                            state = "shop"
+                            lastActiveState = "shop"
+                            Sound.play("card_deal")
+                            return
+                        end
+                    end
+                end
+            end
+        end
         return
 
     elseif state == "event" then
@@ -6577,6 +7312,19 @@ function love.mousepressed(x, y, button)
                     Sound.play("ui_click")
                     return
                 elseif btn.id == "leave_shop" or btn.id == "next_round" then
+                    if game.run then
+                        local continues, reason = RunManager.advanceAfterShop(game.run, game)
+                        if not continues and reason == "victory" then
+                            state = "victory"
+                            lastActiveState = "victory"
+                            Sound.play("round_win")
+                        else
+                            state = "BLIND_SELECT"
+                            lastActiveState = "BLIND_SELECT"
+                            Sound.play("card_deal")
+                        end
+                        return
+                    end
                     if game.currentNodeId and game.map then
                         Map.onNodeCompleted(game.map, game.currentNodeId)
                     end
@@ -6591,6 +7339,18 @@ function love.mousepressed(x, y, button)
         for _, btn in ipairs(buttons) do
             if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
                 if btn.id == "retry" then
+                    state = "menu"
+                    menuMode = "title"
+                    hasRunStarted = false
+                    return
+                end
+            end
+        end
+
+    elseif state == "victory" then
+        for _, btn in ipairs(buttons) do
+            if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+                if btn.id == "victory_menu" then
                     state = "menu"
                     menuMode = "title"
                     hasRunStarted = false
@@ -6691,6 +7451,27 @@ function love.keypressed(key)
         if key == "space" or key == "return" then
             anim.stepTimer = 999
         end
+    elseif state == "CASH_OUT" then
+        if key == "space" or key == "return" then
+            if cashOutAnim and not cashOutAnim.finished then
+                RewardSystem.finishImmediately(cashOutAnim)
+                Sound.play("shop_buy")
+            elseif cashOutAnim and cashOutAnim.finished then
+                if not shopData then shopData = Shop.new() end
+                Shop.resetReroll(shopData)
+                Shop.refresh(shopData, game)
+                state = "shop"
+                lastActiveState = "shop"
+                Sound.play("card_deal")
+            end
+        end
+    elseif state == "BLIND_SELECT" then
+        if key == "space" or key == "return" then
+            local blind = RunManager.getCurrentBlind(game.run)
+            if blind and blind.status == "current" then
+                startBlindCombat(blind)
+            end
+        end
     end
 end
 
@@ -6727,23 +7508,32 @@ function love.mousemoved(x, y, dx, dy)
         if handDrag.isDragging then
             local idx = handDrag.cardIndex
             local c = game.hand[idx]
-            if c then
+            local isAxiomSpade = c and (c.suit == "spades" or c.suit == "vharos" or c.suit == "iron_axiom")
+            if c and not isAxiomSpade then
                 -- Check left neighbor
                 if idx > 1 then
-                    local prevSlotX = getHandCardPosition(idx - 1, #game.hand)
-                    if c.visualX < prevSlotX + 35 then
-                        game.hand[idx], game.hand[idx - 1] = game.hand[idx - 1], game.hand[idx]
-                        handDrag.cardIndex = idx - 1
-                        Sound.play("card_slide")
+                    local leftCard = game.hand[idx - 1]
+                    local isLeftAxiom = leftCard and (leftCard.suit == "spades" or leftCard.suit == "vharos" or leftCard.suit == "iron_axiom")
+                    if not isLeftAxiom then
+                        local prevSlotX = getHandCardPosition(idx - 1, #game.hand)
+                        if c.visualX < prevSlotX + 35 then
+                            game.hand[idx], game.hand[idx - 1] = game.hand[idx - 1], game.hand[idx]
+                            handDrag.cardIndex = idx - 1
+                            Sound.play("card_slide")
+                        end
                     end
                 end
                 -- Check right neighbor
                 if idx < #game.hand then
-                    local nextSlotX = getHandCardPosition(idx + 1, #game.hand)
-                    if c.visualX > nextSlotX - 35 then
-                        game.hand[idx], game.hand[idx + 1] = game.hand[idx + 1], game.hand[idx]
-                        handDrag.cardIndex = idx + 1
-                        Sound.play("card_slide")
+                    local rightCard = game.hand[idx + 1]
+                    local isRightAxiom = rightCard and (rightCard.suit == "spades" or rightCard.suit == "vharos" or rightCard.suit == "iron_axiom")
+                    if not isRightAxiom then
+                        local nextSlotX = getHandCardPosition(idx + 1, #game.hand)
+                        if c.visualX > nextSlotX - 35 then
+                            game.hand[idx], game.hand[idx + 1] = game.hand[idx + 1], game.hand[idx]
+                            handDrag.cardIndex = idx + 1
+                            Sound.play("card_slide")
+                        end
                     end
                 end
             end
@@ -6759,37 +7549,15 @@ function love.mousemoved(x, y, dx, dy)
         end
     end
 
-    if deityDrag.active and state == "shop" then
+    if deityDrag.active then
         deityDrag.currentX = mx
         deityDrag.currentY = my
         local dist = math.sqrt((mx - deityDrag.startX)^2 + (my - deityDrag.startY)^2)
-        if dist > 6 then
+        if dist > 5 then
             deityDrag.isDragging = true
-            local deiSlotW = 98
-            local deiGap = 10
-            local deiStartX = 295
-            local dIdx = deityDrag.deityIndex
-            if dIdx and game.deities then
-                -- Check left neighbor
-                if dIdx > 1 then
-                    local prevSlotX = deiStartX + (dIdx - 2) * (deiSlotW + deiGap)
-                    if mx < prevSlotX + deiSlotW * 0.6 then
-                        game.deities[dIdx], game.deities[dIdx - 1] = game.deities[dIdx - 1], game.deities[dIdx]
-                        deityDrag.deityIndex = dIdx - 1
-                        Sound.play("card_slide")
-                    end
-                end
-                -- Check right neighbor
-                if dIdx < #game.deities then
-                    local nextSlotX = deiStartX + dIdx * (deiSlotW + deiGap)
-                    if mx > nextSlotX + deiSlotW * 0.4 then
-                        game.deities[dIdx], game.deities[dIdx + 1] = game.deities[dIdx + 1], game.deities[dIdx]
-                        deityDrag.deityIndex = dIdx + 1
-                        Sound.play("card_slide")
-                    end
-                end
-            end
         end
+        deityDrag.visualX = mx + (deityDrag.offsetX or 0)
+        deityDrag.visualY = my + (deityDrag.offsetY or 0)
     end
 end
 
@@ -6857,8 +7625,35 @@ function love.mousereleased(x, y, button)
     end
 
     if button == 1 and deityDrag.active then
-        if deityDrag.isDragging then
-            Sound.play("card_slide")
+        if deityDrag.isDragging and deityDrag.deityIndex and game.deities then
+            local srcSlot = deityDrag.deityIndex
+            local foundDest = nil
+            for i = 1, 5 do
+                local sx, sy, sw, sh = getDeitySlotRect(i, state)
+                if mx >= sx - 10 and mx <= sx + sw + 10 and my >= sy - 10 and my <= sy + sh + 10 then
+                    foundDest = i
+                    break
+                end
+            end
+            if foundDest and foundDest ~= srcSlot then
+                local temp = game.deities[srcSlot]
+                game.deities[srcSlot] = game.deities[foundDest]
+                game.deities[foundDest] = temp
+                Sound.play("card_slide")
+                if not anim.deityBounce then anim.deityBounce = {} end
+                anim.deityBounce[foundDest] = 1.40
+                anim.deityBounce[srcSlot] = 1.25
+                local targetName = game.deities[foundDest] and game.deities[foundDest].name or "Thần"
+                table.insert(anim.floatingTexts, {
+                    text = "Đã xếp " .. targetName .. " vào Ô " .. foundDest .. "!",
+                    color = UI.COLORS.goldYellow,
+                    x = mx,
+                    y = my - 25,
+                    alpha = 1.5,
+                })
+            else
+                Sound.play("card_deselect")
+            end
         end
         deityDrag.active = false
         deityDrag.isDragging = false

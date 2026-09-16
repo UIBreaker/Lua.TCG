@@ -392,14 +392,36 @@ Deities.CATALOG = {
     },
 }
 
+function Deities.getCount(deities)
+    if not deities then return 0 end
+    local count = 0
+    for i = 1, 5 do
+        if deities[i] ~= nil then
+            count = count + 1
+        end
+    end
+    for k, v in pairs(deities) do
+        if type(k) == "number" and (k < 1 or k > 5) and v ~= nil then
+            count = count + 1
+        end
+    end
+    return count
+end
+
 function Deities.resolveDeity(deities, index)
     if not deities or not deities[index] then return nil end
     local current = deities[index]
     if not current.isCopyDeity then return current end
 
-    -- Blueprint logic: copy first valid non-copy deity to the right
+    -- Blueprint logic: copy first valid non-copy deity to the right (checking slots up to 5)
+    local maxLimit = 5
+    for k in pairs(deities) do
+        if type(k) == "number" and k > maxLimit then
+            maxLimit = k
+        end
+    end
     local targetIdx = index + 1
-    while targetIdx <= #deities do
+    while targetIdx <= maxLimit do
         local candidate = deities[targetIdx]
         if candidate and not candidate.isCopyDeity then
             return candidate
@@ -425,8 +447,14 @@ end
 function Deities.getRandomShopPool(ownedDeities, count, gameState)
     local pool = {}
     local ownedIds = {}
-    for _, d in ipairs(ownedDeities or {}) do
-        ownedIds[d.id] = true
+    if ownedDeities then
+        for i = 1, 5 do
+            local d = ownedDeities[i]
+            if d and d.id then ownedIds[d.id] = true end
+        end
+        for _, d in pairs(ownedDeities) do
+            if type(d) == "table" and d.id then ownedIds[d.id] = true end
+        end
     end
 
     local candidates = {}
@@ -462,8 +490,14 @@ function Deities.getBossDraftPool(ownedDeities, count)
     count = count or 2
     local pool = {}
     local ownedIds = {}
-    for _, d in ipairs(ownedDeities or {}) do
-        ownedIds[d.id] = true
+    if ownedDeities then
+        for i = 1, 5 do
+            local d = ownedDeities[i]
+            if d and d.id then ownedIds[d.id] = true end
+        end
+        for _, d in pairs(ownedDeities) do
+            if type(d) == "table" and d.id then ownedIds[d.id] = true end
+        end
     end
 
     local candidates = {}
@@ -485,18 +519,30 @@ function Deities.getBossDraftPool(ownedDeities, count)
     return pool
 end
 
-function Deities.addDeity(gameState, deity)
+function Deities.addDeity(gameState, deity, preferredSlot)
     if not gameState.deities then
         gameState.deities = {}
     end
-    if #gameState.deities < 5 then
-        -- Clone deity so instance state (such as currentMult or extinct) is isolated
-        local instance = {}
-        for k, v in pairs(deity) do
-            instance[k] = v
-        end
-        table.insert(gameState.deities, instance)
+    local count = Deities.getCount(gameState.deities)
+    if count >= 5 then
+        return false
+    end
+    -- Clone deity so instance state (such as currentMult or extinct) is isolated
+    local instance = {}
+    for k, v in pairs(deity) do
+        instance[k] = v
+    end
+
+    if preferredSlot and preferredSlot >= 1 and preferredSlot <= 5 and gameState.deities[preferredSlot] == nil then
+        gameState.deities[preferredSlot] = instance
         return true
+    end
+
+    for i = 1, 5 do
+        if gameState.deities[i] == nil then
+            gameState.deities[i] = instance
+            return true
+        end
     end
     return false
 end

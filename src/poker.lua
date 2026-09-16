@@ -99,47 +99,92 @@ Poker.SKILL_BOOKS = {
     },
 }
 
--- Check if 5 sorted ranks form a straight
-local function checkStraight(sortedCards)
-    if #sortedCards ~= 5 then return false end
-    
-    -- Check regular straight (e.g. 14, 13, 12, 11, 10 or 9, 8, 7, 6, 5)
-    local isRegular = true
-    for i = 1, 4 do
-        if sortedCards[i].rank - sortedCards[i + 1].rank ~= 1 then
-            isRegular = false
-            break
+-- Helper to check if hand contains Queen of Clubs (Tổ Mẫu Đồng Hóa)
+local function hasQueenOfClubs(cards)
+    for _, c in ipairs(cards or {}) do
+        if c.rank == 12 and (c.suit == "elaris" or c.suit == "clubs") then
+            return true
         end
     end
-    if isRegular then return true end
+    return false
+end
 
-    -- Check Ace-low straight: A, 5, 4, 3, 2 (ranks: 14, 5, 4, 3, 2 or 5, 4, 3, 2, 1)
-    if (sortedCards[1].rank == 14 and
-        sortedCards[2].rank == 5 and
-        sortedCards[3].rank == 4 and
-        sortedCards[4].rank == 3 and
-        sortedCards[5].rank == 2) or
-       (sortedCards[1].rank == 5 and
-        sortedCards[2].rank == 4 and
-        sortedCards[3].rank == 3 and
-        sortedCards[4].rank == 2 and
-        sortedCards[5].rank == 1) then
-        return true
+-- Check if sorted ranks form a straight (5 cards normally, 4 cards if Queen of Clubs present)
+local function checkStraight(sortedCards)
+    local len = #sortedCards
+    local minRequired = hasQueenOfClubs(sortedCards) and 4 or 5
+    if len < minRequired then return false end
+
+    -- Extract unique ranks descending
+    local uniqueRanks = {}
+    for _, c in ipairs(sortedCards) do
+        if #uniqueRanks == 0 or uniqueRanks[#uniqueRanks] ~= c.rank then
+            table.insert(uniqueRanks, c.rank)
+        end
+    end
+    if #uniqueRanks < minRequired then return false end
+
+    -- Check regular consecutive sequences of length minRequired
+    for startIdx = 1, #uniqueRanks - minRequired + 1 do
+        local ok = true
+        for j = startIdx, startIdx + minRequired - 2 do
+            if uniqueRanks[j] - uniqueRanks[j + 1] ~= 1 then
+                ok = false
+                break
+            end
+        end
+        if ok then return true end
+    end
+
+    -- Check Ace-low straight
+    local hasAce = (uniqueRanks[1] == 14)
+    if hasAce then
+        if minRequired == 4 then
+            local r4, r3, r2 = false, false, false
+            for _, r in ipairs(uniqueRanks) do
+                if r == 4 then r4 = true
+                elseif r == 3 then r3 = true
+                elseif r == 2 then r2 = true end
+            end
+            if r4 and r3 and r2 then return true end
+        elseif minRequired == 5 then
+            local r5, r4, r3, r2 = false, false, false, false
+            for _, r in ipairs(uniqueRanks) do
+                if r == 5 then r5 = true
+                elseif r == 4 then r4 = true
+                elseif r == 3 then r3 = true
+                elseif r == 2 then r2 = true end
+            end
+            if r5 and r4 and r3 and r2 then return true end
+        end
     end
 
     return false
 end
 
--- Check if 5 cards have the same suit
+-- Check if cards have the same suit (5 cards normally, 4 cards if Queen of Clubs present, A Clubs is wild)
 local function checkFlush(cards)
-    if #cards ~= 5 then return false end
-    local suit = cards[1].suit
-    for i = 2, #cards do
-        if cards[i].suit ~= suit then
-            return false
+    local minRequired = hasQueenOfClubs(cards) and 4 or 5
+    if #cards < minRequired then return false end
+
+    local suitCounts = {}
+    local wildCount = 0
+    for _, c in ipairs(cards) do
+        local isWild = c.isWildSuit or ((c.rank == 1 or c.rank == 14) and (c.suit == "elaris" or c.suit == "clubs"))
+        if isWild then
+            wildCount = wildCount + 1
+        else
+            suitCounts[c.suit] = (suitCounts[c.suit] or 0) + 1
         end
     end
-    return true
+
+    if wildCount >= minRequired then return true end
+    for suit, count in pairs(suitCounts) do
+        if count + wildCount >= minRequired then
+            return true
+        end
+    end
+    return false
 end
 
 local function getUnscoredCards(allCards, scoringCards)

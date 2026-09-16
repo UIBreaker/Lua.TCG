@@ -3,58 +3,74 @@ local Deck = {}
 Deck.FACTIONS = {
     aurelia = {
         id = "aurelia",
-        name = "Aurelia",
-        fullName = "Aurelia — Phe Ánh Sáng",
-        vnName = "Ánh Sáng",
+        alias = "diamonds",
+        name = "Trật Tự Hoàng Kim",
+        title = "TRẬT TỰ HOÀNG KIM",
+        fullName = "Trật Tự Hoàng Kim (The Gilded Conclave)",
+        vnName = "Hoàng Kim",
         symbol = "♦",
         color = { 1.0, 0.82, 0.22, 1 },
         icon = "♦",
-        passive1 = "Hào Quang Thánh Thiện: Đòn đánh chứa thẻ Aurelia nhận x1.15 XMult.",
-        passive2 = "Kỷ Luật Thần Thánh: Bài hình (J, Q, K) cố định điểm, miễn nhiễm debuff quái vật.",
+        archetype = "Tài Phiệt, Khai Thác 5 Ô Khảm & Lãi Suất Vận Mệnh",
+        passive1 = "Kim Ngân & Lãi Vô Tận: Mỗi lá Rô ghi điểm +$1 Vàng. Lãi suất +$1 cho mỗi $4 không giới hạn trần.",
+        passive2 = "Khảm Nén Quặng: Mở sẵn 2/5 ô khảm khi nhặt, toàn bộ Ngọc Khảm tăng +50% uy lực.",
     },
     elaris = {
         id = "elaris",
-        name = "Elaris",
-        fullName = "Elaris — Phe Thiên Nhiên",
-        vnName = "Thiên Nhiên",
+        alias = "clubs",
+        name = "Bầy Nguyên Sinh",
+        title = "BẦY NGUYÊN SINH",
+        fullName = "Bầy Nguyên Sinh (The Feral Swarm)",
+        vnName = "Nguyên Sinh",
         symbol = "♣",
         color = { 0.22, 0.82, 0.42, 1 },
         icon = "♣",
-        passive1 = "Sức Sống Rừng Già: Giới hạn giữ bài trên tay +1 (9 lá) & tái chế Chiến Binh khi đổi bài.",
-        passive2 = "Lộc Biếc Đâm Chồi: Thắng trận không mất quá nửa lượt đánh giúp nâng cấp/phục hồi 1 lá bài.",
+        archetype = "Ký Sinh Tiến Hóa, Tuần Hoàn Bộ Bài & Đột Biến Rank",
+        passive1 = "Bầy Đàn & Tuần Hoàn: Khởi đầu với 9 lá trên tay. Lá Chuồn khi Discard chui thẳng về đáy Cọc Rút.",
+        passive2 = "Tiến Hóa Nuốt Chửng: Chiến Binh Chuồn kết liễu quái vật tiến hóa vĩnh viễn +1 Rank (Rank 10 -> Chân Rết 50c/5m).",
     },
     vharos = {
         id = "vharos",
-        name = "Vharos",
-        fullName = "Vharos — Phe Hắc Ám",
-        vnName = "Hắc Ám",
+        alias = "spades",
+        name = "Thiết Quân Thứ",
+        title = "THIẾT QUÂN THỨ",
+        fullName = "Thiết Quân Thứ (The Iron Axiom)",
+        vnName = "Thiết Quân Thứ",
         symbol = "♠",
-        color = { 0.92, 0.25, 0.35, 1 },
+        color = { 0.88, 0.25, 0.35, 1 },
         icon = "♠",
-        passive1 = "Hơi Thở Ma Quỷ: Thẻ Vharos khi xuất trận cộng trực tiếp +40 Chips.",
-        passive2 = "Huyết Tế Bóng Đêm: Khi Chiến Binh (2-10) bị hy sinh/tiêu hủy, gây sát thương chuẩn bằng số của lá đó.",
+        archetype = "Định luật Bất Biến & Lũy Tiến Chips Cơ Học",
+        passive1 = "Định Luật Bất Biến: Lá Bích tự động xếp theo Rank từ bé đến lớn. Miễn nhiễm 100% debuff Boss.",
+        passive2 = "Chỉ Số Thép & Quân Lực: Mỗi lá Bích ghi điểm +20 Chips. Rank tăng dần thưởng +(ΔRank × 10) Chips.",
     },
     valoria = {
         id = "valoria",
-        name = "Valoria",
-        fullName = "Valoria — Phe Nhân Loại",
-        vnName = "Nhân Loại",
+        alias = "hearts",
+        name = "Giáo Hội Huyết Ước",
+        title = "GIÁO HỘI HUYẾT ƯỚC",
+        fullName = "Giáo Hội Huyết Ước (The Sanguine Covenant)",
+        vnName = "Huyết Ước",
         symbol = "♥",
-        color = { 0.35, 0.65, 0.95, 1 },
+        color = { 0.95, 0.25, 0.35, 1 },
         icon = "♥",
-        passive1 = "Chiến Thuật Hành Quân: Nhận thêm +1 Lượt Đổi Bài (Discard) miễn phí mỗi trận.",
-        passive2 = "Hậu Cần Quân Khí: Tiêu diệt quái vật bằng đội hình Valoria tăng +25% vàng thu thập.",
+        archetype = "Tử Đạo, Chuyển Hóa Máu & Bùng Nổ Mult Siêu Cấp",
+        passive1 = "Huyết Tế Discard: Đổi bài Chiến Binh Cơ (2-10) gây Sát thương Chuẩn = Rank trực tiếp vào Boss.",
+        passive2 = "Dấu Ấn Tử Đạo: Mỗi lá Cơ bị Discard tích 1 Huyết Ấn (max 5), tay bài sau nhận +8 Mult và +0.15 XMult mỗi tầng.",
     },
 }
 
 -- Backward compatibility aliases
 Deck.SUITS = Deck.FACTIONS
-Deck.SUITS.hearts   = Deck.FACTIONS.aurelia
-Deck.SUITS.diamonds = Deck.FACTIONS.valoria
-Deck.SUITS.clubs    = Deck.FACTIONS.elaris
-Deck.SUITS.spades   = Deck.FACTIONS.vharos
+Deck.SUITS.hearts             = Deck.FACTIONS.valoria
+Deck.SUITS.sanguine_covenant  = Deck.FACTIONS.valoria
+Deck.SUITS.diamonds           = Deck.FACTIONS.aurelia
+Deck.SUITS.gilded_conclave    = Deck.FACTIONS.aurelia
+Deck.SUITS.clubs              = Deck.FACTIONS.elaris
+Deck.SUITS.feral_swarm        = Deck.FACTIONS.elaris
+Deck.SUITS.spades             = Deck.FACTIONS.vharos
+Deck.SUITS.iron_axiom         = Deck.FACTIONS.vharos
 
-Deck.FACTION_ORDER = { "aurelia", "elaris", "vharos", "valoria" }
+Deck.FACTION_ORDER = { "vharos", "valoria", "aurelia", "elaris" }
 Deck.SUIT_ORDER = Deck.FACTION_ORDER
 
 Deck.RANK_NAMES = {
@@ -135,6 +151,10 @@ function Deck.newCard(rank, suit)
     local actualSuit = suitInfo.id
     local role = Deck.getCardRole(rank)
 
+    local isDiamond = (actualSuit == "aurelia" or actualSuit == "diamonds")
+    local isAceOfClubs = ((rank == 1 or rank == 14) and (actualSuit == "elaris" or actualSuit == "clubs"))
+    local isAceOfSpades = ((rank == 1 or rank == 14) and (actualSuit == "vharos" or actualSuit == "spades"))
+
     local card = {
         id = nextCardId,
         rank = rank,
@@ -151,6 +171,11 @@ function Deck.newCard(rank, suit)
         roleIcon = role.icon,
         roleDesc = role.desc,
         equipments = {}, -- Up to 5 equipment slots
+        maxSockets = 5,
+        unlockedSockets = isDiamond and 2 or 1, -- Gilded Conclave opens 2 sockets by default
+        isWildSuit = isAceOfClubs,
+        isDualRankAce = isAceOfSpades,
+        isPrimalDrone = false,
         -- Visual properties
         x = 0,
         y = 0,
@@ -200,7 +225,7 @@ function Deck.degradeCard(card)
     elseif card.rank == 1 then
         return "destroyed"
     end
-    return "degraded"
+    return "intact"
 end
 
 -- Upgrade card rank by 1 (used in Rest Site / Forge to restore durability)
@@ -218,15 +243,24 @@ function Deck.upgradeCard(card)
     return card
 end
 
--- Restore all cards in a deck back to their persistent baseRank
+-- Reset any in-combat stat modifications back to master card stats
 function Deck.restoreDeck(deck)
+    if not deck then return end
     for _, card in ipairs(deck) do
         local bRank = card.baseRank or card.rank
         card.rank = bRank
         card.rankName = Deck.RANK_NAMES[card.rank] or tostring(card.rank)
-        card.baseChips = Deck.getChipValue(card.rank)
+        if card.isPrimalDrone then
+            card.baseChips = 50
+            card.baseMult = 5
+            card.roleTitle = "Chân Rết Nguyên Thủy"
+            card.roleIcon = "🐛"
+        else
+            card.baseChips = (card.bonusBaseChips or 0) + Deck.getChipValue(card.rank)
+        end
         card.selected = false
         card.hovered = false
+        card.faceDown = false
     end
     return deck
 end
@@ -238,7 +272,8 @@ function Deck.cloneCard(card)
     newC.baseRank = card.baseRank or card.rank
     newC.rank = newC.baseRank
     newC.rankName = Deck.RANK_NAMES[newC.rank] or tostring(newC.rank)
-    newC.baseChips = Deck.getChipValue(newC.rank)
+    newC.baseChips = card.baseChips or Deck.getChipValue(newC.rank)
+    newC.bonusBaseChips = card.bonusBaseChips or 0
     newC.role = card.role or newC.role
     newC.roleName = card.roleName or newC.roleName
     newC.roleTitle = card.roleTitle or newC.roleTitle
@@ -246,6 +281,12 @@ function Deck.cloneCard(card)
     newC.roleDesc = card.roleDesc or newC.roleDesc
     newC.selected = false
     newC.hovered = false
+    newC.faceDown = card.faceDown or false
+    newC.isPrimalDrone = card.isPrimalDrone or false
+    newC.isWildSuit = card.isWildSuit or false
+    newC.isDualRankAce = card.isDualRankAce or false
+    newC.unlockedSockets = card.unlockedSockets or newC.unlockedSockets
+    newC.maxSockets = card.maxSockets or 5
     newC.equipments = {}
     if card.equipments then
         for _, eq in ipairs(card.equipments) do
@@ -255,6 +296,57 @@ function Deck.cloneCard(card)
         end
     end
     return newC
+end
+
+-- A♦ & K♣: Devour card mechanic
+function Deck.devourCard(targetCard, sacrificedCard, gameState)
+    if not targetCard or not sacrificedCard then return false, "Chưa chọn đủ lá bài!" end
+    if targetCard.id == sacrificedCard.id then return false, "Không thể tự nuốt chính mình!" end
+
+    -- A♦ (Lõi Vàng Thủy Tổ): Devour soldier card (2-10) to permanently gain +15 base chips
+    local isAceOfDiamonds = (targetCard.rank == 1 or targetCard.rank == 14) and (targetCard.suit == "aurelia" or targetCard.suit == "diamonds")
+    local isKingOfClubs = (targetCard.rank == 13) and (targetCard.suit == "elaris" or targetCard.suit == "clubs")
+
+    if isAceOfDiamonds then
+        if sacrificedCard.rank < 2 or sacrificedCard.rank > 10 then
+            return false, "Lõi Vàng Thủy Tổ chỉ có thể khảm nuốt lá bài Chiến Binh (2-10)!"
+        end
+        targetCard.bonusBaseChips = (targetCard.bonusBaseChips or 0) + 15
+        targetCard.baseChips = (targetCard.baseChips or Deck.getChipValue(targetCard.rank)) + 15
+        
+        -- Remove sacrificedCard from persistent deck
+        if gameState and gameState.persistentDeck then
+            for idx, c in ipairs(gameState.persistentDeck) do
+                if c.id == sacrificedCard.id then
+                    table.remove(gameState.persistentDeck, idx)
+                    break
+                end
+            end
+        end
+        return true, "Lõi Vàng Thủy Tổ đã nuốt lá " .. sacrificedCard.rankName .. sacrificedCard.suitSymbol .. " (+15 Chips vĩnh viễn)!"
+
+    elseif isKingOfClubs then
+        -- K♣ (Chúa Tể Bầy Sâu): Devours an off-faction card to heal +20 HP or gain +2 Discards
+        local isOffFaction = (sacrificedCard.suit ~= "elaris" and sacrificedCard.suit ~= "clubs")
+        if not isOffFaction then
+            return false, "Chúa Tể Bầy Sâu chỉ ăn thịt lá bài của phe phái khác!"
+        end
+        if gameState then
+            gameState.playerHp = math.min(gameState.maxPlayerHp or 100, (gameState.playerHp or 100) + 20)
+            gameState.discardsRemaining = (gameState.discardsRemaining or 3) + 2
+            if gameState.persistentDeck then
+                for idx, c in ipairs(gameState.persistentDeck) do
+                    if c.id == sacrificedCard.id then
+                        table.remove(gameState.persistentDeck, idx)
+                        break
+                    end
+                end
+            end
+        end
+        return true, "Chúa Tể Bầy Sâu đã ăn thịt lá " .. sacrificedCard.rankName .. sacrificedCard.suitSymbol .. " (+20 HP & +2 Discard)!"
+    end
+
+    return false, "Lá bài này không có khả năng nuốt chửng!"
 end
 
 -- Safely add a card to player's persistent deck without duplicating

@@ -331,6 +331,12 @@ function Shop.skipPack(shop)
 end
 
 function Shop.reroll(shop, gameState)
+    if gameState and (gameState.freeRerolls or 0) > 0 then
+        gameState.freeRerolls = gameState.freeRerolls - 1
+        Shop.refresh(shop, gameState)
+        Sound.play("shop_reroll")
+        return true
+    end
     local cost = shop.rerollCost or 5
     if (gameState.gold or 0) < cost then
         Sound.play("cant_afford")
@@ -348,7 +354,7 @@ function Shop.sellDeity(gameState, deityIndex)
     if not d then return false end
     local sellPrice = math.max(1, math.floor((d.cost or 4) / 2))
     gameState.gold = (gameState.gold or 0) + sellPrice
-    table.remove(gameState.deities, deityIndex)
+    gameState.deities[deityIndex] = nil
     Sound.play("chip_tick")
     return true
 end
