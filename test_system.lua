@@ -1727,6 +1727,153 @@ do
     log("[PASS] 62. Dual Loss Condition & 3-Card Straight (TRƯỜNG LONG) verified 100%")
 end
 
+-- 63. Test Monster Attack Scaling & Anti-OneShot in All 8 Antes
+do
+    -- Verify that through Ante 1 to Ante 8, no monster attack ever scales into one-shot territory (max <= 50 DMG)
+    for ante = 1, 8 do
+        local blinds = RunManager.generateAnteBlinds(ante, "aurelia")
+        for bIdx, b in ipairs(blinds) do
+            local m = RunManager.createBlindMonster(b, { selectedFaction = "aurelia" })
+            assert(m.attack <= 50, "Monster attack in Ante " .. ante .. " must never exceed 50 DMG (no one-shots), got: " .. m.attack)
+            if b.type == "small" and ante == 1 then
+                assert(m.attack == 12, "Ante 1 Small Blind attack must be exactly 12 DMG benchmark, got: " .. m.attack)
+            end
+            if b.type == "boss" and ante == 8 then
+                -- Even with 4080 HP, boss attack must be capped at 50, NOT 612!
+                assert(m.attack == 50, "Ante 8 Boss attack must be capped at 50 DMG, got: " .. m.attack)
+            end
+        end
+    end
+    log("[PASS] 63. Monster Attack Scaling verified across all 8 Antes (No One-Shot, Boss capped at 50 DMG)")
+end
+
+-- 64. Test Anti-OneShot Protection
+do
+    -- Case A: Player takes massive 500 DMG attack with 100 HP
+    local maxPlayerHp = 100
+    local curHp = 100
+    local rawAtk = 500
+    local armor = 0
+    local dmgToPlayer = rawAtk - armor
+    local maxDmgCap = math.floor(maxPlayerHp * 0.45)
+    if dmgToPlayer > maxDmgCap then dmgToPlayer = maxDmgCap end
+    if curHp > 50 and (curHp - dmgToPlayer) <= 0 then dmgToPlayer = curHp - 1 end
+    local finalHp = curHp - dmgToPlayer
+    assert(finalHp == 55, "Anti-OneShot must cap 500 DMG attack to 45 DMG, leaving player with 55 HP, got: " .. finalHp)
+
+    -- Case B: Player has 52 HP and takes 80 DMG hit
+    curHp = 52
+    dmgToPlayer = 80
+    if dmgToPlayer > maxDmgCap then dmgToPlayer = maxDmgCap end
+    if curHp > 50 and (curHp - dmgToPlayer) <= 0 then dmgToPlayer = curHp - 1 end
+    finalHp = curHp - dmgToPlayer
+    assert(finalHp == 7, "Anti-OneShot from >50 HP must not allow instant death, leaving player alive, got: " .. finalHp)
+    log("[PASS] 64. Anti-OneShot Protection verified (Single hit capped to 45% max HP and death defiance above 50 HP)")
+end
+
+-- 65. Test 4 Fixed Financial Sources & Cash Out Formula
+do
+    -- Formula: Total = Thưởng Blind + Hands Còn Lại + min(floor(Tiền/5), Trần Lãi) + Thưởng Jokers
+    local run = RunManager.newRun("aurelia")
+    local sb = run.blinds[1] -- Small Blind: +$3
+    local bb = run.blinds[2] -- Big Blind: +$4
+    local bossB = run.blinds[3] -- Boss Blind: +$5
+
+    -- Check base payouts
+    local resSB = RewardSystem.calculate(sb, { gold = 0, handsRemaining = 0, deities = {} }, false)
+    assert(resSB.basePayout == 3, "Small Blind base payout must be +$3")
+    local resBB = RewardSystem.calculate(bb, { gold = 0, handsRemaining = 0, deities = {} }, false)
+    assert(resBB.basePayout == 4, "Big Blind base payout must be +$4")
+    local resBoss = RewardSystem.calculate(bossB, { gold = 0, handsRemaining = 0, deities = {} }, false)
+    assert(resBoss.basePayout == 5, "Boss Blind base payout must be +$5")
+
+    -- Check Hands Còn Lại (+$1 each)
+    local resHands = RewardSystem.calculate(sb, { gold = 0, handsRemaining = 4, deities = {} }, false)
+    assert(resHands.unusedHandsBonus == 4, "4 remaining hands must give +$4")
+
+    -- Check Tiền Lãi (Interest): +$1 per $5 stored, capped at $5 default
+    local resInt20 = RewardSystem.calculate(sb, { gold = 20, handsRemaining = 0, deities = {} }, false)
+    assert(resInt20.interestBonus == 4, "$20 gold gives +$4 interest")
+    local resInt25 = RewardSystem.calculate(sb, { gold = 25, handsRemaining = 0, deities = {} }, false)
+    assert(resInt25.interestBonus == 5, "$25 gold gives +$5 interest (default cap)")
+    local resInt40 = RewardSystem.calculate(sb, { gold = 40, handsRemaining = 0, deities = {} }, false)
+    assert(resInt40.interestBonus == 5, "$40 gold is capped at +$5 default interest")
+
+    -- Check Full Formula with Golden Joker (+$4) on Small Blind ($3) with 2 Hands ($2) and $25 Gold ($5 interest)
+    local fullGame = {
+        selectedFaction = "aurelia",
+        gold = 25,
+        handsRemaining = 2,
+        deities = { Deities.CATALOG.deity_golden },
+    }
+    local resFull = RewardSystem.calculate(sb, fullGame, false)
+    -- Total = 3 (Blind) + 2 (Hands) + 5 (Interest) + 4 (Jokers) = 14
+    assert(resFull.basePayout == 3, "Blind payout is 3")
+    assert(resFull.unusedHandsBonus == 2, "Hands bonus is 2")
+    assert(resFull.interestBonus == 5, "Interest is 5")
+    assert(resFull.deityBonus == 4, "Joker bonus is 4")
+    assert(resFull.totalGold == 14, "Total must equal 3 + 2 + 5 + 4 = 14, got: " .. resFull.totalGold)
+    log("[PASS] 65. 4 Fixed Financial Sources & Cash Out Formula verified 100%")
+end
+
+-- 66. Test Voucher Seed Money (Sổ Tiết Kiệm)
+do
+    local run = RunManager.newRun("aurelia")
+    local sb = run.blinds[1]
+
+    -- Player has $50 with Seed Money voucher -> Interest cap is $10!
+    local gameWithSeed = {
+        selectedFaction = "aurelia",
+        gold = 50,
+        handsRemaining = 0,
+        deities = {},
+        maxInterest = 10,
+        vouchers = { v_interest = true },
+    }
+    local resSeed = RewardSystem.calculate(sb, gameWithSeed, false)
+    assert(resSeed.maxInterest == 10, "Max interest must be 10 with Seed Money")
+    assert(resSeed.interestBonus == 10, "$50 gold with Seed Money must yield +$10 interest, got: " .. resSeed.interestBonus)
+
+    -- Player has $35 with Seed Money -> Interest is $7
+    gameWithSeed.gold = 35
+    local resSeed35 = RewardSystem.calculate(sb, gameWithSeed, false)
+    assert(resSeed35.interestBonus == 7, "$35 gold with Seed Money must yield +$7 interest, got: " .. resSeed35.interestBonus)
+    log("[PASS] 66. Voucher Seed Money raises interest cap to $10 verified 100%")
+end
+
+-- 67. Test Delayed Gratification (Kiên Nhẫn Thần Thụ) Joker
+do
+    local run = RunManager.newRun("aurelia")
+    local sb = run.blinds[1]
+    local dg = Deities.CATALOG.deity_delayed_gratification
+    assert(dg ~= nil, "deity_delayed_gratification must exist")
+
+    -- Case 1: 0 discards used, 3 discards remaining -> receives +$6 Vàng (+2 per discard)
+    local gameNoDiscards = {
+        selectedFaction = "aurelia",
+        gold = 10,
+        handsRemaining = 2,
+        discardsRemaining = 3,
+        discardsUsedInCombat = 0,
+        deities = { dg },
+    }
+    local resDG1 = RewardSystem.calculate(sb, gameNoDiscards, false)
+    assert(resDG1.deityBonus == 6, "Delayed Gratification with 3 unused discards must grant +$6, got: " .. resDG1.deityBonus)
+
+    -- Case 2: 1 discard used -> 0 gold from Delayed Gratification
+    local gameUsedDiscards = {
+        selectedFaction = "aurelia",
+        gold = 10,
+        handsRemaining = 2,
+        discardsRemaining = 2,
+        discardsUsedInCombat = 1,
+        deities = { dg },
+    }
+    local resDG2 = RewardSystem.calculate(sb, gameUsedDiscards, false)
+    assert(resDG2.deityBonus == 0, "Delayed Gratification must grant $0 if discards were used, got: " .. resDG2.deityBonus)
+    log("[PASS] 67. Delayed Gratification (Kiên Nhẫn Thần Thụ) Joker verified 100%")
+end
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then

@@ -143,7 +143,7 @@ local PACKS = {
 
 local VOUCHERS = {
     { id = "v_discount", name = "Thẻ Thành Viên (Overstock)", rarity = "Phiếu", cost = 10, desc = "Giảm vĩnh viễn -$2 giá gieo lại (Reroll) tại mọi Cửa Hàng suốt cả hành trình!", icon = "🎟️", color = { 0.35, 0.85, 0.55, 1 } },
-    { id = "v_interest", name = "Sổ Tiết Kiệm (Money Tree)", rarity = "Phiếu", cost = 10, desc = "Tăng trần mức lãi ngân khố sau mỗi trận từ +$5 lên tối đa +$10 mỗi ván!", icon = "💰", color = { 0.95, 0.80, 0.25, 1 } },
+    { id = "v_interest", name = "Sổ Tiết Kiệm (Seed Money)", rarity = "Phiếu", cost = 10, desc = "Nâng trần mức lãi ngân khố sau mỗi trận từ +$5 lên tối đa +$10 mỗi ván (cần $50 để đạt tối đa)!", icon = "💰", color = { 0.95, 0.80, 0.25, 1 } },
     { id = "v_hand_plus", name = "Bùa Hảo Thủ (Grabber)", rarity = "Phiếu", cost = 10, desc = "Tăng vĩnh viễn +1 Lượt Đánh bài (Max Hands) tối đa trong mọi trận chiến!", icon = "✋", color = { 0.85, 0.45, 0.95, 1 } },
     { id = "v_discard_plus", name = "Túi Đổi Vận (Wasteful)", rarity = "Phiếu", cost = 10, desc = "Tăng vĩnh viễn +1 Lượt Đổi bài (Max Discards) tối đa trong mọi trận chiến!", icon = "🔄", color = { 0.40, 0.75, 0.95, 1 } },
     { id = "v_crystal", name = "Kính Ma Thuật (Telescope)", rarity = "Phiếu", cost = 10, desc = "Gói Thiên Thể luôn chứa hành tinh nâng cấp cho tay bài bạn chơi nhiều nhất!", icon = "🔭", color = { 0.30, 0.85, 0.85, 1 } },

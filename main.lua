@@ -418,6 +418,7 @@ local function startMonsterEncounter(floor, isBossNode, isEliteNode)
     game.handsRemaining = game.maxHands
     game.playerArmor = 0
     game.playerShield = 0
+    game.discardsUsedInCombat = 0
 
     -- Valoria Passive: +1 Discard per combat
     if game.selectedFaction == "valoria" or game.selectedSuit == "valoria" then
@@ -526,6 +527,7 @@ local function startBlindCombat(blind)
     game.handsRemaining = game.maxHands
     game.playerArmor = 0
     game.playerShield = 0
+    game.discardsUsedInCombat = 0
 
     -- Valoria Passive: +1 Discard per combat
     if game.selectedFaction == "valoria" or game.selectedSuit == "valoria" then
@@ -854,6 +856,7 @@ local function discardSelected()
         })
     else
         game.discardsRemaining = game.discardsRemaining - 1
+        game.discardsUsedInCombat = (game.discardsUsedInCombat or 0) + 1
     end
 
     -- Refill hand to 3 cards while deck/discard has cards
@@ -1874,8 +1877,12 @@ function love.update(dt)
                             end
                         end
 
-                        -- Tiền Lãi (Interest): Cứ mỗi $5 vàng tích trữ trong túi, sau trận được nhận thêm $1 tiền lãi (tối đa +$5)
-                        local interestBonus = math.min(5, math.floor(game.gold / 5))
+                        -- Tiền Lãi (Interest): Cứ mỗi $5 vàng tích trữ trong túi, sau trận được nhận thêm $1 tiền lãi (tối đa Trần Lãi)
+                        local maxInt = game.maxInterest or 5
+                        if game.vouchers and (game.vouchers["v_interest"] or game.vouchers["seed_money"]) then
+                            maxInt = math.max(maxInt, 10)
+                        end
+                        local interestBonus = math.min(maxInt, math.floor(game.gold / 5))
                         if interestBonus > 0 then
                             table.insert(anim.floatingTexts, {
                                 text = "[Tiền Lãi] +$" .. interestBonus .. " Vàng!",
@@ -1919,7 +1926,9 @@ function love.update(dt)
                         -- Increment encounter count for next monster (starts at 10 HP, +50% each encounter indefinitely)
                         game.monsterEncounterCount = (game.monsterEncounterCount or 1) + 1
 
-                        game.gold = game.gold + anim.earnedGold
+                        if not game.run then
+                            game.gold = game.gold + anim.earnedGold
+                        end
                         Sound.play("round_win")
                     else
                         -- 1. Boss Ability: The Arm degrades scoring cards by -1 rank
@@ -1944,6 +1953,18 @@ function love.update(dt)
                         game.playerArmor = curArmor
                         game.playerShield = curArmor
                         local dmgToPlayer = mAtk - absorbed
+
+                        -- Anti-OneShot Protection:
+                        -- 1) Hard cap single-hit damage to at most 45 HP (no single attack can deal > 45% of max 100 HP)
+                        -- 2) If player has healthy HP (> 50 HP), a single blow cannot drop player HP to 0 (death defiance gate at 1 HP)
+                        local maxDmgCap = math.floor((game.maxPlayerHp or 100) * 0.45)
+                        if dmgToPlayer > maxDmgCap then
+                            dmgToPlayer = maxDmgCap
+                        end
+                        if (game.playerHp or 100) > 50 and ((game.playerHp or 100) - dmgToPlayer) <= 0 then
+                            dmgToPlayer = (game.playerHp or 100) - 1
+                        end
+
                         game.playerHp = math.max(0, (game.playerHp or 100) - dmgToPlayer)
 
                         screenShake = 16

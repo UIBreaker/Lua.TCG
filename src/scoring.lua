@@ -468,6 +468,9 @@ function Scoring.calculate(handInfo, deities, context)
                                 bonusMult = bonusMult + res.addMult
                                 cardEvent.addedMult = cardEvent.addedMult + res.addMult
                             end
+                            if res.addGold then
+                                cardEvent.bonusGold = (cardEvent.bonusGold or 0) + res.addGold
+                            end
                             local dName = deity.isCopyDeity and (deity.name .. " (" .. effectiveDeity.name .. ")") or deity.name
                             table.insert(deityTriggers, {
                                 slotIndex = di,

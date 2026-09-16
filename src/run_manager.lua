@@ -341,10 +341,11 @@ end
 function RunManager.createBlindMonster(blind, gameState)
     local isBoss = (blind.type == "boss")
     local isElite = (blind.type == "big")
-    local atk = (blind.ante == 1 and blind.type == "small") and 12 or math.max(12, math.floor(blind.hp * 0.15))
+    local encounterCount = (blind.ante - 1) * 3 + blind.index
+    local atk = Monster.getAttackByEncounter(encounterCount, isBoss, isElite)
     local m = {
         round = blind.ante,
-        encounterCount = (blind.ante - 1) * 3 + blind.index,
+        encounterCount = encounterCount,
         isBoss = isBoss,
         isElite = isElite,
         hp = blind.hp,

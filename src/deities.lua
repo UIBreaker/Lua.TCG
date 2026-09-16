@@ -225,6 +225,43 @@ Deities.CATALOG = {
         end,
     },
 
+    -- Delayed Gratification -> Kiên Nhẫn Thần Thụ (+ $2 mỗi Discard còn lại nếu không dùng Discard nào)
+    deity_delayed_gratification = {
+        id = "deity_delayed_gratification",
+        name = "Kiên Nhẫn Thần Thụ",
+        rarity = "uncommon",
+        cost = 5,
+        desc = "Nhận +$2 Vàng cho mỗi lượt Đổi bài (Discard) còn lại nếu không dùng lượt Đổi bài nào trong trận",
+        lore = "Sự kiềm chế tột cùng trước cám dỗ đổi vận mang lại quả ngọt vô giá.",
+        onRoundWin = function(game, self)
+            local discardsUsed = (game and game.discardsUsedInCombat) or 0
+            local discardsLeft = (game and game.discardsRemaining) or 0
+            if discardsUsed == 0 and discardsLeft > 0 then
+                local bonus = discardsLeft * 2
+                return { addGold = bonus, message = "+$" .. bonus .. " từ Kiên Nhẫn (" .. discardsLeft .. " Discard chưa dùng)!" }
+            end
+        end,
+    },
+
+    -- Business Card -> Danh Thiếp Thương Gia (+ $2 Vàng khi lá Hoàng Gia J, Q, K ghi điểm)
+    deity_business_card = {
+        id = "deity_business_card",
+        name = "Danh Thiếp Thương Gia",
+        rarity = "common",
+        cost = 4,
+        desc = "Mỗi lá bài Hoàng Gia (J, Q, K) ghi điểm có 50% tỉ lệ nhận ngay +$2 Vàng",
+        lore = "Mối quan hệ giao thương kín đáo mang lại nguồn tài chính dồi dào khi xuất quân.",
+        onCardScored = function(card, ctx, self)
+            local r = card.rank or 0
+            if r == 11 or r == 12 or r == 13 then
+                local roll = (love and love.math and love.math.random(2)) or math.random(2)
+                if roll == 1 then
+                    return { addGold = 2, message = "+$2 Vàng (Danh Thiếp)!" }
+                end
+            end
+        end,
+    },
+
     -- 8. Gros Michel -> Cấm Quả Hỗn Mang (+15 Mult, 1/6 tự hủy mở khóa Bất Diệt Cổ Thụ)
     deity_sacred_fruit = {
         id = "deity_sacred_fruit",

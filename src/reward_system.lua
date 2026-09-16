@@ -20,6 +20,9 @@ function RewardSystem.calculate(blind, gameState, wasSkipped)
     -- Trần Lãi Siêu Việt: Gilded Conclave gets +1$ per 4$ stored with NO CAP!
     local isGilded = (gameState.selectedFaction == "diamonds" or gameState.selectedFaction == "gilded_conclave" or gameState.isGildedConclave == true)
     local maxInt = gameState.maxInterest or 5
+    if gameState.vouchers and (gameState.vouchers["v_interest"] or gameState.vouchers["seed_money"]) then
+        maxInt = math.max(maxInt, 10)
+    end
     local currentGold = gameState.gold or 0
     local interestBonus
     if isGilded then
@@ -72,6 +75,7 @@ function RewardSystem.calculate(blind, gameState, wasSkipped)
         handsLeft = handsLeft,
         unusedHandsBonus = unusedHandsBonus,
         currentGold = currentGold,
+        maxInterest = maxInt,
         interestBonus = interestBonus,
         isGilded = isGilded,
         deityBonus = deityBonus,
@@ -87,11 +91,11 @@ end
 function RewardSystem.newAnimation(breakdown)
     local lines = {}
 
-    -- Line 1: Base Payout
+    -- 1. Nguồn 1: Thưởng Cơ Bản (Blind Reward)
     if breakdown.wasSkipped then
         table.insert(lines, {
-            label = "BỎ QUA ẢI (SKIP BLIND)",
-            desc = breakdown.tag and ("Bùa ấn: " .. breakdown.tag.name) or "Đã nhận thẻ thưởng",
+            label = "1. THƯỞNG CƠ BẢN (SKIP BLIND)",
+            desc = breakdown.tag and ("Bỏ qua nhận Thẻ Bùa Ấn: " .. breakdown.tag.name) or "Đã bỏ qua ải",
             valText = "$0",
             valNum = 0,
             icon = "⏭️",
@@ -100,8 +104,8 @@ function RewardSystem.newAnimation(breakdown)
     else
         local bTitle = breakdown.blind and breakdown.blind.title or "ẢI CHIẾN THẮNG"
         table.insert(lines, {
-            label = "THƯỞNG CỐ ĐỊNH (" .. bTitle .. ")",
-            desc = "Hạ gục thành công mục tiêu ải",
+            label = "1. THƯỞNG CƠ BẢN (" .. bTitle .. ")",
+            desc = "Hoàn thành mục tiêu điểm của Blind",
             valText = "+$" .. breakdown.basePayout,
             valNum = breakdown.basePayout,
             icon = "🏆",
@@ -109,11 +113,11 @@ function RewardSystem.newAnimation(breakdown)
         })
     end
 
-    -- Line 2: Remaining Hands
+    -- 2. Nguồn 2: Lượt Đánh Thừa (Remaining Hands)
     if breakdown.unusedHandsBonus > 0 then
         table.insert(lines, {
-            label = "LƯỢT ĐÁNH DƯ (HANDS LEFT)",
-            desc = breakdown.handsLeft .. " lượt đánh chưa dùng (+$1 mỗi lượt)",
+            label = "2. LƯỢT ĐÁNH THỪA (REMAINING HANDS)",
+            desc = breakdown.handsLeft .. " lượt ra đòn chưa dùng (+$1 mỗi Hand)",
             valText = "+$" .. breakdown.unusedHandsBonus,
             valNum = breakdown.unusedHandsBonus,
             icon = "✋",
@@ -121,8 +125,8 @@ function RewardSystem.newAnimation(breakdown)
         })
     else
         table.insert(lines, {
-            label = "LƯỢT ĐÁNH DƯ (HANDS LEFT)",
-            desc = "Không còn lượt đánh dư nào",
+            label = "2. LƯỢT ĐÁNH THỪA (REMAINING HANDS)",
+            desc = "Không còn lượt đánh thừa nào (+$1/Hand)",
             valText = "$0",
             valNum = 0,
             icon = "✋",
@@ -130,11 +134,13 @@ function RewardSystem.newAnimation(breakdown)
         })
     end
 
-    -- Line 3: Interest
+    -- 3. Nguồn 3: Tiền Lãi (Interest)
+    local maxCap = breakdown.maxInterest or 5
     if breakdown.interestBonus > 0 then
-        local intDesc = breakdown.isGilded and ("+$1 mỗi $4 sở hữu (Không giới hạn trần! $" .. breakdown.currentGold .. " tích trữ)") or ("+$1 cho mỗi $5 sở hữu ($" .. breakdown.currentGold .. " tích trữ)")
+        local capStr = (maxCap > 5) and (" (Trần Lãi: +$" .. maxCap .. " từ Seed Money)") or (" (Trần Lãi: +$5 khi có $25)")
+        local intDesc = breakdown.isGilded and ("+$1 mỗi $4 sở hữu (Không giới hạn trần! Có $" .. breakdown.currentGold .. ")") or ("+$1 cho mỗi $5 đang sở hữu (Có $" .. breakdown.currentGold .. ")" .. capStr)
         table.insert(lines, {
-            label = "TIỀN LÃI TIẾT KIỆM (INTEREST)",
+            label = "3. TIỀN LÃI TIẾT KIỆM (INTEREST)",
             desc = intDesc,
             valText = "+$" .. breakdown.interestBonus,
             valNum = breakdown.interestBonus,
@@ -142,9 +148,10 @@ function RewardSystem.newAnimation(breakdown)
             color = { 0.35, 0.95, 0.55, 1 },
         })
     else
+        local capStr = (maxCap > 5) and " (Trần: +$10)" or " (Trần: +$5)"
         table.insert(lines, {
-            label = "TIỀN LÃI TIẾT KIỆM (INTEREST)",
-            desc = breakdown.isGilded and "Cần tối thiểu $4 trong túi để sinh lãi" or "Cần tối thiểu $5 trong túi để sinh lãi",
+            label = "3. TIỀN LÃI TIẾT KIỆM (INTEREST)",
+            desc = breakdown.isGilded and "Cần tối thiểu $4 trong túi để sinh lãi" or ("+$1 mỗi $5 sở hữu (Cần tối thiểu $5 trong túi)" .. capStr),
             valText = "$0",
             valNum = 0,
             icon = "🏦",
@@ -152,11 +159,11 @@ function RewardSystem.newAnimation(breakdown)
         })
     end
 
-    -- Line 4: Deity Bonuses
+    -- 4. Nguồn 4: Hiệu Ứng Bổ Trợ (Vouchers & Jokers)
     if #breakdown.deityDetails > 0 then
         for _, dd in ipairs(breakdown.deityDetails) do
             table.insert(lines, {
-                label = "THẦN BAN ƠN (" .. dd.name:upper() .. ")",
+                label = "4. HIỆU ỨNG BỔ TRỢ (" .. dd.name:upper() .. ")",
                 desc = dd.message,
                 valText = "+$" .. dd.amount,
                 valNum = dd.amount,
@@ -166,11 +173,11 @@ function RewardSystem.newAnimation(breakdown)
         end
     end
 
-    -- Line 5: Valoria Faction Passive
+    -- 5. Đặc quyền Valoria (nếu có)
     if breakdown.isValoria and breakdown.factionBonus > 0 then
         table.insert(lines, {
-            label = "HẬU CẦN VALORIA (+25%)",
-            desc = "Đặc quyền quân lương Nhân Loại",
+            label = "ĐẶC QUYỀN PHE VALORIA (+25%)",
+            desc = "Quân lương viện trợ Nhân Loại",
             valText = "+$" .. breakdown.factionBonus,
             valNum = breakdown.factionBonus,
             icon = "⚔️",
@@ -304,6 +311,11 @@ function RewardSystem.draw(anim, V_WIDTH, V_HEIGHT, mx, my, buttonsTable)
             love.graphics.printf(line.valText, modalX + modalW - 170, ry + 9, 130, "right")
         end
     end
+
+    -- Formula summary text
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(0.70, 0.80, 0.90, 0.85)
+    love.graphics.printf("Công thức: Tổng Tiền = Thưởng Blind + Hands Còn Lại + min(floor(Tiền/5), Trần Lãi) + Thưởng Jokers", modalX, totalBoxY - 18, modalW, "center")
 
     -- Bottom Total Box
     local totalBoxY = modalY + modalH - 120

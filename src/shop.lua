@@ -117,7 +117,7 @@ function Shop.refresh(shop, gameState)
         -- All hands unlocked: offer permanent Ante Voucher
         local vouchers = {
             { id = "v_discount", name = "Thẻ Thành Viên", desc = "Giảm vĩnh viễn -$2 giá gieo lại (Reroll) tại mọi Shop!", cost = 10, color = { 0.35, 0.85, 0.55, 1 } },
-            { id = "v_interest", name = "Sổ Tiết Kiệm", desc = "Tăng trần mức lãi từ +$5 lên +$10 mỗi ván!", cost = 10, color = { 0.95, 0.80, 0.25, 1 } },
+            { id = "v_interest", name = "Sổ Tiết Kiệm (Seed Money)", desc = "Nâng trần mức lãi ngân khố từ +$5 lên tối đa +$10 mỗi ván (cần $50 để đạt tối đa)!", cost = 10, color = { 0.95, 0.80, 0.25, 1 } },
             { id = "v_hand_plus", name = "Bùa Hảo Thủ", desc = "Tăng vĩnh viễn +1 Lượt Đánh (Max Hands) mỗi trận!", cost = 10, color = { 0.85, 0.45, 0.95, 1 } },
         }
         local v = vouchers[math.random(#vouchers)]
@@ -220,11 +220,14 @@ function Shop.buyItem(shop, itemIndex, gameState)
         gameState.gold = gameState.gold - item.cost
         table.remove(shop.items, itemIndex)
         Sound.play("shop_buy")
+        gameState.vouchers = gameState.vouchers or {}
+        gameState.vouchers[item.voucherId] = true
         if item.voucherId == "v_discount" then
             shop.baseRerollCost = math.max(1, (shop.baseRerollCost or 5) - 2)
             shop.rerollCost = math.max(1, shop.rerollCost - 2)
         elseif item.voucherId == "v_interest" then
             gameState.maxInterest = 10
+            gameState.hasSeedMoney = true
         elseif item.voucherId == "v_hand_plus" then
             gameState.maxHands = (gameState.maxHands or 4) + 1
             gameState.handsRemaining = (gameState.handsRemaining or 4) + 1
