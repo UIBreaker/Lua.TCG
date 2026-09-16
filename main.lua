@@ -167,22 +167,12 @@ local deityDrag = {
 
 local function getDeitySlotRect(i, currentState)
     currentState = currentState or state
-    if currentState == "shop" then
-        local deiSlotW = 98
-        local deiSlotH = 74
-        local deiGap = 10
-        local deiStartX = 295
-        local sy = 15 + 18
-        return deiStartX + (i - 1) * (deiSlotW + deiGap), sy, deiSlotW, deiSlotH
-    else
-        local topStartX = 295
-        local topStartY = 15
-        local deitySlotW = 112
-        local deitySlotH = 88
-        local deityGap = 12
-        local deityY = topStartY + 22
-        return topStartX + (i - 1) * (deitySlotW + deityGap), deityY, deitySlotW, deitySlotH
-    end
+    local slotW = 82
+    local slotH = 118
+    local gap = 14
+    local startX = 295
+    local slotY = 32
+    return startX + (i - 1) * (slotW + gap), slotY, slotW, slotH
 end
 
 -- Micro-Animation & Juice System
@@ -1459,8 +1449,8 @@ function love.update(dt)
 
     -- Update deity drag position
     if deityDrag.active and deityDrag.isDragging then
-        deityDrag.visualX = deityDrag.currentX - 49
-        deityDrag.visualY = deityDrag.currentY - 37
+        deityDrag.visualX = deityDrag.currentX + (deityDrag.offsetX or -41)
+        deityDrag.visualY = deityDrag.currentY + (deityDrag.offsetY or -59)
     end
 
     -- Smoothly update spark particles
@@ -2038,305 +2028,370 @@ local function drawMainMenu()
     local mx, my = toVirtual(love.mouse.getPosition())
     buttons = {}
 
-    -- 1. Subtle dark overlay so the psychedelic swirling shader shines through vibrantly
-    love.graphics.setColor(0, 0, 0, 0.08)
+    -- 1. Dark vignette overlay allowing psychedelic background shader to pulse smoothly
+    love.graphics.setColor(0.04, 0.05, 0.07, 0.45)
     love.graphics.rectangle("fill", 0, 0, V_WIDTH, V_HEIGHT)
 
-    -- 2. Top-right version indicators (matching media_1789532726531.png)
+    -- Top corner subtle vignette
+    love.graphics.setColor(0, 0, 0, 0.35)
+    love.graphics.rectangle("fill", 0, 0, V_WIDTH, 120)
+
+    -- 2. Top-right Version Indicators
     love.graphics.setFont(UI.fonts.tiny)
-    love.graphics.setColor(1, 1, 1, 0.95)
-    love.graphics.printf("1.0.1o-FULL", 0, 16, V_WIDTH - 24, "right")
-    love.graphics.printf("1.0.0~BETA-1620a-TERRASUIT", 0, 32, V_WIDTH - 24, "right")
+    love.graphics.setColor(UI.COLORS.textMuted)
+    love.graphics.printf("1.0.1o-FULL", 0, 14, V_WIDTH - 24, "right")
+    love.graphics.printf("1.0.0~BETA-1620a-TERRASUIT", 0, 28, V_WIDTH - 24, "right")
 
-    -- 3. Center Emblem: Caduceus Blade & Floating Chained Card
-    local emblemCX = 640
-    local cardFloatY = 275 + math.sin((juice.ambientTimer or 0) * 2.2) * 7
-    local cardTilt = math.sin((juice.ambientTimer or 0) * 1.5) * 0.04
-
-    -- A. Vertical Caduceus / Sword of Destiny behind the card
-    love.graphics.push()
-    love.graphics.translate(emblemCX, cardFloatY)
-
-    -- Upper sword hilt / pommel
-    love.graphics.setColor(0.80, 0.88, 0.96, 0.95)
-    love.graphics.rectangle("fill", -5, -165, 10, 60)
-    love.graphics.setColor(0.98, 0.85, 0.25, 1)
-    love.graphics.circle("fill", 0, -168, 11)
-    love.graphics.rectangle("fill", -24, -125, 48, 8, 3, 3)
-
-    -- Blue coiled serpent ribbon on upper shaft
-    for i = 1, 5 do
-        local ry = -155 + i * 14
-        local rx = math.sin(ry * 0.15 + (juice.ambientTimer or 0) * 1.2) * 16
-        love.graphics.setColor(0.18, 0.52, 0.96, 0.95)
-        love.graphics.circle("fill", rx, ry, 8)
-        love.graphics.setColor(0.92, 0.96, 1.0, 0.95)
-        love.graphics.circle("fill", rx - 1.5, ry - 1.5, 3.5)
-    end
-
-    -- Lower silver sword blade pointing down
-    love.graphics.setColor(0.88, 0.92, 0.98, 1)
-    love.graphics.polygon("fill", -8, 95, 8, 95, 0, 180)
-    love.graphics.setColor(0.2, 0.25, 0.3, 1)
-    love.graphics.line(0, 95, 0, 175)
-
-    -- Yellow coiled serpent ribbon on lower shaft
-    for i = 1, 5 do
-        local ry = 100 + i * 14
-        local rx = -math.sin(ry * 0.15 + (juice.ambientTimer or 0) * 1.2) * 15
-        love.graphics.setColor(0.96, 0.88, 0.15, 0.95)
-        love.graphics.circle("fill", rx, ry, 7.5)
-        love.graphics.setColor(1, 1, 0.75, 0.95)
-        love.graphics.circle("fill", rx - 1.5, ry - 1.5, 3)
-    end
-    love.graphics.pop()
-
-    -- B. Stylized 3D Letters: "TERRA" (Left) and "SUIT" (Right)
-    local letterY = 224
+    -- 3. Majestic Gothic Title: "TERRA SUIT"
+    local titleY = 44
     local fontLogo = UI.fonts.logo or UI.fonts.huge
-
-    local function drawLogoLetters()
-        love.graphics.setFont(fontLogo)
-        love.graphics.printf("TERRA", 40, letterY, 510, "right")
-        love.graphics.printf("SUIT", 730, letterY, 510, "left")
-    end
-
-    -- Layer 1: Thick 3D Extruded Dark Shadow
     love.graphics.setFont(fontLogo)
-    for d = 10, 1, -1 do
-        love.graphics.setColor(0.05, 0.07, 0.10, 0.94)
-        love.graphics.printf("TERRA", 40 + d, letterY + d, 510, "right")
-        love.graphics.printf("SUIT", 730 + d, letterY + d, 510, "left")
+
+    -- Extruded 3D Chiseled Metal Shadow
+    for d = 8, 1, -1 do
+        love.graphics.setColor(0.03, 0.04, 0.06, 0.95)
+        love.graphics.printf("TERRA SUIT", d, titleY + d, V_WIDTH, "center")
     end
 
-    -- Layer 2: Dark Outlines (8 directions)
-    love.graphics.setColor(0.08, 0.11, 0.15, 1)
-    for ox = -4, 4, 4 do
-        for oy = -4, 4, 4 do
+    -- 8-Direction Dark Outline
+    love.graphics.setColor(0.08, 0.10, 0.14, 1)
+    for ox = -3, 3, 3 do
+        for oy = -3, 3, 3 do
             if ox ~= 0 or oy ~= 0 then
-                love.graphics.printf("TERRA", 40 + ox, letterY + oy, 510, "right")
-                love.graphics.printf("SUIT", 730 + ox, letterY + oy, 510, "left")
+                love.graphics.printf("TERRA SUIT", ox, titleY + oy, V_WIDTH, "center")
             end
         end
     end
 
-    -- Layer 3: Base Off-White / Cream Letter Body
-    love.graphics.setColor(0.97, 0.96, 0.92, 1)
-    love.graphics.printf("TERRA", 40, letterY, 510, "right")
-    love.graphics.printf("SUIT", 730, letterY, 510, "left")
+    -- Face Lettering: Weathered Ivory Gold
+    love.graphics.setColor(0.96, 0.92, 0.82, 1)
+    love.graphics.printf("TERRA SUIT", 0, titleY, V_WIDTH, "center")
 
-    -- Layer 4: 3 Wavy Contour Landscape Stripes (Blue, Sage Green, Olive Yellow) using Stencil
-    local okStencil = pcall(love.graphics.stencil, drawLogoLetters, "replace", 1)
-    if okStencil then
-        pcall(love.graphics.setStencilTest, "greater", 0)
-        local stripeT = (juice.ambientTimer or 0) * 0.4
-        -- Blue top stripe
-        love.graphics.setColor(0.12, 0.45, 0.90, 0.95)
-        for px = 0, V_WIDTH, 4 do
-            local sy = letterY + 28 + math.sin(px * 0.015 + stripeT) * 8
-            love.graphics.rectangle("fill", px, sy, 5, 8)
-        end
-        -- Sage green middle stripe
-        love.graphics.setColor(0.38, 0.68, 0.48, 0.95)
-        for px = 0, V_WIDTH, 4 do
-            local sy = letterY + 52 + math.sin(px * 0.018 - stripeT * 1.2) * 8
-            love.graphics.rectangle("fill", px, sy, 5, 8)
-        end
-        -- Olive yellow bottom stripe
-        love.graphics.setColor(0.78, 0.76, 0.24, 0.95)
-        for px = 0, V_WIDTH, 4 do
-            local sy = letterY + 76 + math.sin(px * 0.014 + stripeT * 0.8) * 8
-            love.graphics.rectangle("fill", px, sy, 5, 8)
-        end
-        pcall(love.graphics.setStencilTest)
+    -- Inner Chiseled Gold Highlight Line
+    love.graphics.setColor(0.98, 0.82, 0.28, 0.85)
+    love.graphics.printf("TERRA SUIT", 0, titleY - 1, V_WIDTH, "center")
+
+    -- Subtitle
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.goldYellow[1], UI.COLORS.goldYellow[2], UI.COLORS.goldYellow[3], 0.9)
+    love.graphics.printf("—  TÀN TÍCH VẬN MỆNH • ROGUELIKE POKER TCG  —", 0, titleY + 98, V_WIDTH, "center")
+
+    ----------------------------------------------------------------------------
+    -- 4. LEFT COLUMN: HỒ SƠ THỢ SĂN (Player Dossier)
+    ----------------------------------------------------------------------------
+    local dosX = 85
+    local dosY = 185
+    local dosW = 280
+    local dosH = 435
+
+    -- Drop shadow
+    love.graphics.setColor(0, 0, 0, 0.6)
+    UI.drawRoundedRect("fill", dosX + 5, dosY + 7, dosW, dosH, 10)
+
+    -- Dossier Body
+    love.graphics.setColor(0.10, 0.12, 0.15, 0.96)
+    UI.drawRoundedRect("fill", dosX, dosY, dosW, dosH, 10)
+
+    -- Double Gothic Frame
+    love.graphics.setLineWidth(1.5)
+    love.graphics.setColor(0.75, 0.62, 0.24, 0.9)
+    UI.drawRoundedRect("line", dosX, dosY, dosW, dosH, 10)
+    love.graphics.setLineWidth(1)
+    love.graphics.setColor(0.45, 0.38, 0.20, 0.6)
+    UI.drawRoundedRect("line", dosX + 4, dosY + 4, dosW - 8, dosH - 8, 8)
+
+    -- Corner Fleuron Lines
+    love.graphics.setColor(0.85, 0.72, 0.25, 0.85)
+    love.graphics.line(dosX + 7, dosY + 12, dosX + 7, dosY + 7, dosX + 12, dosY + 7)
+    love.graphics.line(dosX + dosW - 7, dosY + 12, dosX + dosW - 7, dosY + 7, dosX + dosW - 12, dosY + 7)
+    love.graphics.line(dosX + 7, dosY + dosH - 12, dosX + 7, dosY + dosH - 7, dosX + 12, dosY + dosH - 7)
+    love.graphics.line(dosX + dosW - 7, dosY + dosH - 12, dosX + dosW - 7, dosY + dosH - 7, dosX + dosW - 12, dosY + dosH - 7)
+
+    -- Top Wax Seal
+    local sealCX = dosX + dosW / 2
+    local sealCY = dosY + 32
+    local sR = 17
+    love.graphics.setColor(0.55, 0.08, 0.10, 0.95)
+    for a = 0, 5 do
+        local ang = a * (math.pi / 3)
+        love.graphics.circle("fill", sealCX + math.cos(ang) * (sR - 2), sealCY + math.sin(ang) * (sR - 2), 6)
+    end
+    love.graphics.setColor(0.72, 0.12, 0.15, 1)
+    love.graphics.circle("fill", sealCX, sealCY, sR)
+    love.graphics.setColor(0.52, 0.08, 0.10, 1)
+    love.graphics.circle("fill", sealCX, sealCY, sR - 3.5)
+    -- Stamped Crown
+    love.graphics.setColor(0.95, 0.82, 0.35, 1)
+    love.graphics.polygon("fill", sealCX - 7, sealCY + 4, sealCX - 8, sealCY - 4, sealCX - 3, sealCY - 1, sealCX, sealCY - 5, sealCX + 3, sealCY - 1, sealCX + 8, sealCY - 4, sealCX + 7, sealCY + 4)
+
+    -- Dossier Text
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.printf("HỒ SƠ KẺ THÁCH ĐẤU", dosX, dosY + 62, dosW, "center")
+
+    love.graphics.setFont(UI.fonts.large)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf("Nhatnam", dosX, dosY + 84, dosW, "center")
+
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(UI.COLORS.bossPurple)
+    love.graphics.printf("DANH HIỆU: ĐỒ TỆ CỔ TỘC", dosX, dosY + 116, dosW, "center")
+
+    -- Divider
+    love.graphics.setColor(0.35, 0.30, 0.22, 0.8)
+    love.graphics.setLineWidth(1)
+    love.graphics.line(dosX + 20, dosY + 138, dosX + dosW - 20, dosY + 138)
+
+    -- Dossier Stats List
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.textLight)
+    local statRows = {
+        { label = "Ván cao nhất:", val = "Ante 8 (Thắng)" },
+        { label = "Sát thương kỷ lục:", val = "1,234,567" },
+        { label = "Hộ Linh mở khóa:", val = "25 / 25" },
+        { label = "Trang bị khảm:", val = "8 / 8" },
+        { label = "Bộ bài sở hữu:", val = "4 / 4 Cự Tộc" },
+    }
+    local rowY = dosY + 154
+    for _, sr in ipairs(statRows) do
+        love.graphics.setColor(UI.COLORS.textMuted)
+        love.graphics.printf(sr.label, dosX + 16, rowY, dosW - 32, "left")
+        love.graphics.setColor(UI.COLORS.goldYellow)
+        love.graphics.printf(sr.val, dosX + 16, rowY, dosW - 32, "right")
+        rowY = rowY + 28
     end
 
-    -- C. The Sealed Tarot Card with Chains and Padlock (Floating & Tilting in center)
+    -- Dossier Change Profile Button
+    local btnProf = {
+        id = "menu_profile",
+        text = "Đổi Hồ Sơ",
+        x = dosX + 20,
+        y = dosY + dosH - 56,
+        w = dosW - 40,
+        h = 38,
+        color = UI.COLORS.btnNormal,
+        font = UI.fonts.small,
+    }
+    table.insert(buttons, btnProf)
+
+    ----------------------------------------------------------------------------
+    -- 5. CENTERPIECE: THE FLOATING ELDRITCH TAROT CARD
+    ----------------------------------------------------------------------------
+    local emblemCX = 575
+    local cardFloatY = 385 + math.sin((juice.ambientTimer or 0) * 2.0) * 8
+    local cardTilt = math.sin((juice.ambientTimer or 0) * 1.5) * 0.04
+
     love.graphics.push()
     love.graphics.translate(emblemCX, cardFloatY)
     love.graphics.rotate(cardTilt)
 
-    local cardW = 142
-    local cardH = 205
+    local cardW = 165
+    local cardH = 245
     local halfW = cardW / 2
     local halfH = cardH / 2
 
     -- Card 3D drop shadow
-    love.graphics.setColor(0, 0, 0, 0.55)
-    UI.drawRoundedRect("fill", -halfW + 8, -halfH + 10, cardW, cardH, 10)
+    love.graphics.setColor(0, 0, 0, 0.65)
+    UI.drawRoundedRect("fill", -halfW + 10, -halfH + 12, cardW, cardH, 10)
 
-    -- Card Gold Border
-    love.graphics.setColor(0.98, 0.80, 0.18, 1)
+    -- Card Gilded Gold Frame
+    love.graphics.setColor(0.92, 0.76, 0.22, 1)
     UI.drawRoundedRect("fill", -halfW, -halfH, cardW, cardH, 10)
 
-    -- Card Body (Silver Slate)
-    love.graphics.setColor(0.88, 0.92, 0.96, 1)
-    UI.drawRoundedRect("fill", -halfW + 6, -halfH + 6, cardW - 12, cardH - 12, 8)
+    -- Card Body: Deep Obsidian Parchment
+    love.graphics.setColor(0.10, 0.12, 0.15, 0.98)
+    UI.drawRoundedRect("fill", -halfW + 5, -halfH + 5, cardW - 10, cardH - 10, 8)
 
     -- Inner Card Decorative Frame
-    love.graphics.setColor(0.68, 0.76, 0.84, 1)
-    UI.drawRoundedRect("line", -halfW + 12, -halfH + 12, cardW - 24, cardH - 24, 6)
+    love.graphics.setColor(0.68, 0.55, 0.20, 0.75)
+    love.graphics.setLineWidth(1)
+    UI.drawRoundedRect("line", -halfW + 10, -halfH + 10, cardW - 20, cardH - 20, 6)
 
-    -- Crossed Silver Chains (Diagonal 1: TL to BR, Diagonal 2: TR to BL)
+    -- Center Eldritch Sigil: Ancient Mystical Eye & Occult Radiance
+    love.graphics.setColor(0.85, 0.25, 0.35, 0.22)
+    love.graphics.circle("fill", 0, -10, 48)
+    love.graphics.setColor(0.95, 0.82, 0.28, 0.40)
+    love.graphics.circle("line", 0, -10, 50)
+
+    -- Tarot Title Ribbon
+    love.graphics.setColor(0.06, 0.07, 0.09, 0.95)
+    love.graphics.rectangle("fill", -halfW + 14, -halfH + 16, cardW - 28, 24, 3)
+    love.graphics.setColor(0.85, 0.72, 0.25, 0.8)
+    love.graphics.rectangle("line", -halfW + 14, -halfH + 16, cardW - 28, 24, 3)
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.printf("CỔ VẬT VẬN MỆNH", -halfW + 14, -halfH + 21, cardW - 28, "center")
+
+    -- Crossed Dark Spectral Chains
     local function drawChainLink(lx, ly, lrot)
         love.graphics.push()
         love.graphics.translate(lx, ly)
         love.graphics.rotate(lrot)
-        love.graphics.setColor(0.18, 0.22, 0.28, 0.95)
-        love.graphics.rectangle("fill", -11, -6, 22, 12, 5, 5)
-        love.graphics.setColor(0.86, 0.91, 0.97, 1)
-        love.graphics.rectangle("fill", -9, -4, 18, 8, 4, 4)
-        love.graphics.setColor(0.18, 0.22, 0.28, 1)
-        love.graphics.rectangle("fill", -4, -2, 8, 4, 2, 2)
+        love.graphics.setColor(0.14, 0.17, 0.22, 0.95)
+        love.graphics.rectangle("fill", -10, -5, 20, 10, 4, 4)
+        love.graphics.setColor(0.78, 0.84, 0.92, 1)
+        love.graphics.rectangle("fill", -8, -3, 16, 6, 3, 3)
+        love.graphics.setColor(0.14, 0.17, 0.22, 1)
+        love.graphics.rectangle("fill", -3, -1, 6, 2, 1, 1)
         love.graphics.pop()
     end
 
     local dAngle = math.atan2(cardH, cardW)
-    for t = -0.46, 0.46, 0.11 do
+    for t = -0.42, 0.42, 0.14 do
         drawChainLink(t * cardW * 0.92, t * cardH * 0.92, dAngle)
         drawChainLink(-t * cardW * 0.92, t * cardH * 0.92, -dAngle)
     end
 
-    -- Center Padlock
-    local lockW = 54
-    local lockH = 48
-    local shackleR = 17
-    -- Shackle
-    love.graphics.setColor(0.72, 0.78, 0.85, 1)
-    love.graphics.setLineWidth(6)
-    love.graphics.arc("line", "open", 0, -14, shackleR, math.pi, 2 * math.pi)
-    -- Padlock Body
-    love.graphics.setColor(0.26, 0.32, 0.40, 1)
-    UI.drawRoundedRect("fill", -lockW / 2, -12, lockW, lockH, 7)
-    love.graphics.setColor(0.42, 0.50, 0.60, 1)
-    UI.drawRoundedRect("line", -lockW / 2, -12, lockW, lockH, 7)
+    -- Center Forged Padlock
+    local lockW = 48
+    local lockH = 42
+    local shackleR = 15
+    love.graphics.setColor(0.70, 0.76, 0.84, 1)
+    love.graphics.setLineWidth(5)
+    love.graphics.arc("line", "open", 0, -12, shackleR, math.pi, 2 * math.pi)
+
+    love.graphics.setColor(0.24, 0.28, 0.35, 1)
+    UI.drawRoundedRect("fill", -lockW / 2, -10, lockW, lockH, 6)
+    love.graphics.setColor(0.85, 0.72, 0.25, 0.9)
+    UI.drawRoundedRect("line", -lockW / 2, -10, lockW, lockH, 6)
+
     -- Keyhole
     love.graphics.setColor(0.06, 0.08, 0.12, 1)
-    love.graphics.circle("fill", 0, 7, 6)
-    love.graphics.polygon("fill", -3.5, 7, 3.5, 7, 2, 20, -2, 20)
+    love.graphics.circle("fill", 0, 7, 5)
+    love.graphics.polygon("fill", -3, 7, 3, 7, 1.5, 18, -1.5, 18)
 
     love.graphics.pop()
 
-    -- 4. Bottom Horizontal Control Bar (matching media_1789532726531.png)
-    local barY = 622
-    local barH = 58
+    ----------------------------------------------------------------------------
+    -- 6. RIGHT COLUMN: HERO ACTION STACK (Tactile 3D Buttons)
+    ----------------------------------------------------------------------------
+    local btnStackX = 775
+    local btnStackW = 390
+    local startBtnY = 195
 
-    -- Left: Profile Badge Container
-    local profX = 45
-    local profW = 110
-    love.graphics.setColor(0, 0, 0, 0.4)
-    UI.drawRoundedRect("fill", profX + 2, barY + 3, profW, barH, 8)
-    love.graphics.setColor(0.16, 0.22, 0.25, 0.95)
-    UI.drawRoundedRect("fill", profX, barY, profW, barH, 8)
-    love.graphics.setColor(0.28, 0.38, 0.44, 1)
-    UI.drawRoundedRect("line", profX, barY, profW, barH, 8)
-    love.graphics.setFont(UI.fonts.small)
-    love.graphics.setColor(UI.COLORS.textMuted)
-    love.graphics.printf("Hồ Sơ", profX, barY + 8, profW, "center")
-    love.graphics.setFont(UI.fonts.regular)
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.printf("Nhatnam", profX, barY + 28, profW, "center")
-
-    -- Center: 5 Action Buttons
-    local btnGroupX = 165
+    -- 1. Hero Button: VÀO TRẬN (PLAY)
+    local playText = hasRunStarted and "TIẾP TỤC TRẬN [Space]" or "VÀO TRẬN [Space]"
     local btnPlay = {
         id = "menu_play",
-        text = "CHƠI",
-        x = btnGroupX,
-        y = barY,
-        w = 175,
-        h = barH,
-        color = { 0.05, 0.52, 0.95, 1 }, -- Bright blue
-        font = UI.fonts.large,
+        text = playText,
+        x = btnStackX,
+        y = startBtnY,
+        w = btnStackW,
+        h = 76,
+        color = UI.COLORS.btnPlay,
+        font = UI.fonts.title or UI.fonts.large,
     }
     table.insert(buttons, btnPlay)
 
-    local btnOptions = {
-        id = "menu_settings",
-        text = "TUỲ CHỌN",
-        x = btnGroupX + 185,
-        y = barY,
-        w = 140,
-        h = barH,
-        color = { 0.96, 0.54, 0.08, 1 }, -- Balatro orange
-        font = UI.fonts.medium,
-    }
-    table.insert(buttons, btnOptions)
-
-    local btnQuit = {
-        id = "menu_quit",
-        text = "THOÁT",
-        x = btnGroupX + 335,
-        y = barY,
-        w = 135,
-        h = barH,
-        color = { 0.94, 0.28, 0.28, 1 }, -- Red
-        font = UI.fonts.medium,
-    }
-    table.insert(buttons, btnQuit)
-
+    -- 2. Button: BỘ SƯU TẬP (COLLECTION)
     local btnCollection = {
         id = "menu_collection",
-        text = "BỘ SƯU TẬP",
-        x = btnGroupX + 480,
-        y = barY,
-        w = 185,
-        h = barH,
-        color = { 0.22, 0.60, 0.42, 1 }, -- Jade Green
-        font = UI.fonts.medium,
+        text = "BỘ SƯU TẬP [C]",
+        x = btnStackX,
+        y = startBtnY + 92,
+        w = btnStackW,
+        h = 64,
+        color = UI.COLORS.btnSpecial,
+        font = UI.fonts.large,
     }
     table.insert(buttons, btnCollection)
 
-    local btnMod = {
-        id = "menu_mod",
-        text = "MOD",
-        x = btnGroupX + 675,
-        y = barY,
-        w = 95,
-        h = barH,
-        color = { 0.36, 0.42, 0.60, 1 }, -- Slate purple
-        font = UI.fonts.medium,
+    -- 3. Button: TUỲ CHỌN (SETTINGS)
+    local btnOptions = {
+        id = "menu_settings",
+        text = "TUỲ CHỌN [Tab]",
+        x = btnStackX,
+        y = startBtnY + 172,
+        w = btnStackW,
+        h = 64,
+        color = UI.COLORS.btnNormal,
+        font = UI.fonts.large,
     }
-    table.insert(buttons, btnMod)
+    table.insert(buttons, btnOptions)
 
+    -- 4. Button: THOÁT (QUIT)
+    local btnQuit = {
+        id = "menu_quit",
+        text = "THOÁT [Esc]",
+        x = btnStackX,
+        y = startBtnY + 252,
+        w = btnStackW,
+        h = 64,
+        color = UI.COLORS.btnDestruct,
+        font = UI.fonts.large,
+    }
+    table.insert(buttons, btnQuit)
+
+    -- Render all interactive 3D buttons
     for _, btn in ipairs(buttons) do
         local isH = (mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h)
         local isP = (juice.buttonPressedId == btn.id)
         UI.drawButton(btn, isH, isP)
     end
 
-    -- Right side social buttons & language badge
-    local rightX = btnGroupX + 782
-    -- Discord Button
-    local isDiscH = (mx >= rightX and mx <= rightX + 38 and my >= barY and my <= barY + 26)
-    love.graphics.setColor(isDiscH and { 0.42, 0.50, 0.95, 1 } or { 0.35, 0.42, 0.92, 1 })
-    UI.drawRoundedRect("fill", rightX, barY, 38, 26, 6)
-    love.graphics.setFont(UI.fonts.small)
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.printf("Dc", rightX, barY + 5, 38, "center")
+    ----------------------------------------------------------------------------
+    -- 7. FOOTER BAR: MODS, LANGUAGE & COMMUNITY
+    ----------------------------------------------------------------------------
+    local footY = 652
+    local footH = 34
 
-    -- X Button
-    local isXH = (mx >= rightX + 44 and mx <= rightX + 82 and my >= barY and my <= barY + 26)
-    love.graphics.setColor(isXH and { 0.22, 0.22, 0.24, 1 } or { 0.12, 0.12, 0.14, 1 })
-    UI.drawRoundedRect("fill", rightX + 44, barY, 38, 26, 6)
-    love.graphics.setColor(0.3, 0.35, 0.4, 1)
-    UI.drawRoundedRect("line", rightX + 44, barY, 38, 26, 6)
-    love.graphics.setFont(UI.fonts.small)
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.printf("𝕏", rightX + 44, barY + 5, 38, "center")
-
-    -- Language pill [A文 Tiếng Việt]
-    local langW = 150
-    local langH = 26
-    local langY = barY + 32
-    local isLangH = (mx >= rightX and mx <= rightX + langW and my >= langY and my <= langY + langH)
-    love.graphics.setColor(isLangH and { 0.22, 0.28, 0.32, 1 } or { 0.16, 0.22, 0.25, 0.95 })
-    UI.drawRoundedRect("fill", rightX, langY, langW, langH, 6)
-    love.graphics.setColor(0.28, 0.38, 0.44, 1)
-    UI.drawRoundedRect("line", rightX, langY, langW, langH, 6)
+    -- Left: Version & Engine Info
     love.graphics.setFont(UI.fonts.tiny)
-    love.graphics.setColor(1, 1, 1, 0.95)
-    love.graphics.printf("A文 Tiếng Việt", rightX, langY + 6, langW, "center")
+    love.graphics.setColor(UI.COLORS.textMuted)
+    love.graphics.printf("TERRA SUIT v1.0.1o • ENGINE POKER ROGUELIKE", 85, footY + 8, 400, "left")
+
+    -- Right Footer Buttons
+    local btnMod = {
+        id = "menu_mod",
+        text = "MOD",
+        x = 815,
+        y = footY,
+        w = 80,
+        h = footH,
+        color = { 0.32, 0.38, 0.52, 1 },
+        font = UI.fonts.small,
+    }
+    table.insert(buttons, btnMod)
+    UI.drawButton(btnMod, mx >= btnMod.x and mx <= btnMod.x + btnMod.w and my >= btnMod.y and my <= btnMod.y + btnMod.h, juice.buttonPressedId == btnMod.id)
+
+    local btnLang = {
+        id = "menu_lang",
+        text = "A文 Tiếng Việt",
+        x = 905,
+        y = footY,
+        w = 150,
+        h = footH,
+        color = { 0.16, 0.24, 0.28, 1 },
+        font = UI.fonts.tiny,
+    }
+    table.insert(buttons, btnLang)
+    UI.drawButton(btnLang, mx >= btnLang.x and mx <= btnLang.x + btnLang.w and my >= btnLang.y and my <= btnLang.y + btnLang.h, juice.buttonPressedId == btnLang.id)
+
+    local btnDiscord = {
+        id = "menu_discord",
+        text = "Dc",
+        x = 1065,
+        y = footY,
+        w = 46,
+        h = footH,
+        color = { 0.32, 0.40, 0.88, 1 },
+        font = UI.fonts.small,
+    }
+    table.insert(buttons, btnDiscord)
+    UI.drawButton(btnDiscord, mx >= btnDiscord.x and mx <= btnDiscord.x + btnDiscord.w and my >= btnDiscord.y and my <= btnDiscord.y + btnDiscord.h, juice.buttonPressedId == btnDiscord.id)
+
+    local btnX = {
+        id = "menu_x",
+        text = "𝕏",
+        x = 1120,
+        y = footY,
+        w = 46,
+        h = footH,
+        color = { 0.14, 0.14, 0.16, 1 },
+        font = UI.fonts.small,
+    }
+    table.insert(buttons, btnX)
+    UI.drawButton(btnX, mx >= btnX.x and mx <= btnX.x + btnX.w and my >= btnX.y and my <= btnX.y + btnH, juice.buttonPressedId == btnX.id)
 end
 
 local function drawCollectionModal()
@@ -3243,12 +3298,12 @@ local function drawPlayingState()
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(UI.COLORS.goldYellow)
     local curDeiCount = Deities.getCount(game.deities)
-    love.graphics.print("THẦN HỘ MỆNH (" .. curDeiCount .. "/5)", topStartX + 4, topStartY)
+    love.graphics.print("HỘ LINH (" .. curDeiCount .. "/5)", topStartX + 4, topStartY)
 
-    local deitySlotW = 112
-    local deitySlotH = 88
-    local deityGap = 12
-    local deityY = topStartY + 22
+    local deitySlotW = 82
+    local deitySlotH = 118
+    local deityGap = 14
+    local deityY = 32
 
     for i = 1, 5 do
         local dx = getDeitySlotRect(i, "playing")
@@ -3259,23 +3314,18 @@ local function drawPlayingState()
 
         if isDraggedSource then
             -- Ghost / Placeholder at original position
-            love.graphics.setColor(0.12, 0.15, 0.18, 0.35)
+            love.graphics.setColor(0.10, 0.12, 0.15, 0.45)
             UI.drawRoundedRect("fill", dx, deityY, deitySlotW, deitySlotH, 6)
             love.graphics.setLineWidth(1.5)
-            love.graphics.setColor(0.4, 0.5, 0.6, 0.5)
+            love.graphics.setColor(0.35, 0.40, 0.48, 0.5)
             UI.drawRoundedRect("line", dx, deityY, deitySlotW, deitySlotH, 6)
             love.graphics.setFont(UI.fonts.tiny)
             love.graphics.setColor(UI.COLORS.textMuted)
-            love.graphics.printf("Vị trí cũ", dx + 4, deityY + 34, deitySlotW - 8, "center")
+            love.graphics.printf("Vị trí cũ", dx + 4, deityY + deitySlotH / 2 - 6, deitySlotW - 8, "center")
         elseif d then
             if isHoveredSlot and not (deityDrag.active and deityDrag.isDragging) then
                 hoveredDeityTooltip = d
-            end
-
-            local borderCol = { 0.35, 0.45, 0.55, 1 }
-            if d.rarity == "uncommon" then borderCol = { 0.2, 0.8, 0.4, 1 }
-            elseif d.rarity == "rare" then borderCol = { 0.2, 0.6, 1.0, 1 }
-            elseif d.rarity == "legendary" then borderCol = { 0.95, 0.75, 0.1, 1 }
+                d.slotIndex = i
             end
 
             -- Slot bounce effect
@@ -3285,51 +3335,27 @@ local function drawPlayingState()
             if bScale > 1.01 then
                 love.graphics.scale(bScale, bScale)
             end
-            if isDropTarget then
-                love.graphics.scale(1.06, 1.06)
-            end
-            love.graphics.translate(-deitySlotW / 2, -deitySlotH / 2)
+            love.graphics.translate(-dx - deitySlotW / 2, -deityY - deitySlotH / 2)
 
-            love.graphics.setColor(0.18, 0.22, 0.26, 1)
-            UI.drawRoundedRect("fill", 0, 0, deitySlotW, deitySlotH, 6)
-            love.graphics.setLineWidth(isDropTarget and 2.5 or 1.5)
-            love.graphics.setColor(isDropTarget and UI.COLORS.bossPurple or borderCol)
-            UI.drawRoundedRect("line", 0, 0, deitySlotW, deitySlotH, 6)
-
-            love.graphics.setFont(UI.fonts.small)
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.printf(d.name, 4, 8, deitySlotW - 8, "center")
-
-            love.graphics.setFont(UI.fonts.tiny)
-            love.graphics.setColor(UI.COLORS.textMuted)
-            local descText = d.desc
-            if d.isCopyDeity then
-                local target = Deities.resolveDeity and Deities.resolveDeity(game.deities, i)
-                descText = target and ("(Sao chép: " .. target.name .. ")") or "Đặt bên trái 1 Thần khác để sao chép"
-            end
-            if isDropTarget then
-                love.graphics.setColor(UI.COLORS.goldYellow)
-                love.graphics.printf("⇄ HOÁN ĐỔI", 4, 38, deitySlotW - 8, "center")
-            else
-                love.graphics.printf(descText, 6, 34, deitySlotW - 12, "center")
-            end
+            local copyTarget = d.isCopyDeity and Deities.resolveDeity and Deities.resolveDeity(game.deities, i)
+            UI.drawPatronCard(d, dx, deityY, deitySlotW, deitySlotH, isHoveredSlot, juice.buttonPressedId == ("deity_" .. i), isDropTarget, copyTarget)
             love.graphics.pop()
         else
-            -- Empty slot
-            love.graphics.setColor(0.12, 0.15, 0.18, isDropTarget and 0.85 or 0.6)
+            -- Empty Tarot Slot
+            love.graphics.setColor(0.09, 0.11, 0.13, isDropTarget and 0.85 or 0.6)
             UI.drawRoundedRect("fill", dx, deityY, deitySlotW, deitySlotH, 6)
             love.graphics.setLineWidth(isDropTarget and 2.5 or 1)
-            love.graphics.setColor(isDropTarget and UI.COLORS.hpGreen or { 0.28, 0.34, 0.40, 0.6 })
+            love.graphics.setColor(isDropTarget and UI.COLORS.hpGreen or { 0.25, 0.28, 0.35, 0.5 })
             UI.drawRoundedRect("line", dx, deityY, deitySlotW, deitySlotH, 6)
 
             if isDropTarget then
                 love.graphics.setFont(UI.fonts.tiny)
                 love.graphics.setColor(UI.COLORS.hpGreen)
-                love.graphics.printf("THẢ VÀO ĐÂY", dx + 4, deityY + 36, deitySlotW - 8, "center")
+                love.graphics.printf("THẢ VÀO\nĐÂY", dx + 4, deityY + deitySlotH / 2 - 14, deitySlotW - 8, "center")
             else
                 love.graphics.setFont(UI.fonts.large)
-                love.graphics.setColor(0.35, 0.42, 0.48, 0.6)
-                love.graphics.printf("+", dx, deityY + 24, deitySlotW, "center")
+                love.graphics.setColor(0.28, 0.32, 0.38, 0.5)
+                love.graphics.printf("+", dx, deityY + deitySlotH / 2 - 18, deitySlotW, "center")
             end
         end
     end
@@ -3340,19 +3366,19 @@ local function drawPlayingState()
     love.graphics.setColor(UI.COLORS.textMuted)
     love.graphics.print("TIÊU HAO (0/2)", conStartX + 4, topStartY)
 
-    local conSlotW = 86
-    local conSlotH = 88
-    local conGap = 12
+    local conSlotW = 82
+    local conSlotH = 118
+    local conGap = 14
     for j = 1, 2 do
         local cx = conStartX + (j - 1) * (conSlotW + conGap)
-        love.graphics.setColor(0.12, 0.15, 0.18, 0.6)
+        love.graphics.setColor(0.09, 0.11, 0.13, 0.6)
         UI.drawRoundedRect("fill", cx, deityY, conSlotW, conSlotH, 6)
         love.graphics.setLineWidth(1)
-        love.graphics.setColor(0.28, 0.34, 0.40, 0.5)
+        love.graphics.setColor(0.24, 0.28, 0.34, 0.5)
         UI.drawRoundedRect("line", cx, deityY, conSlotW, conSlotH, 6)
         love.graphics.setFont(UI.fonts.small)
-        love.graphics.setColor(0.35, 0.42, 0.48, 0.5)
-        love.graphics.printf("Trống", cx, deityY + 34, conSlotW, "center")
+        love.graphics.setColor(0.32, 0.36, 0.42, 0.5)
+        love.graphics.printf("Trống", cx, deityY + conSlotH / 2 - 10, conSlotW, "center")
     end
 
     ----------------------------------------------------------------------------
@@ -3570,24 +3596,8 @@ local function drawPlayingState()
     -- 7. TOOLTIPS (Deity & Card Equipment)
     ----------------------------------------------------------------------------
     if hoveredDeityTooltip then
-        local d = hoveredDeityTooltip
-        local ttW = 290
-        local ttH = 95
-        local ttx = math.min(V_WIDTH - ttW - 10, math.max(10, mx + 12))
-        local tty = my + 18
-
-        love.graphics.setColor(0.08, 0.10, 0.12, 0.95)
-        UI.drawRoundedRect("fill", ttx, tty, ttW, ttH, 6)
-        love.graphics.setColor(UI.COLORS.goldYellow)
-        UI.drawRoundedRect("line", ttx, tty, ttW, ttH, 6)
-
-        love.graphics.setFont(UI.fonts.regular)
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.print(d.name .. " (" .. d.rarity:upper() .. ")", ttx + 10, tty + 8)
-
-        love.graphics.setFont(UI.fonts.small)
-        love.graphics.setColor(UI.COLORS.textLight)
-        love.graphics.printf(d.desc, ttx + 10, tty + 34, ttW - 20, "left")
+        local copyTarget = hoveredDeityTooltip.isCopyDeity and Deities.resolveDeity and Deities.resolveDeity(game.deities, hoveredDeityTooltip.slotIndex or 1)
+        UI.drawPatronTooltip(hoveredDeityTooltip, mx, my, copyTarget)
     end
 
     if hoveredCardTooltip then
@@ -5632,6 +5642,7 @@ local function drawShopState()
     local interestBonus = math.min(game.maxInterest or 5, math.floor((game.gold or 0) / 5))
     local hoveredShopItem = nil
     local hoveredItemPos = nil
+    hoveredDeityTooltip = nil
 
     ----------------------------------------------------------------------------
     -- 1. LEFT SIDEBAR HUD (Marquee Sign, Score, Chips/Mult, Round, Gold, Options)
@@ -5844,78 +5855,59 @@ local function drawShopState()
     love.graphics.printf("SINH LỰC: " .. (game.playerHp or 100) .. "/" .. (game.maxPlayerHp or 100) .. " HP", hx + 10, hpY + 9, hw - 20, "center")
 
     ----------------------------------------------------------------------------
-    -- 2. TOP SLOTS: THẦN HỘ MỆNH (0/5) & TIÊU HAO (0/2)
+    -- 2. TOP SLOTS: HỘ LINH (0/5) & TIÊU HAO (0/2)
     ----------------------------------------------------------------------------
     local deiCount = Deities.getCount(game.deities)
-    local deiSlotW = 98
-    local deiSlotH = 74
-    local deiGap = 10
+    local deiSlotW = 82
+    local deiSlotH = 118
+    local deiGap = 14
     local deiStartX = 295
+    local deiSlotY = 32
 
     love.graphics.setColor(0.08, 0.10, 0.13, 0.6)
-    UI.drawRoundedRect("fill", deiStartX - 8, hy, 550, 94, 8)
+    UI.drawRoundedRect("fill", deiStartX - 8, 14, 482, 140, 8)
     love.graphics.setColor(0.20, 0.26, 0.32, 0.4)
-    UI.drawRoundedRect("line", deiStartX - 8, hy, 550, 94, 8)
+    UI.drawRoundedRect("line", deiStartX - 8, 14, 482, 140, 8)
 
-    love.graphics.setFont(UI.fonts.tiny)
-    love.graphics.setColor(UI.COLORS.bossPurple)
-    love.graphics.print(deiCount .. "/5  THẦN HỘ MỆNH", deiStartX, hy + 4)
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.print("HỘ LINH (" .. deiCount .. "/5)", deiStartX + 4, 14)
 
     for i = 1, 5 do
         local sx = deiStartX + (i - 1) * (deiSlotW + deiGap)
-        local sy = hy + 18
+        local sy = deiSlotY
         local d = game.deities and game.deities[i]
         local isDeiDragged = (deityDrag.active and deityDrag.isDragging and deityDrag.deityIndex == i)
         local isDeiHovered = (mx >= sx and mx <= sx + deiSlotW and my >= sy and my <= sy + deiSlotH)
         local isDropTarget = (deityDrag.active and deityDrag.isDragging and isDeiHovered and deityDrag.deityIndex ~= i)
 
         if isDeiDragged then
-            love.graphics.setColor(0.12, 0.15, 0.18, 0.35)
+            love.graphics.setColor(0.10, 0.12, 0.15, 0.45)
             UI.drawRoundedRect("fill", sx, sy, deiSlotW, deiSlotH, 6)
-            love.graphics.setColor(0.4, 0.5, 0.6, 0.5)
+            love.graphics.setLineWidth(1.5)
+            love.graphics.setColor(0.35, 0.40, 0.48, 0.5)
             UI.drawRoundedRect("line", sx, sy, deiSlotW, deiSlotH, 6)
             love.graphics.setFont(UI.fonts.tiny)
             love.graphics.setColor(UI.COLORS.textMuted)
             love.graphics.printf("Vị trí cũ", sx + 4, sy + deiSlotH / 2 - 6, deiSlotW - 8, "center")
         elseif d then
-            local tX, tY = 0, 0
             if isDeiHovered and not (deityDrag.active and deityDrag.isDragging) then
-                tX, tY = UI.calculateTilt(mx, my, sx, sy, deiSlotW, deiSlotH)
+                hoveredDeityTooltip = d
+                d.slotIndex = i
             end
 
-            love.graphics.push()
-            love.graphics.translate(sx + deiSlotW / 2, sy + deiSlotH / 2)
-            if isDeiHovered and not (deityDrag.active and deityDrag.isDragging) then
-                love.graphics.shear(tX * 0.08, tY * 0.08)
-            end
-            if isDropTarget then
-                love.graphics.scale(1.06, 1.06)
-            end
-            love.graphics.translate(-deiSlotW / 2, -deiSlotH / 2)
+            local copyTarget = d.isCopyDeity and Deities.resolveDeity and Deities.resolveDeity(game.deities, i)
+            UI.drawPatronCard(d, sx, sy, deiSlotW, deiSlotH, isDeiHovered, juice.buttonPressedId == ("deity_" .. i), isDropTarget, copyTarget)
 
-            love.graphics.setColor(0.16, 0.20, 0.26, 0.95)
-            UI.drawRoundedRect("fill", 0, 0, deiSlotW, deiSlotH, 6)
-            love.graphics.setLineWidth(isDropTarget and 2.5 or 1.5)
-            love.graphics.setColor(isDropTarget and UI.COLORS.bossPurple or (isDeiHovered and UI.COLORS.goldYellow or { 0.45, 0.55, 0.70, 0.8 }))
-            UI.drawRoundedRect("line", 0, 0, deiSlotW, deiSlotH, 6)
-
-            love.graphics.setFont(UI.fonts.tiny)
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.printf(d.name, 4, 4, deiSlotW - 8, "center")
-
-            if isDropTarget then
-                love.graphics.setFont(UI.fonts.tiny)
-                love.graphics.setColor(UI.COLORS.goldYellow)
-                love.graphics.printf("⇄ HOÁN ĐỔI", 4, 28, deiSlotW - 8, "center")
-            else
+            if not isDropTarget then
                 local sellPrice = math.max(1, math.floor((d.cost or 4) / 2))
                 local btnSell = {
                     id = "sell_" .. i,
                     text = "Bán +$" .. sellPrice,
-                    x = sx + 8,
-                    y = sy + deiSlotH - 24,
-                    w = deiSlotW - 16,
-                    h = 20,
+                    x = sx + 6,
+                    y = sy + deiSlotH - 22,
+                    w = deiSlotW - 12,
+                    h = 18,
                     color = UI.COLORS.btnDiscard,
                     font = UI.fonts.tiny,
                     deityIndex = i,
@@ -5931,64 +5923,54 @@ local function drawShopState()
                 x = sx,
                 y = sy,
                 w = deiSlotW,
-                h = deiSlotH - 26,
+                h = deiSlotH - 24,
                 invisible = true,
                 deityIndex = i,
             }
             table.insert(buttons, btnDei)
-
-            love.graphics.pop()
-
-            local sellPrice = math.max(1, math.floor((d.cost or 4) / 2))
-            if isDeiHovered and not (deityDrag.active and deityDrag.isDragging) and not (mx >= sx + 8 and mx <= sx + deiSlotW - 8 and my >= sy + deiSlotH - 24 and my <= sy + deiSlotH - 4) then
-                hoveredShopItem = {
-                    name = d.name,
-                    subtitle = "THẦN HỘ MỆNH ĐANG TRANG BỊ",
-                    desc = d.desc,
-                    cost = sellPrice,
-                    isSell = true,
-                    color = { 0.85, 0.65, 0.95, 1 },
-                }
-                hoveredItemPos = { x = sx, y = sy + deiSlotH + 10 }
-            end
         else
-            love.graphics.setColor(0.10, 0.12, 0.15, isDropTarget and 0.85 or 0.4)
+            love.graphics.setColor(0.09, 0.11, 0.13, isDropTarget and 0.85 or 0.6)
             UI.drawRoundedRect("fill", sx, sy, deiSlotW, deiSlotH, 6)
             love.graphics.setLineWidth(isDropTarget and 2.5 or 1)
-            love.graphics.setColor(isDropTarget and UI.COLORS.hpGreen or { 0.20, 0.24, 0.30, 0.3 })
+            love.graphics.setColor(isDropTarget and UI.COLORS.hpGreen or { 0.25, 0.28, 0.35, 0.5 })
             UI.drawRoundedRect("line", sx, sy, deiSlotW, deiSlotH, 6)
-            love.graphics.setFont(UI.fonts.tiny)
             if isDropTarget then
+                love.graphics.setFont(UI.fonts.tiny)
                 love.graphics.setColor(UI.COLORS.hpGreen)
-                love.graphics.printf("THẢ VÀO ĐÂY", sx + 4, sy + deiSlotH / 2 - 6, deiSlotW - 8, "center")
+                love.graphics.printf("THẢ VÀO\nĐÂY", sx + 4, sy + deiSlotH / 2 - 14, deiSlotW - 8, "center")
             else
-                love.graphics.setColor(0.35, 0.40, 0.45, 0.5)
-                love.graphics.printf("+ Trống", sx, sy + deiSlotH / 2 - 6, deiSlotW, "center")
+                love.graphics.setFont(UI.fonts.large)
+                love.graphics.setColor(0.28, 0.32, 0.38, 0.5)
+                love.graphics.printf("+", sx, sy + deiSlotH / 2 - 18, deiSlotW, "center")
             end
         end
     end
 
     -- Consumables (0/2)
-    local conStartX = 860
+    local conStartX = deiStartX + 5 * (deiSlotW + deiGap) + 16
+    local conSlotW = 82
+    local conSlotH = 118
+    local conGap = 14
     love.graphics.setColor(0.08, 0.10, 0.13, 0.6)
-    UI.drawRoundedRect("fill", conStartX - 8, hy, 220, 94, 8)
+    UI.drawRoundedRect("fill", conStartX - 8, 14, 196, 140, 8)
     love.graphics.setColor(0.20, 0.26, 0.32, 0.4)
-    UI.drawRoundedRect("line", conStartX - 8, hy, 220, 94, 8)
+    UI.drawRoundedRect("line", conStartX - 8, 14, 196, 140, 8)
 
-    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor({ 0.45, 0.85, 0.65, 1 })
-    love.graphics.print("0/2  TIÊU HAO", conStartX, hy + 4)
+    love.graphics.print("TIÊU HAO (0/2)", conStartX + 4, 14)
 
     for i = 1, 2 do
-        local cx = conStartX + (i - 1) * (deiSlotW + deiGap)
-        local cy = hy + 18
-        love.graphics.setColor(0.10, 0.12, 0.15, 0.4)
-        UI.drawRoundedRect("fill", cx, cy, deiSlotW, deiSlotH, 6)
-        love.graphics.setColor(0.20, 0.24, 0.30, 0.3)
-        UI.drawRoundedRect("line", cx, cy, deiSlotW, deiSlotH, 6)
-        love.graphics.setFont(UI.fonts.tiny)
-        love.graphics.setColor(0.35, 0.40, 0.45, 0.5)
-        love.graphics.printf("+ Trống", cx, cy + deiSlotH / 2 - 6, deiSlotW, "center")
+        local cx = conStartX + (i - 1) * (conSlotW + conGap)
+        local cy = deiSlotY
+        love.graphics.setColor(0.09, 0.11, 0.13, 0.6)
+        UI.drawRoundedRect("fill", cx, cy, conSlotW, conSlotH, 6)
+        love.graphics.setLineWidth(1)
+        love.graphics.setColor(0.24, 0.28, 0.34, 0.5)
+        UI.drawRoundedRect("line", cx, cy, conSlotW, conSlotH, 6)
+        love.graphics.setFont(UI.fonts.small)
+        love.graphics.setColor(0.32, 0.36, 0.42, 0.5)
+        love.graphics.printf("Trống", cx, cy + conSlotH / 2 - 10, conSlotW, "center")
     end
 
     -- Top Right [MENU] button
@@ -5999,7 +5981,7 @@ local function drawShopState()
     ----------------------------------------------------------------------------
     -- 3. MAIN SHOP BOARD (Upper: Cards On Sale | Lower: Voucher & Packs)
     ----------------------------------------------------------------------------
-    local shopX, shopY, shopW, shopH = 295, 118, 785, 586
+    local shopX, shopY, shopW, shopH = 295, 156, 785, 548
     love.graphics.setColor(0.10, 0.12, 0.15, 0.96)
     UI.drawRoundedRect("fill", shopX, shopY, shopW, shopH, 12)
     love.graphics.setColor(0.85, 0.28, 0.24, 0.85)
@@ -6009,7 +5991,7 @@ local function drawShopState()
     ----------------------------------------------------------------------------
     -- A. UPPER COMPARTMENT (Next Round & Reroll + Upper Cards On Sale)
     ----------------------------------------------------------------------------
-    local upX, upY, upW, upH = shopX + 12, shopY + 12, shopW - 24, 270
+    local upX, upY, upW, upH = shopX + 12, shopY + 12, shopW - 24, 252
     love.graphics.setColor(0.13, 0.16, 0.20, 0.95)
     UI.drawRoundedRect("fill", upX, upY, upW, upH, 10)
     love.graphics.setColor(0.24, 0.30, 0.38, 0.7)
@@ -6020,9 +6002,9 @@ local function drawShopState()
         id = "leave_shop",
         text = "Ván\nKế Tiếp",
         x = upX + 12,
-        y = upY + 14,
+        y = upY + 12,
         w = 136,
-        h = 110,
+        h = 104,
         color = UI.COLORS.btnDestruct,
         font = UI.fonts.medium,
     }
@@ -6038,9 +6020,9 @@ local function drawShopState()
         sub = "$" .. rCost,
         isMultiLine = true,
         x = upX + 12,
-        y = upY + 134,
+        y = upY + 124,
         w = 136,
-        h = 122,
+        h = 114,
         color = canReroll and UI.COLORS.btnSpecial or UI.COLORS.btnNormal,
         font = UI.fonts.medium,
         disabled = not canReroll,
@@ -6065,7 +6047,7 @@ local function drawShopState()
         local it = entry.item
         local gIdx = entry.globalIndex
         local cx = cardStartX + (cIdx - 1) * (cardW + cardGap)
-        local cy = upY + 44
+        local cy = upY + 36
 
         local isCardHovered = (mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH)
         local drawY = isCardHovered and (cy - 12) or cy
@@ -6160,7 +6142,7 @@ local function drawShopState()
     ----------------------------------------------------------------------------
     -- B. LOWER COMPARTMENT (Voucher Slot on Left | Booster Packs on Right)
     ----------------------------------------------------------------------------
-    local lowX, lowY, lowW, lowH = shopX + 12, shopY + 294, shopW - 24, 280
+    local lowX, lowY, lowW, lowH = shopX + 12, shopY + 274, shopW - 24, shopH - 286
     love.graphics.setColor(0.13, 0.16, 0.20, 0.95)
     UI.drawRoundedRect("fill", lowX, lowY, lowW, lowH, 10)
     love.graphics.setColor(0.24, 0.30, 0.38, 0.7)
@@ -6168,9 +6150,9 @@ local function drawShopState()
 
     -- 1. Left Slot: PHIẾU ANTE 1 / VOUCHER
     local vSlotX = lowX + 14
-    local vSlotY = lowY + 16
+    local vSlotY = lowY + 12
     local vSlotW = 220
-    local vSlotH = 248
+    local vSlotH = 236
 
     love.graphics.setFont(UI.fonts.tiny)
     love.graphics.setColor(0.40, 0.46, 0.54, 0.7)
@@ -6189,7 +6171,7 @@ local function drawShopState()
         local it = voucherEntry.item
         local gIdx = voucherEntry.globalIndex
         local vx = vSlotX + 30
-        local vy = vSlotY + 28
+        local vy = vSlotY + 22
         local vw = 130
         local vh = 195
 
@@ -6273,7 +6255,7 @@ local function drawShopState()
         end
     else
         local vx = vSlotX + 30
-        local vy = vSlotY + 28
+        local vy = vSlotY + 22
         love.graphics.setColor(0.10, 0.12, 0.15, 0.4)
         UI.drawRoundedRect("fill", vx, vy, 130, 195, 8)
         love.graphics.setColor(0.20, 0.24, 0.30, 0.3)
@@ -6300,7 +6282,7 @@ local function drawShopState()
         local it = entry.item
         local gIdx = entry.globalIndex
         local px = packStartX + (pIdx - 1) * (packW + packGap)
-        local py = lowY + 44
+        local py = lowY + 32
 
         local isPackHovered = (mx >= px and mx <= px + packW and my >= py and my <= py + packH)
         local drawPY = isPackHovered and (py - 10) or py
@@ -6682,6 +6664,11 @@ local function drawShopState()
     if isShopTransferOpen then
         drawShopTransferView()
     end
+
+    if hoveredDeityTooltip then
+        local copyTarget = hoveredDeityTooltip.isCopyDeity and Deities.resolveDeity and Deities.resolveDeity(game.deities, hoveredDeityTooltip.slotIndex or 1)
+        UI.drawPatronTooltip(hoveredDeityTooltip, mx, my, copyTarget)
+    end
 end
 
 local function drawGameOverState()
@@ -6850,39 +6837,18 @@ function love.draw()
     -- Dragged Deity floating on top with shadow & glowing border
     if deityDrag.active and deityDrag.isDragging and game.deities and game.deities[deityDrag.deityIndex] then
         local d = game.deities[deityDrag.deityIndex]
-        local dw = deityDrag.cardW or 105
-        local dh = deityDrag.cardH or 82
+        local dw = deityDrag.cardW or 82
+        local dh = deityDrag.cardH or 118
         local dx = deityDrag.visualX
         local dy = deityDrag.visualY
 
         love.graphics.push()
         love.graphics.translate(dx + dw / 2, dy + dh / 2)
-        love.graphics.scale(1.15, 1.15)
+        love.graphics.scale(1.12, 1.12)
         love.graphics.translate(-dw / 2, -dh / 2)
 
-        -- Elevation drop shadow
-        love.graphics.setColor(0, 0, 0, 0.45)
-        UI.drawRoundedRect("fill", 6, 8, dw, dh, 8)
-
-        -- Card Body
-        love.graphics.setColor(0.18, 0.22, 0.28, 0.98)
-        UI.drawRoundedRect("fill", 0, 0, dw, dh, 6)
-
-        -- Glowing border
-        love.graphics.setColor(UI.COLORS.goldYellow)
-        love.graphics.setLineWidth(2.5)
-        UI.drawRoundedRect("line", 0, 0, dw, dh, 6)
-
-        love.graphics.setFont(UI.fonts.small)
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.printf(d.name, 4, 8, dw - 8, "center")
-
-        love.graphics.setFont(UI.fonts.tiny)
-        love.graphics.setColor(UI.COLORS.goldYellow)
-        love.graphics.printf("ĐANG SẮP XẾP", 4, 34, dw - 8, "center")
-
-        love.graphics.setColor(UI.COLORS.textMuted)
-        love.graphics.printf("Thả vào ô bất kỳ", 4, 52, dw - 8, "center")
+        local copyTarget = d.isCopyDeity and Deities.resolveDeity and Deities.resolveDeity(game.deities, deityDrag.deityIndex)
+        UI.drawPatronCard(d, 0, 0, dw, dh, true, false, false, copyTarget)
 
         love.graphics.pop()
     end
@@ -6900,9 +6866,9 @@ function love.draw()
             love.graphics.setShader(crtShader)
             if crtShader:hasUniform("u_resolution") then crtShader:send("u_resolution", { V_WIDTH, V_HEIGHT }) end
             if crtShader:hasUniform("u_time") then crtShader:send("u_time", juice.ambientTimer or 0) end
-            if crtShader:hasUniform("u_curvature") then crtShader:send("u_curvature", 0.055) end
-            if crtShader:hasUniform("u_chroma") then crtShader:send("u_chroma", 0.0028) end
-            if crtShader:hasUniform("u_scanlines") then crtShader:send("u_scanlines", 0.22) end
+            if crtShader:hasUniform("u_curvature") then crtShader:send("u_curvature", 0.040) end
+            if crtShader:hasUniform("u_chroma") then crtShader:send("u_chroma", 0.0020) end
+            if crtShader:hasUniform("u_scanlines") then crtShader:send("u_scanlines", 0.16) end
             if crtShader:hasUniform("u_vignette") then crtShader:send("u_vignette", 0.28) end
         else
             love.graphics.setShader()
@@ -7987,6 +7953,10 @@ function love.mousepressed(x, y, button)
                         deityDrag.currentY = my
                         deityDrag.origX = btn.x
                         deityDrag.origY = btn.y
+                        deityDrag.cardW = 82
+                        deityDrag.cardH = 118
+                        deityDrag.offsetX = btn.x - mx
+                        deityDrag.offsetY = btn.y - my
                         deityDrag.visualX = btn.x
                         deityDrag.visualY = btn.y
                         return

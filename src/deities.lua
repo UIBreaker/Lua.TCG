@@ -4,11 +4,12 @@ Deities.CATALOG = {
     -- Starter deities for each suit
     deity_hearts = {
         id = "deity_hearts",
-        name = "Thần Lửa Cơ",
+        name = "Tế Đàn Huyết Cơ",
         suit = "hearts",
         rarity = "uncommon",
         cost = 5,
         desc = "+4 Mult cho mỗi lá Cơ ghi điểm",
+        lore = "Máu hiến tế nuôi dưỡng ngọn lửa cuồng nộ không bao giờ tắt.",
         onCardScored = function(card, ctx)
             if card.suit == "hearts" or card.suit == "valoria" then
                 return { addMult = 4, message = "Cơ +4 Mult!" }
@@ -17,41 +18,44 @@ Deities.CATALOG = {
     },
     deity_diamonds = {
         id = "deity_diamonds",
-        name = "Thần Đất Rô",
+        name = "Linh Ấn Hoàng Kim",
         suit = "diamonds",
         rarity = "uncommon",
         cost = 5,
         desc = "+25 Chips cho mỗi lá Rô ghi điểm và +$2 thưởng sau mỗi round",
+        lore = "Vàng ròng khắc cổ tự mua chuộc cả vận mệnh tử thần.",
         onCardScored = function(card, ctx)
             if card.suit == "diamonds" or card.suit == "aurelia" then
                 return { addChips = 25, message = "Rô +25 Chips!" }
             end
         end,
         onRoundWin = function(ctx)
-            return { addGold = 2, message = "+$2 từ Thần Rô!" }
+            return { addGold = 2, message = "+$2 từ Linh Ấn!" }
         end,
     },
     deity_clubs = {
         id = "deity_clubs",
-        name = "Thần Gió Chuồn",
+        name = "Vuốt Quỷ Nguyên Sinh",
         suit = "clubs",
         rarity = "uncommon",
         cost = 5,
         desc = "+1 Discard mỗi round & +30 Chips cho mọi tay bài",
+        lore = "Móng vuốt tàn bạo xé rách ranh giới giữa sự sống và diệt vong.",
         onRoundStart = function(ctx)
             return { addDiscards = 1 }
         end,
         onHandScored = function(handInfo, ctx)
-            return { addChips = 30, message = "Gió Chuồn +30 Chips!" }
+            return { addChips = 30, message = "Vuốt Quỷ +30 Chips!" }
         end,
     },
     deity_spades = {
         id = "deity_spades",
-        name = "Thần Đêm Bích",
+        name = "Thiết Quân Hắc Kiếm",
         suit = "spades",
         rarity = "rare",
         cost = 6,
         desc = "x1.5 XMult nếu tay bài đánh ra có ít nhất 1 lá Bích",
+        lore = "Thanh kiếm rèn từ thép thiên thạch đen chém đứt mọi bóng ma.",
         onHandScored = function(handInfo, ctx)
             for _, c in ipairs(handInfo.scoringCards) do
                 if c.suit == "spades" or c.suit == "vharos" then
@@ -62,13 +66,14 @@ Deities.CATALOG = {
     },
 
     -- 10 Core Balatro-Adapted Deities
-    -- 1. Joker cơ bản -> Thần Khởi Nguyên (+4 Mult vô điều kiện)
+    -- 1. Joker cơ bản -> Nguyên Tội Cổ Thần (+4 Mult vô điều kiện)
     deity_genesis = {
         id = "deity_genesis",
-        name = "Thần Khởi Nguyên",
+        name = "Nguyên Tội Cổ Thần",
         rarity = "common",
         cost = 4,
         desc = "+4 Mult vô điều kiện cho mọi tay bài đánh ra",
+        lore = "Tội lỗi khởi nguyên từ thuở hồng hoang vẫn đang gặm nhấm thực tại.",
         onHandScored = function(handInfo, ctx, self)
             return { addMult = 4, message = "Khởi Nguyên +4 Mult!" }
         end,
@@ -77,10 +82,11 @@ Deities.CATALOG = {
     -- 2. Greedy/Lusty/Wrathful/Gluttonous Joker -> Tứ Đại Thần Tộc (+4 Mult mỗi lá thuộc Phe)
     deity_aurelia = {
         id = "deity_aurelia",
-        name = "Thần Quang Huy",
+        name = "Quang Huy Thánh Trọng",
         rarity = "common",
         cost = 5,
         desc = "+4 Mult cho mỗi lá phe Aurelia (Ánh Sáng) ghi điểm",
+        lore = "Ánh sáng chói lòa thiêu rụi kẻ dị giáo dưới chân thiên tòa.",
         onCardScored = function(card, ctx, self)
             if card.suit == "aurelia" or card.suit == "diamonds" then
                 return { addMult = 4, message = "Quang Huy +4 Mult!" }
@@ -89,10 +95,11 @@ Deities.CATALOG = {
     },
     deity_elaris = {
         id = "deity_elaris",
-        name = "Thần Trường Sinh",
+        name = "Mộc Linh Bất Tử",
         rarity = "common",
         cost = 5,
         desc = "+4 Mult cho mỗi lá phe Elaris (Thiên Nhiên) ghi điểm",
+        lore = "Rễ cây cổ thụ cắm sâu vào linh hồn người đã khuất.",
         onCardScored = function(card, ctx, self)
             if card.suit == "elaris" or card.suit == "clubs" then
                 return { addMult = 4, message = "Trường Sinh +4 Mult!" }
@@ -101,10 +108,11 @@ Deities.CATALOG = {
     },
     deity_vharos = {
         id = "deity_vharos",
-        name = "Thần Huyết Lửa",
+        name = "Huyết Ma Tận Diệt",
         rarity = "common",
         cost = 5,
         desc = "+4 Mult cho mỗi lá phe Vharos (Hắc Ám) ghi điểm",
+        lore = "Bóng tối nuốt chửng tro tàn của những vương triều sụp đổ.",
         onCardScored = function(card, ctx, self)
             if card.suit == "vharos" or card.suit == "spades" then
                 return { addMult = 4, message = "Huyết Lửa +4 Mult!" }
@@ -113,10 +121,11 @@ Deities.CATALOG = {
     },
     deity_valoria = {
         id = "deity_valoria",
-        name = "Thần Thiết Huyết",
+        name = "Thiết Giáp Bất Bại",
         rarity = "common",
         cost = 5,
         desc = "+4 Mult cho mỗi lá phe Valoria (Nhân Loại) ghi điểm",
+        lore = "Ý chí bằng sắt thép không bao giờ cúi đầu trước số phận.",
         onCardScored = function(card, ctx, self)
             if card.suit == "valoria" or card.suit == "hearts" then
                 return { addMult = 4, message = "Thiết Huyết +4 Mult!" }
@@ -124,13 +133,14 @@ Deities.CATALOG = {
         end,
     },
 
-    -- 3. Sly/Wily/Clever Joker -> Thần Trận Pháp (+50 Chips cho Song Đao / Tam Hoa)
+    -- 3. Sly/Wily/Clever Joker -> Chiến Trận Quân Kỳ (+50 Chips cho Song Đao / Tam Hoa)
     deity_formation = {
         id = "deity_formation",
-        name = "Thần Trận Pháp",
+        name = "Chiến Trận Quân Kỳ",
         rarity = "common",
         cost = 5,
         desc = "+50 Chips nếu tay bài là Song Đao hoặc Tam Hoa",
+        lore = "Lá cờ rách nát dựng lên giữa muôn vàn xác lính tử trận.",
         onHandScored = function(handInfo, ctx, self)
             local hId = handInfo.type and handInfo.type.id
             if hId == "pair" or hId == "two_pair" or hId == "three_of_a_kind" or hId == "full_house" then
@@ -139,13 +149,14 @@ Deities.CATALOG = {
         end,
     },
 
-    -- 4. Half Joker -> Thần Tinh Binh (+20 Mult nếu tay bài <= 3 lá bài)
+    -- 4. Half Joker -> Linh Hồn Tử Sĩ (+20 Mult nếu tay bài <= 3 lá bài)
     deity_elite = {
         id = "deity_elite",
-        name = "Thần Tinh Binh",
+        name = "Linh Hồn Tử Sĩ",
         rarity = "common",
         cost = 5,
         desc = "+20 Mult nếu tay bài đánh ra có <= 3 lá bài",
+        lore = "Những chiến binh cảm tử còn sót lại mang theo hận thù ngút trời.",
         onHandScored = function(handInfo, ctx, self)
             local totalCards = #(handInfo.scoringCards or {}) + #(handInfo.unscoredCards or {})
             if totalCards <= 3 then
@@ -154,13 +165,14 @@ Deities.CATALOG = {
         end,
     },
 
-    -- 5. Banner -> Thần Chiến Kỷ (+30 Chips cho mỗi lượt Discard còn lại)
+    -- 5. Banner -> Huyết Tẩy Tàn Quân (+30 Chips cho mỗi lượt Discard còn lại)
     deity_banner = {
         id = "deity_banner",
-        name = "Thần Chiến Kỷ",
+        name = "Huyết Tẩy Tàn Quân",
         rarity = "common",
         cost = 5,
         desc = "+30 Chips cho mỗi lượt Đổi Bài (Discard) còn lại",
+        lore = "Mỗi nhát cờ phất lên là một linh hồn bị gạt bỏ khỏi nhân gian.",
         onHandScored = function(handInfo, ctx, self)
             local discards = (ctx and ctx.discardsRemaining) or 0
             if discards > 0 then
@@ -170,14 +182,15 @@ Deities.CATALOG = {
         end,
     },
 
-    -- 6. Popcorn -> Thần Bách Hoa (+20 Mult ban đầu, -4 Mult sau mỗi trận cho đến khi tan biến)
+    -- 6. Popcorn -> Héo Mòn Hoa Độc (+20 Mult ban đầu, -4 Mult sau mỗi trận cho đến khi tan biến)
     deity_floral = {
         id = "deity_floral",
-        name = "Thần Bách Hoa",
+        name = "Héo Mòn Hoa Độc",
         rarity = "common",
         cost = 5,
         currentMult = 20,
         desc = "+20 Mult ban đầu (giảm -4 Mult sau mỗi trận thắng)",
+        lore = "Đóa hoa ngậm độc tàn lụi dần theo từng hơi thở tử thần.",
         onHandScored = function(handInfo, ctx, self)
             local cur = (self and self.currentMult) or 20
             if cur > 0 then
@@ -192,157 +205,169 @@ Deities.CATALOG = {
                 self.desc = "+" .. math.max(0, cur) .. " Mult ban đầu (giảm -4 Mult sau mỗi trận)"
                 if cur <= 0 then
                     self.extinct = true
-                    return { message = "Thần Bách Hoa đã cạn kiệt linh lực và tan biến!" }
+                    return { message = "Héo Mòn Hoa Độc đã cạn kiệt linh lực và tan biến!" }
                 end
             end
-            return { message = "Thần Bách Hoa tàn phai còn +" .. cur .. " Mult" }
+            return { message = "Héo Mòn Hoa Độc tàn phai còn +" .. cur .. " Mult" }
         end,
     },
 
-    -- 7. Golden Joker -> Thần Kim Tài (+$4 Vàng khi thắng trận)
+    -- 7. Golden Joker -> Thổ Phỉ Hoàng Kim (+$4 Vàng khi thắng trận)
     deity_golden = {
         id = "deity_golden",
-        name = "Thần Kim Tài",
+        name = "Thổ Phỉ Hoàng Kim",
         rarity = "common",
         cost = 6,
         desc = "Nhận +$4 Vàng khi chiến thắng mỗi trận",
+        lore = "Bàn tay tham lam bới móc châu báu từ những nấm mồ vô danh.",
         onRoundWin = function(game, self)
-            return { addGold = 4, message = "+$4 Vàng từ Thần Kim Tài!" }
+            return { addGold = 4, message = "+$4 Vàng từ Thổ Phỉ Hoàng Kim!" }
         end,
     },
 
-    -- 8. Gros Michel -> Thần Quả Thần Bí (+15 Mult, 1/6 tự hủy mở khóa Thần Thụ Bất Diệt)
+    -- 8. Gros Michel -> Cấm Quả Hỗn Mang (+15 Mult, 1/6 tự hủy mở khóa Bất Diệt Cổ Thụ)
     deity_sacred_fruit = {
         id = "deity_sacred_fruit",
-        name = "Thần Quả Thần Bí",
+        name = "Cấm Quả Hỗn Mang",
         rarity = "common",
         cost = 5,
-        desc = "+15 Mult. Có 1/6 tỉ lệ thăng thiên sau mỗi trận (mở khóa Thần Bất Diệt)",
+        desc = "+15 Mult. Có 1/6 tỉ lệ thăng thiên sau mỗi trận (mở khóa Bất Diệt Cổ Thụ)",
+        lore = "Trái cấm mang mầm mống diệt vong, chực chờ thức tỉnh cổ thụ.",
         onHandScored = function(handInfo, ctx, self)
-            return { addMult = 15, message = "Quả Thần Bí +15 Mult!" }
+            return { addMult = 15, message = "Cấm Quả +15 Mult!" }
         end,
         onRoundWin = function(game, self)
             local roll = (love and love.math and love.math.random(6)) or math.random(6)
             if roll == 1 then
                 if self then self.extinct = true end
                 if game then game.sacredFruitExtinct = true end
-                return { message = "Thần Quả Thần Bí đã thăng thiên! (Mở khóa Thần Bất Diệt trong Shop)" }
+                return { message = "Cấm Quả Hỗn Mang đã thức tỉnh! (Mở khóa Bất Diệt Cổ Thụ trong Shop)" }
             end
         end,
     },
-    -- Cavendish -> Thần Thụ Bất Diệt (x3.0 XMult vĩnh viễn)
+    -- Cavendish -> Bất Diệt Cổ Thụ (x3.0 XMult vĩnh viễn)
     deity_eternal_tree = {
         id = "deity_eternal_tree",
-        name = "Thần Thụ Bất Diệt",
+        name = "Bất Diệt Cổ Thụ",
         rarity = "rare",
         cost = 8,
         requiresExtinct = "deity_sacred_fruit",
         desc = "x3.0 XMult vĩnh viễn cho mọi tay bài",
+        lore = "Cây đại thụ vươn cành ôm trọn cả bầu trời sao tăm tối.",
         onHandScored = function(handInfo, ctx, self)
-            return { xMult = 3.0, message = "Thần Thụ Bất Diệt ×3.0 Mult!" }
+            return { xMult = 3.0, message = "Bất Diệt Cổ Thụ ×3.0 Mult!" }
         end,
     },
 
-    -- 9. Card Sharp -> Thần Điệp Kích (x3.0 XMult nếu thế bài được chơi lặp lại trong cùng trận)
+    -- 9. Card Sharp -> Vọng Âm Trùng Điệp (x3.0 XMult nếu thế bài được chơi lặp lại trong cùng trận)
     deity_echo = {
         id = "deity_echo",
-        name = "Thần Điệp Kích",
+        name = "Vọng Âm Trùng Điệp",
         rarity = "rare",
         cost = 7,
         desc = "x3.0 XMult nếu thế bài này đã được chơi trong trận",
+        lore = "Tiếng thét từ vực thẳm vang vọng mãi không dứt qua các ván bài.",
         onHandScored = function(handInfo, ctx, self)
             local handId = handInfo.type and handInfo.type.id
             if ctx and ctx.playedHandsHistory and handId and (ctx.playedHandsHistory[handId] or 0) >= 1 then
-                return { xMult = 3.0, message = "Điệp Kích ×3.0 Mult (Thế bài lặp lại)!" }
+                return { xMult = 3.0, message = "Vọng Âm ×3.0 Mult (Thế bài lặp lại)!" }
             end
         end,
     },
 
-    -- 10. Blueprint -> Thần Phản Chiếu (Sao chép Thần bên phải)
+    -- 10. Blueprint -> Gương Hồn Phản Chiếu (Sao chép Thần bên phải)
     deity_mirror = {
         id = "deity_mirror",
-        name = "Thần Phản Chiếu",
+        name = "Gương Hồn Phản Chiếu",
         rarity = "legendary",
         cost = 10,
         isCopyDeity = true,
-        desc = "Sao chép toàn bộ kỹ năng của Thần Bài đứng ngay bên phải nó",
+        desc = "Sao chép toàn bộ kỹ năng của Hộ Linh đứng ngay bên phải nó",
+        lore = "Mặt gương nứt vỡ phản chiếu bản sao quái dị của thực tại.",
     },
 
     -- Shop & discoverable deities
     deity_generous = {
         id = "deity_generous",
-        name = "Thần Hào Phóng",
+        name = "Hào Phóng Cổ Thần",
         rarity = "common",
         cost = 4,
         desc = "+50 Chips cố định vào mỗi tay bài",
+        lore = "Bố thí chút sinh lực tàn tạ cho kẻ dám thách thức thần linh.",
         onHandScored = function(handInfo, ctx, self)
             return { addChips = 50, message = "+50 Chips!" }
         end,
     },
     deity_flame = {
         id = "deity_flame",
-        name = "Thần Bùng Nổ",
+        name = "Hỏa Diệm Nộ Cuồng",
         rarity = "common",
         cost = 4,
         desc = "+6 Mult cho mọi tay bài",
+        lore = "Lửa căm hờn bùng cháy thiêu rụi toàn bộ bàn bài.",
         onHandScored = function(handInfo, ctx, self)
             return { addMult = 6, message = "+6 Mult!" }
         end,
     },
     deity_pairs = {
         id = "deity_pairs",
-        name = "Thần Cặp Đôi",
+        name = "Song Hồn Cổ Linh",
         rarity = "uncommon",
         cost = 5,
         desc = "+12 Mult nếu tay bài là Đôi hoặc Hai Đôi",
+        lore = "Hai linh hồn dị dạng bị xích chặt vào nhau trong ngục tối.",
         onHandScored = function(handInfo, ctx, self)
             if handInfo.type.id == "pair" or handInfo.type.id == "two_pair" then
-                return { addMult = 12, message = "Đôi +12 Mult!" }
+                return { addMult = 12, message = "Song Hồn +12 Mult!" }
             end
         end,
     },
     deity_straight = {
         id = "deity_straight",
-        name = "Đại Thần Sảnh",
+        name = "Trường Long Cuồng Nộ",
         rarity = "uncommon",
         cost = 6,
         desc = "+100 Chips và x1.5 XMult nếu đánh ra Sảnh",
+        lore = "Con rồng xương rỗng uốn mình giữa dòng chảy hỗn mang.",
         onHandScored = function(handInfo, ctx, self)
             if handInfo.type.id == "straight" or handInfo.type.id == "straight_flush" then
-                return { addChips = 100, xMult = 1.5, message = "Sảnh x1.5 Mult & +100 Chips!" }
+                return { addChips = 100, xMult = 1.5, message = "Trường Long x1.5 Mult & +100 Chips!" }
             end
         end,
     },
     deity_flush = {
         id = "deity_flush",
-        name = "Thần Đại Dương",
+        name = "Thâm Uyên Hải Triều",
         rarity = "uncommon",
         cost = 6,
         desc = "+15 Mult nếu tay bài là Thùng",
+        lore = "Thủy triều đen nhấn chìm mọi hy vọng vào đáy biển sâu.",
         onHandScored = function(handInfo, ctx, self)
             if handInfo.type.id == "flush" or handInfo.type.id == "straight_flush" then
-                return { addMult = 15, message = "Thùng +15 Mult!" }
+                return { addMult = 15, message = "Thâm Uyên +15 Mult!" }
             end
         end,
     },
     deity_royalty = {
         id = "deity_royalty",
-        name = "Thần Vương Giả",
+        name = "Huyết Mạch Vương Quyền",
         rarity = "uncommon",
         cost = 6,
         desc = "+25 Chips cho mỗi lá J, Q, K ghi điểm",
+        lore = "Dòng máu quý tộc nhiễm độc chảy trong huyết quản kẻ bạo chúa.",
         onCardScored = function(card, ctx, self)
             if card.rank >= 11 and card.rank <= 13 then
-                return { addChips = 25, message = "Tây +25 Chips!" }
+                return { addChips = 25, message = "Vương Quyền +25 Chips!" }
             end
         end,
     },
     deity_ace = {
         id = "deity_ace",
-        name = "Thần Át Chủ Bài",
+        name = "Thần Khí Tuyệt Diệt",
         rarity = "rare",
         cost = 7,
         desc = "+15 Mult và x1.5 XMult khi có ít nhất một lá Át ghi điểm",
+        lore = "Cổ vật cấm kỵ có thể xóa sổ cả một nền văn minh trong chớp mắt.",
         onHandScored = function(handInfo, ctx, self)
             local hasAce = false
             for _, c in ipairs(handInfo.scoringCards) do
@@ -352,40 +377,43 @@ Deities.CATALOG = {
                 end
             end
             if hasAce then
-                return { addMult = 15, xMult = 1.5, message = "Át x1.5 Mult & +15 Mult!" }
+                return { addMult = 15, xMult = 1.5, message = "Tuyệt Diệt x1.5 Mult & +15 Mult!" }
             end
         end,
     },
     deity_fullhouse = {
         id = "deity_fullhouse",
-        name = "Thần Cù Lũ",
+        name = "Thâm Uyên Cự Thú",
         rarity = "rare",
         cost = 7,
         desc = "x2.0 XMult nếu đánh ra Cù Lũ hoặc Tứ Quý",
+        lore = "Quái vật nghìn mắt thức giấc từ đáy vực sâu thẳm.",
         onHandScored = function(handInfo, ctx, self)
             if handInfo.type.id == "full_house" or handInfo.type.id == "four_of_a_kind" then
-                return { xMult = 2.0, message = "x2.0 Mult Bùng Nổ!" }
+                return { xMult = 2.0, message = "Cự Thú x2.0 Mult!" }
             end
         end,
     },
     deity_clutch = {
         id = "deity_clutch",
-        name = "Thần Phục Hận",
+        name = "Tử Khắc Phục Hận",
         rarity = "rare",
         cost = 7,
         desc = "x2.0 XMult ở Lượt đánh (Hand) cuối cùng của round",
+        lore = "Cú đánh tuyệt vọng của kẻ sắp bước qua ngưỡng cửa tử thần.",
         onHandScored = function(handInfo, ctx, self)
-            if ctx and ctx.handsRemaining == 0 then -- This is the last hand played
-                return { xMult = 2.0, message = "Cú chót x2.0 Mult!" }
+            if ctx and ctx.handsRemaining == 0 then
+                return { xMult = 2.0, message = "Tử Khắc x2.0 Mult!" }
             end
         end,
     },
     deity_supreme = {
         id = "deity_supreme",
-        name = "Tối Thượng Thần",
+        name = "Hỗn Mang Tối Thượng",
         rarity = "legendary",
         cost = 10,
         desc = "x2.0 XMult cho mọi tay bài",
+        lore = "Sự hủy diệt tuyệt đối mà không một phàm nhân nào có thể chạm tới.",
         onHandScored = function(handInfo, ctx, self)
             return { xMult = 2.0, message = "TỐI THƯỢNG x2.0 Mult!" }
         end,

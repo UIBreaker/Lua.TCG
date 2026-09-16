@@ -1524,6 +1524,54 @@ do
         log("[PASS] 59. Hệ Thống Nút Bấm Balatro 3D (Extrusion, Depress, 3D Tilt, In Hoa UTF-8 & Keycap Badges) verified 100%")
     end
 
+-- 60. Grimdark/Retro Overhaul (Chiseled Sockets, Gothic Face Portraits & Hộ Linh Tarot System)
+do
+    -- A. Card Sockets 3 Visual States Verification
+    local mockCard = Deck.newCard(13, "valoria") -- King (Quốc Vương)
+    mockCard.unlockedSockets = 3
+    Equipment.attach(mockCard, Equipment.ITEMS.holy_relic)
+    local okDrawCard = pcall(function()
+        UI.drawCard(mockCard, 100, 100, 140, 200, false, false, 0, 0)
+    end)
+    assert(okDrawCard, "UI.drawCard with chiseled sockets and Gothic King portrait must render cleanly")
+
+    -- B. Test Gothic Portraits for Face Cards (Q, J, A)
+    for _, rank in ipairs({ 11, 12, 14 }) do
+        local faceCard = Deck.newCard(rank, "aurelia")
+        faceCard.unlockedSockets = 2
+        local okFace = pcall(function()
+            UI.drawCard(faceCard, 100, 100, 140, 200, false, false, 0, 0)
+        end)
+        assert(okFace, "Face card rank " .. rank .. " must render Gothic pixel portrait without error")
+    end
+
+    -- C. Hộ Linh Catalog Grimdark Lore & Metadata
+    local Deities = require("src.deities")
+    local count = 0
+    for id, d in pairs(Deities.CATALOG) do
+        count = count + 1
+        assert(d.id ~= nil, "Deity must have id")
+        assert(d.name ~= nil and d.name ~= "", "Deity must have Grimdark name: " .. tostring(d.id))
+        assert(d.lore ~= nil and d.lore ~= "", "Deity must have lore flavor text: " .. tostring(d.id))
+        assert(d.rarity ~= nil, "Deity must have rarity: " .. tostring(d.id))
+    end
+    assert(count >= 20, "Deities catalog must exist with >= 20 patrons, got: " .. count)
+
+    -- D. Hộ Linh Visual Tarot & Relic Sigils Rendering
+    local samplePatron = Deities.CATALOG.deity_hearts
+    local okPatronCard = pcall(function()
+        UI.drawPatronCard(samplePatron, 100, 100, 82, 118, true, false, false)
+    end)
+    assert(okPatronCard, "UI.drawPatronCard must render vertical tarot without error")
+
+    local okTooltip = pcall(function()
+        UI.drawPatronTooltip(samplePatron, 100, 100, nil)
+    end)
+    assert(okTooltip, "UI.drawPatronTooltip must render rich lore tooltip without error")
+
+    log("[PASS] 60. Đại Tu Grimdark & Cổ Điển (Hốc Khảm Đá Quý 3 Trạng Thái, Chân Dung Gothic K-Q-J-A, Hộ Linh Tarot & Sigil Cổ Vật) verified 100%")
+end
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then

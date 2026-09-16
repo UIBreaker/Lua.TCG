@@ -14,7 +14,7 @@ Collection.CATEGORIES = {
     {
         id = "jokers",
         title = "Joker",
-        sub = "Thần Hộ Mệnh",
+        sub = "Hộ Linh",
         col = "left",
         btnColor = { 0.58, 0.16, 0.14, 1 }, -- Dark Crimson / Reddish Brown
         badge = "25",
@@ -134,7 +134,7 @@ local EDITIONS = {
 }
 
 local PACKS = {
-    { id = "pack_buffoon", name = "Gói Thần Bài (Buffoon Pack)", cost = 4, rarity = "Đặc Quyền", desc = "Mở ra 2 lá Thần Hộ Mệnh (Joker) ngẫu nhiên. Chọn 1 lá để thỉnh về trợ chiến!", icon = "🃏", color = { 0.90, 0.40, 0.20, 1 } },
+    { id = "pack_buffoon", name = "Gói Thần Bài (Buffoon Pack)", cost = 4, rarity = "Đặc Quyền", desc = "Mở ra 2 lá Hộ Linh (Joker) ngẫu nhiên. Chọn 1 lá để thỉnh về trợ chiến!", icon = "🃏", color = { 0.90, 0.40, 0.20, 1 } },
     { id = "pack_standard", name = "Gói Quân Binh (Standard Pack)", cost = 4, rarity = "Tiêu Chuẩn", desc = "Mở ra 3 quân bài ma thuật kèm cường hóa hoặc ấn bản. Chọn 1 lá thêm vào bộ bài!", icon = "🎴", color = { 0.25, 0.60, 0.90, 1 } },
     { id = "pack_arcana", name = "Gói Trang Bị (Arcana Pack)", cost = 4, rarity = "Ma Pháp", desc = "Mở ra 3 Trang Bị Khảm Ngọc ngẫu nhiên. Chọn 1 bảo vật để khảm vào quân bài!", icon = "🔮", color = { 0.65, 0.35, 0.85, 1 } },
     { id = "pack_celestial", name = "Gói Thiên Thể (Celestial Pack)", cost = 4, rarity = "Thần Thánh", desc = "Mở ra các hành tinh ban phước, tăng vĩnh viễn Chips và Mult cho một thế bài cụ thể!", icon = "🪐", color = { 0.20, 0.75, 0.75, 1 } },

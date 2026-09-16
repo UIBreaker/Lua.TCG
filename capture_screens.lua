@@ -95,7 +95,7 @@ function Capture.update(gameRef, callbacks)
     elseif frame == 102 then
         -- Add 1 reward card (e.g. K of Spades) to persistent deck and open Socketing
         local Deck = require("src.deck")
-        local kSpades = Deck.newCard(13, "spades")
+        local kSpades = Deck.newCard(13, "valoria")
         Deck.addCardToDeck(gameRef, kSpades)
         callbacks.openSocketing(Equipment.ITEMS.feather_free)
         saveImage("shot_socketing_fix.png")

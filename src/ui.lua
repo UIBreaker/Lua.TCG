@@ -6,14 +6,16 @@ UI.COLORS = {
     felt = { 0.10, 0.18, 0.14, 1 },
     panelBg = { 0.12, 0.16, 0.18, 0.95 },
     panelBorder = { 0.25, 0.35, 0.38, 1 },
-    cardBg = { 0.98, 0.98, 0.98, 1 },
-    cardBorder = { 0.75, 0.78, 0.82, 1 },
+    cardBg = { 0.92, 0.88, 0.80, 1 },
+    cardBorder = { 0.52, 0.46, 0.38, 1 },
     cardSelectedBorder = { 0.95, 0.8, 0.1, 1 },
     textLight = { 0.95, 0.96, 0.98, 1 },
     textDark = { 0.15, 0.15, 0.18, 1 },
     textMuted = { 0.68, 0.74, 0.80, 1 },
     chipsBlue = { 0.18, 0.55, 0.92, 1 },
-    multRed = { 0.92, 0.22, 0.28, 1 },
+    multRed = { 0.78, 0.12, 0.18, 1 },
+    suitCrimson = { 0.78, 0.12, 0.18, 1 },
+    suitObsidian = { 0.11, 0.12, 0.15, 1 },
     xmultGold = { 0.95, 0.72, 0.12, 1 },
     goldYellow = { 0.98, 0.85, 0.25, 1 },
     hpGreen = { 0.2, 0.8, 0.3, 1 },
@@ -604,9 +606,15 @@ function UI.drawCard(card, x, y, w, h)
     love.graphics.setColor(0, 0, 0, shAlpha)
     UI.drawRoundedRect("fill", shOffX, shOffY, w, h, 8)
 
-    -- Card background
+    -- Card background: Ancient Weathered Ivory Parchment
     love.graphics.setColor(UI.COLORS.cardBg)
     UI.drawRoundedRect("fill", 0, 0, w, h, 8)
+
+    -- Inner edge burnt / aged soot vignette
+    love.graphics.setColor(0.72, 0.65, 0.54, 0.45)
+    UI.drawRoundedRect("line", 1.5, 1.5, w - 3, h - 3, 7)
+    love.graphics.setColor(0.82, 0.76, 0.66, 0.35)
+    UI.drawRoundedRect("line", 3, 3, w - 6, h - 6, 6)
 
     -- Border
     love.graphics.setLineWidth(card.selected and 3.5 or 2)
@@ -619,23 +627,26 @@ function UI.drawCard(card, x, y, w, h)
     end
     UI.drawRoundedRect("line", 0, 0, w, h, 8)
 
+    -- Corner Gothic Filigree Brackets
+    love.graphics.setColor(0.48, 0.42, 0.34, 0.65)
+    love.graphics.setLineWidth(1)
+    love.graphics.line(5, 12, 5, 5, 12, 5)
+    love.graphics.line(w - 5, 12, w - 5, 5, w - 12, 5)
+    love.graphics.line(5, h - 12, 5, h - 5, 12, h - 5)
+    love.graphics.line(w - 5, h - 12, w - 5, h - 5, w - 12, h - 5)
+
     -- Face-down Card Drawing (The Fish boss ability)
     if card.faceDown then
-        love.graphics.setColor(0.14, 0.18, 0.24, 1)
-        UI.drawRoundedRect("fill", 2, 2, w - 4, h - 4, 6)
-
-        love.graphics.setColor(0.35, 0.45, 0.6, 0.8)
-        love.graphics.setLineWidth(1.5)
+        love.graphics.setColor(0.12, 0.14, 0.18, 0.98)
+        UI.drawRoundedRect("fill", 3, 3, w - 6, h - 6, 6)
+        love.graphics.setColor(0.35, 0.28, 0.38, 0.8)
         UI.drawRoundedRect("line", 5, 5, w - 10, h - 10, 5)
-
         love.graphics.setFont(UI.fonts.large)
-        love.graphics.setColor(0.65, 0.78, 0.95, 0.9)
+        love.graphics.setColor(0.75, 0.68, 0.85, 0.9)
         love.graphics.printf("?", 0, h / 2 - 18, w, "center")
-
         love.graphics.setFont(UI.fonts.tiny)
-        love.graphics.setColor(0.5, 0.6, 0.75, 0.8)
-        love.graphics.printf("ÚP MẶT", 0, h / 2 + 14, w, "center")
-
+        love.graphics.setColor(0.5, 0.45, 0.55, 0.8)
+        love.graphics.printf("PHONG ẤN", 0, h / 2 + 14, w, "center")
         love.graphics.pop()
         return
     end
@@ -644,18 +655,13 @@ function UI.drawCard(card, x, y, w, h)
     local eqCount = (card.equipments and #card.equipments) or 0
     if eqCount > 0 then
         love.graphics.setLineWidth(1.5)
-        love.graphics.setColor(0.88, 0.74, 0.26, 0.85)
+        love.graphics.setColor(0.85, 0.70, 0.22, 0.85)
         UI.drawRoundedRect("line", 3, 3, w - 6, h - 6, 6)
-
-        -- Corner ornamental notches
-        love.graphics.setColor(0.95, 0.82, 0.35, 0.95)
-        love.graphics.line(5, 8, 8, 5)
-        love.graphics.line(w - 5, 8, w - 8, 5)
-        love.graphics.line(5, h - 8, 8, h - 5)
-        love.graphics.line(w - 5, h - 8, w - 8, h - 5)
     end
 
-    local suitColor = card.color or { 0.2, 0.2, 0.2, 1 }
+    -- Suit Color (Crimson Burgundy or Void Obsidian)
+    local isRedSuit = (card.suit == "hearts" or card.suit == "valoria" or card.suit == "diamonds" or card.suit == "aurelia")
+    local suitColor = isRedSuit and UI.COLORS.suitCrimson or UI.COLORS.suitObsidian
 
     -- Top-left rank
     love.graphics.setColor(suitColor)
@@ -663,19 +669,216 @@ function UI.drawCard(card, x, y, w, h)
     love.graphics.print(card.rankName, 8, 4)
 
     -- Top-left small suit icon
-    UI.drawSuitSymbol(card.suit, 15, 40, 16, suitColor)
-
-    -- Center big suit symbol
-    UI.drawSuitSymbol(card.suit, w / 2, h / 2 - 2, 46, suitColor)
+    UI.drawSuitSymbol(card.suit, 15, 38, 14, suitColor)
 
     -- Bottom-right rank
     love.graphics.setColor(suitColor)
     love.graphics.setFont(UI.fonts.regular)
     local rk = card.rankName
     local rkW = UI.fonts.regular:getWidth(rk)
-    love.graphics.print(rk, w - rkW - 8, h - 25)
+    love.graphics.print(rk, w - rkW - 8, h - 23)
 
-    -- Role text at lower center
+    -- 5 Chiseled Diamond Sockets across the top edge (3 states: Locked, Open, Socketed)
+    local socketCount = 5
+    local dw = 5.2
+    local dh = 5.2
+    local socketGap = 13
+    local socketStartX = (w - (socketCount * socketGap - 3)) / 2 + 3
+    local socketY = 9
+
+    for s = 1, socketCount do
+        local sx = socketStartX + (s - 1) * socketGap
+        local isUnlocked = s <= (card.unlockedSockets or 1)
+        local eq = card.equipments and card.equipments[s]
+
+        if not isUnlocked then
+            -- 1. Locked Socket: Sunken dark-gray diamond cavity with chisel X
+            love.graphics.setColor(0.32, 0.28, 0.24, 0.85)
+            love.graphics.polygon("fill", sx, socketY - dh, sx + dw, socketY, sx, socketY + dh, sx - dw, socketY)
+            love.graphics.setColor(0.16, 0.14, 0.12, 0.95)
+            love.graphics.polygon("fill", sx, socketY - dh + 1, sx + dw - 1, socketY, sx, socketY + dh - 1, sx - dw + 1, socketY)
+            love.graphics.setLineWidth(1.2)
+            love.graphics.setColor(0.08, 0.07, 0.06, 0.9)
+            love.graphics.line(sx - 2.5, socketY - 2.5, sx + 2.5, socketY + 2.5)
+            love.graphics.line(sx + 2.5, socketY - 2.5, sx - 2.5, socketY + 2.5)
+        elseif not eq then
+            -- 2. Open Empty Socket: Metallic beveled chisel rim & deep dark velvet cavity
+            love.graphics.setColor(0.48, 0.40, 0.28, 0.95)
+            love.graphics.polygon("fill", sx, socketY - dh - 0.8, sx + dw + 0.8, socketY, sx, socketY + dh + 0.8, sx - dw - 0.8, socketY)
+            love.graphics.setColor(0.09, 0.08, 0.08, 0.98)
+            love.graphics.polygon("fill", sx, socketY - dh + 0.5, sx + dw - 0.5, socketY, sx, socketY + dh - 0.5, sx - dw + 0.5, socketY)
+            love.graphics.setColor(0.82, 0.72, 0.50, 0.7)
+            love.graphics.setLineWidth(1)
+            love.graphics.line(sx - dw, socketY, sx, socketY - dh)
+            love.graphics.line(sx, socketY - dh, sx + dw, socketY)
+        else
+            -- 3. Socketed Gemstone: Faceted jewel with glowing core & 4 prongs
+            local gc = eq.color or UI.COLORS.goldYellow
+            -- Jewelry Bezel
+            love.graphics.setColor(0.85, 0.72, 0.22, 0.95)
+            love.graphics.polygon("fill", sx, socketY - dh - 1.2, sx + dw + 1.2, socketY, sx, socketY + dh + 1.2, sx - dw - 1.2, socketY)
+            -- Upper Facet
+            love.graphics.setColor(math.min(1, gc[1] * 1.3), math.min(1, gc[2] * 1.3), math.min(1, gc[3] * 1.3), 1)
+            love.graphics.polygon("fill", sx, socketY - dh, sx + dw, socketY, sx, socketY, sx - dw, socketY)
+            -- Lower Facet
+            love.graphics.setColor(gc[1] * 0.65, gc[2] * 0.65, gc[3] * 0.65, 1)
+            love.graphics.polygon("fill", sx - dw, socketY, sx + dw, socketY, sx, socketY + dh)
+            -- Core table glow
+            love.graphics.setColor(1, 1, 1, 0.55)
+            love.graphics.polygon("fill", sx, socketY - dh * 0.45, sx + dw * 0.45, socketY, sx, socketY + dh * 0.45, sx - dw * 0.45, socketY)
+            -- 4 Golden Prongs
+            love.graphics.setColor(0.98, 0.88, 0.35, 1)
+            love.graphics.circle("fill", sx, socketY - dh, 1.0)
+            love.graphics.circle("fill", sx + dw, socketY, 1.0)
+            love.graphics.circle("fill", sx, socketY + dh, 1.0)
+            love.graphics.circle("fill", sx - dw, socketY, 1.0)
+            -- Specular sparkle
+            love.graphics.setColor(1, 1, 1, 0.95)
+            love.graphics.line(sx - 2, socketY - 1.5, sx, socketY - 1.5)
+            love.graphics.line(sx - 1, socketY - 2.5, sx - 1, socketY - 0.5)
+        end
+    end
+
+    -- Center Artwork: Face Cards Gothic Pixel Portraits or Numeric Pips
+    local rank = card.rank or 2
+    local cx = w / 2
+    local cy = h / 2 - 3
+
+    if rank == 13 then
+        -- 👑 KING (K - Quốc Vương): Gothic Bloodied Sovereign Portrait
+        local pw, ph = 52, 60
+        local px = cx - pw / 2
+        local py = cy - ph / 2 + 1
+
+        -- Gothic Arched Frame
+        love.graphics.setColor(0.18, 0.11, 0.12, 0.95)
+        UI.drawRoundedRect("fill", px, py, pw, ph, 6)
+        love.graphics.setColor(0.72, 0.58, 0.22, 0.95)
+        love.graphics.setLineWidth(1.5)
+        UI.drawRoundedRect("line", px, py, pw, ph, 6)
+
+        -- Regal Ermine Mantle
+        love.graphics.setColor(0.55, 0.10, 0.14, 1)
+        love.graphics.polygon("fill", px + 4, py + ph - 2, px + pw - 4, py + ph - 2, cx, py + 24)
+        love.graphics.setColor(0.94, 0.92, 0.88, 1)
+        love.graphics.rectangle("fill", px + 8, py + ph - 14, pw - 16, 7, 2)
+        love.graphics.setColor(0.10, 0.08, 0.08, 1)
+        love.graphics.circle("fill", px + 14, py + ph - 10, 1.1)
+        love.graphics.circle("fill", px + 22, py + ph - 10, 1.1)
+        love.graphics.circle("fill", px + 30, py + ph - 10, 1.1)
+        love.graphics.circle("fill", px + 38, py + ph - 10, 1.1)
+
+        -- Masked Visage / Brooding Face
+        love.graphics.setColor(0.82, 0.72, 0.42, 1)
+        love.graphics.rectangle("fill", cx - 9, py + 18, 18, 16, 4)
+        love.graphics.setColor(0.10, 0.06, 0.06, 1)
+        love.graphics.rectangle("fill", cx - 7, py + 22, 4, 3)
+        love.graphics.rectangle("fill", cx + 3, py + 22, 4, 3)
+
+        -- Bleeding Iron Crown
+        love.graphics.setColor(0.28, 0.26, 0.28, 1)
+        love.graphics.polygon("fill",
+            cx - 12, py + 18,
+            cx - 13, py + 6,
+            cx - 6, py + 12,
+            cx, py + 4,
+            cx + 6, py + 12,
+            cx + 13, py + 6,
+            cx + 12, py + 18
+        )
+        love.graphics.setColor(0.85, 0.70, 0.22, 1)
+        love.graphics.rectangle("fill", cx - 12, py + 16, 24, 3)
+        love.graphics.setColor(0.85, 0.12, 0.15, 0.95)
+        love.graphics.circle("fill", cx, py + 8, 1.8)
+        love.graphics.circle("fill", cx - 9, py + 10, 1.5)
+        love.graphics.circle("fill", cx + 9, py + 10, 1.5)
+        love.graphics.line(cx - 9, py + 11, cx - 9, py + 16)
+
+        -- Suit Insignia on Gorget
+        UI.drawSuitSymbol(card.suit, cx, py + ph - 18, 11, suitColor)
+
+    elseif rank == 12 then
+        -- 👸 QUEEN (Q - Hoàng Hậu): Mourning Veiled Sovereign Portrait
+        local pw, ph = 52, 60
+        local px = cx - pw / 2
+        local py = cy - ph / 2 + 1
+
+        -- Gothic Arched Frame
+        love.graphics.setColor(0.14, 0.10, 0.16, 0.95)
+        UI.drawRoundedRect("fill", px, py, pw, ph, 6)
+        love.graphics.setColor(0.65, 0.45, 0.72, 0.95)
+        love.graphics.setLineWidth(1.5)
+        UI.drawRoundedRect("line", px, py, pw, ph, 6)
+
+        -- Black Mourning Veil Cascading
+        love.graphics.setColor(0.10, 0.08, 0.12, 1)
+        love.graphics.polygon("fill", cx - 13, py + 14, px + 5, py + ph - 2, cx - 4, py + ph - 2, cx, py + 28)
+        love.graphics.polygon("fill", cx + 13, py + 14, px + pw - 5, py + ph - 2, cx + 4, py + ph - 2, cx, py + 28)
+
+        -- Pale Regal Face
+        love.graphics.setColor(0.90, 0.86, 0.82, 1)
+        love.graphics.rectangle("fill", cx - 8, py + 18, 16, 16, 4)
+        love.graphics.setColor(0.25, 0.18, 0.25, 1)
+        love.graphics.line(cx - 6, py + 24, cx - 2, py + 24)
+        love.graphics.line(cx + 2, py + 24, cx + 6, py + 24)
+
+        -- Thorned Amethyst Tiara
+        love.graphics.setColor(0.20, 0.18, 0.22, 1)
+        love.graphics.polygon("fill", cx - 10, py + 18, cx - 8, py + 8, cx, py + 12, cx + 8, py + 8, cx + 10, py + 18)
+        love.graphics.setColor(0.78, 0.32, 0.88, 1)
+        love.graphics.circle("fill", cx, py + 13, 2.2)
+
+        -- Suit Insignia
+        UI.drawSuitSymbol(card.suit, cx, py + ph - 16, 11, suitColor)
+
+    elseif rank == 11 then
+        -- ⚔️ KNIGHT (J - Hiệp Sĩ): Slotted Iron Visor Greathelm Portrait
+        local pw, ph = 52, 60
+        local px = cx - pw / 2
+        local py = cy - ph / 2 + 1
+
+        -- Gothic Shield Frame
+        love.graphics.setColor(0.12, 0.14, 0.18, 0.95)
+        UI.drawRoundedRect("fill", px, py, pw, ph, 6)
+        love.graphics.setColor(0.48, 0.58, 0.68, 0.95)
+        love.graphics.setLineWidth(1.5)
+        UI.drawRoundedRect("line", px, py, pw, ph, 6)
+
+        -- Iron Greathelm
+        love.graphics.setColor(0.32, 0.36, 0.42, 1)
+        love.graphics.rectangle("fill", cx - 11, py + 10, 22, 28, 4)
+        love.graphics.setColor(0.48, 0.52, 0.60, 1)
+        love.graphics.rectangle("fill", cx - 13, py + 19, 26, 4, 1)
+        -- Slotted Visor Eye Slit
+        love.graphics.setColor(0.08, 0.08, 0.10, 1)
+        love.graphics.rectangle("fill", cx - 9, py + 20, 18, 2)
+        love.graphics.setColor(0.95, 0.35, 0.15, 0.95)
+        love.graphics.rectangle("fill", cx - 4, py + 20, 3, 2)
+        love.graphics.rectangle("fill", cx + 2, py + 20, 3, 2)
+
+        -- Steel Gorget & Shoulders
+        love.graphics.setColor(0.24, 0.28, 0.34, 1)
+        love.graphics.polygon("fill", px + 4, py + ph - 2, px + pw - 4, py + ph - 2, cx + 8, py + 38, cx - 8, py + 38)
+        love.graphics.setColor(0.70, 0.75, 0.82, 1)
+        love.graphics.circle("fill", px + 9, py + ph - 8, 1.1)
+        love.graphics.circle("fill", px + pw - 9, py + ph - 8, 1.1)
+
+        -- Suit Crest
+        UI.drawSuitSymbol(card.suit, cx, py + ph - 15, 11, suitColor)
+
+    elseif rank == 14 then
+        -- 🗡️ ACE (A - Thần Khí): Divine Relic Sigil & Holy Halo
+        love.graphics.setColor(suitColor[1], suitColor[2], suitColor[3], 0.18)
+        love.graphics.circle("fill", cx, cy, 26)
+        love.graphics.setColor(suitColor[1], suitColor[2], suitColor[3], 0.35)
+        love.graphics.circle("line", cx, cy, 28)
+        UI.drawSuitSymbol(card.suit, cx, cy, 38, suitColor)
+    else
+        -- 🛡️ SOLDIER (2-10): Gothic Pips & Insignia
+        UI.drawSuitSymbol(card.suit, cx, cy, 40, suitColor)
+    end
+
+    -- Role text at lower center in retro pixel font
     local roleText = card.roleName
     if not roleText and card.rank then
         local Deck = require("src.deck")
@@ -683,85 +886,386 @@ function UI.drawCard(card, x, y, w, h)
         roleText = role.name
     end
     if roleText then
+        local displayRole = roleText
+        if rank == 13 then displayRole = "KING"
+        elseif rank == 12 then displayRole = "QUEEN"
+        elseif rank == 11 then displayRole = "KNIGHT"
+        elseif rank == 14 then displayRole = "DIVINE"
+        else displayRole = "SOLDIER"
+        end
+
         love.graphics.setFont(UI.fonts.tiny)
-        love.graphics.setColor(0.4, 0.45, 0.5, 0.9)
-        love.graphics.printf(roleText, 0, h - 39, w, "center")
+        love.graphics.setColor(0.32, 0.28, 0.24, 0.95)
+        local rw = UI.fonts.tiny:getWidth(displayRole)
+        love.graphics.print(displayRole, (w - rw) / 2, h - 35 + 1)
+        love.graphics.setColor(0.52, 0.46, 0.38, 1)
+        love.graphics.print(displayRole, (w - rw) / 2, h - 35)
     end
 
-    -- Base Chip badge at bottom center
-    love.graphics.setColor(UI.COLORS.chipsBlue[1], UI.COLORS.chipsBlue[2], UI.COLORS.chipsBlue[3], 0.9)
-    UI.drawRoundedRect("fill", (w - 38) / 2, h - 22, 38, 18, 4)
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.setFont(UI.fonts.small)
+    -- Con Dấu Sáp (Wax Seal) Base Chip Badge in bottom corner
+    local sealCX = 22
+    local sealCY = h - 18
+    local sealR = 11.5
+
+    -- Molten Wax Lobes
+    love.graphics.setColor(0.48, 0.08, 0.10, 0.95)
+    for a = 0, 5 do
+        local ang = a * (math.pi / 3)
+        local lx = sealCX + math.cos(ang) * (sealR - 1)
+        local ly = sealCY + math.sin(ang) * (sealR - 1)
+        love.graphics.circle("fill", lx, ly, 4.2)
+    end
+    love.graphics.setColor(0.68, 0.12, 0.15, 0.98)
+    love.graphics.circle("fill", sealCX, sealCY, sealR)
+
+    -- Inner Stamped Seal Cavity
+    love.graphics.setColor(0.52, 0.08, 0.10, 1)
+    love.graphics.circle("fill", sealCX, sealCY, sealR - 2.5)
+
+    -- Top Glossy Highlight Arc
+    love.graphics.setColor(1, 1, 1, 0.35)
+    love.graphics.setLineWidth(1)
+    love.graphics.arc("line", "open", sealCX, sealCY, sealR - 1.5, math.pi * 1.1, math.pi * 1.8)
+
+    -- Stamped Number
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(0.98, 0.88, 0.45, 1)
     local chipStr = "+" .. card.baseChips
-    local cW = UI.fonts.small:getWidth(chipStr)
-    love.graphics.print(chipStr, (w - cW) / 2, h - 20)
+    local cW = UI.fonts.tiny:getWidth(chipStr)
+    love.graphics.print(chipStr, sealCX - cW / 2, sealCY - UI.fonts.tiny:getHeight() / 2)
 
-    -- 5 Faceted Gemstone Sockets across the top edge
-    local socketCount = 5
-    local socketR = 5.2
-    local socketGap = 13
-    local socketStartX = (w - (socketCount * socketGap - 3)) / 2 + 3
-    local socketY = 9
+    love.graphics.pop()
+end
 
-    for s = 1, socketCount do
-        local sx = socketStartX + (s - 1) * socketGap
-        local eq = card.equipments and card.equipments[s]
+-- Procedural Grimdark Relic / Patron Sigils
+function UI.drawRelicSigil(sigilId, cx, cy, size, color)
+    love.graphics.push("all")
+    love.graphics.setColor(color or { 0.9, 0.8, 0.3, 1 })
 
-        if eq then
-            -- Slotted Gemstone with jewelry bezel & prong setting
-            local gc = eq.color or UI.COLORS.goldYellow
+    local s = sigilId or ""
 
-            -- 1. Outer golden prong rim
-            love.graphics.setColor(0.95, 0.82, 0.28, 0.9)
-            love.graphics.circle("fill", sx, socketY, socketR + 1.2)
+    if s:find("pair") or s:find("gemini") or s == "deity_pairs" then
+        -- Twin Grotesque Linked Masks (Song Hồn Cổ Linh)
+        local r = size * 0.40
+        -- Mask 1 (Left: menacing grin)
+        love.graphics.setColor(0.75, 0.25, 0.35, 1)
+        love.graphics.circle("fill", cx - r * 0.55, cy - 2, r)
+        love.graphics.setColor(0.12, 0.08, 0.10, 1)
+        love.graphics.circle("fill", cx - r * 0.75, cy - 4, r * 0.22)
+        love.graphics.circle("fill", cx - r * 0.35, cy - 4, r * 0.22)
+        love.graphics.arc("line", "open", cx - r * 0.55, cy + 2, r * 0.45, 0, math.pi)
 
-            -- 2. Dark setting shadow
-            love.graphics.setColor(0.12, 0.12, 0.14, 0.8)
-            love.graphics.circle("fill", sx, socketY, socketR)
+        -- Mask 2 (Right: weeping sorrow)
+        love.graphics.setColor(0.35, 0.55, 0.85, 1)
+        love.graphics.circle("fill", cx + r * 0.55, cy + 2, r)
+        love.graphics.setColor(0.08, 0.10, 0.14, 1)
+        love.graphics.circle("fill", cx + r * 0.35, cy, r * 0.22)
+        love.graphics.circle("fill", cx + r * 0.75, cy, r * 0.22)
+        love.graphics.arc("line", "open", cx + r * 0.55, cy + 8, r * 0.45, math.pi, 2 * math.pi)
 
-            -- 3. Gemstone body
-            love.graphics.setColor(gc[1], gc[2], gc[3], 0.95)
-            love.graphics.circle("fill", sx, socketY, socketR - 0.4)
+        -- Spectral Chain linking them
+        love.graphics.setColor(0.95, 0.85, 0.35, 0.9)
+        love.graphics.setLineWidth(1.5)
+        love.graphics.line(cx - r * 0.2, cy, cx + r * 0.2, cy)
 
-            -- 4. Facet lower shading (depth)
-            love.graphics.setColor(0, 0, 0, 0.35)
-            love.graphics.arc("fill", sx, socketY, socketR - 0.4, 0, math.pi)
+    elseif s:find("mirror") or s == "deity_mirror" then
+        -- Fractured Soul Mirror (Gương Hồn Phản Chiếu)
+        local mw, mh = size * 0.65, size * 0.90
+        love.graphics.setColor(0.85, 0.75, 0.35, 1)
+        UI.drawRoundedRect("fill", cx - mw / 2, cy - mh / 2, mw, mh, 5)
+        love.graphics.setColor(0.12, 0.16, 0.22, 1)
+        UI.drawRoundedRect("fill", cx - mw / 2 + 2, cy - mh / 2 + 2, mw - 4, mh - 4, 4)
+        -- Mirror glass sheen
+        love.graphics.setColor(0.35, 0.55, 0.75, 0.5)
+        love.graphics.polygon("fill", cx - mw / 2 + 3, cy + 4, cx, cy - mh / 2 + 3, cx + 4, cy - mh / 2 + 3, cx - mw / 2 + 3, cy + 8)
+        -- Fracture Crack
+        love.graphics.setLineWidth(1.5)
+        love.graphics.setColor(0.98, 0.92, 0.85, 0.95)
+        love.graphics.line(cx - 4, cy - mh / 2 + 3, cx + 2, cy - 2, cx - 3, cy + 4, cx + 5, cy + mh / 2 - 3)
+        -- Ethereal eye inside
+        love.graphics.setColor(0.20, 0.85, 0.95, 0.9)
+        love.graphics.circle("fill", cx, cy, 3)
 
-            -- 5. Inner facet ring
-            love.graphics.setColor(1, 1, 1, 0.35)
-            love.graphics.setLineWidth(1)
-            love.graphics.circle("line", sx, socketY, (socketR - 0.4) * 0.55)
+    elseif s:find("genesis") or s == "deity_genesis" then
+        -- Primordial Ouroboros Serpent & Eye (Nguyên Tội Cổ Thần)
+        love.graphics.setLineWidth(3)
+        love.graphics.setColor(0.88, 0.22, 0.25, 0.95)
+        love.graphics.circle("line", cx, cy, size * 0.40)
+        -- Eye in center
+        love.graphics.setColor(0.98, 0.85, 0.22, 1)
+        love.graphics.circle("fill", cx, cy, 5)
+        love.graphics.setColor(0.10, 0.08, 0.08, 1)
+        love.graphics.rectangle("fill", cx - 1, cy - 4, 2, 8)
 
-            -- 6. Specular highlight glint (sparkle reflection)
-            love.graphics.setColor(1, 1, 1, 0.95)
-            love.graphics.circle("fill", sx - 1.6, socketY - 1.6, 1.4)
+    elseif s:find("hearts") or s == "deity_hearts" then
+        -- Blood Altar & Sacrificial Flame (Tế Đàn Huyết Cơ)
+        local aw, ah = size * 0.7, size * 0.35
+        love.graphics.setColor(0.24, 0.18, 0.20, 1)
+        love.graphics.rectangle("fill", cx - aw / 2, cy + 2, aw, ah, 2)
+        -- Chalice & Crimson Fire
+        love.graphics.setColor(0.88, 0.65, 0.22, 1)
+        love.graphics.polygon("fill", cx - 7, cy + 2, cx + 7, cy + 2, cx, cy + 9)
+        love.graphics.setColor(0.85, 0.15, 0.22, 1)
+        love.graphics.circle("fill", cx, cy - 4, 6)
+        love.graphics.setColor(1, 0.65, 0.20, 1)
+        love.graphics.circle("fill", cx, cy - 5, 3.5)
 
-            -- 7. Four golden prongs at corners
-            love.graphics.setColor(0.98, 0.88, 0.35, 1)
-            love.graphics.circle("fill", sx - socketR, socketY, 0.9)
-            love.graphics.circle("fill", sx + socketR, socketY, 0.9)
-            love.graphics.circle("fill", sx, socketY - socketR, 0.9)
-            love.graphics.circle("fill", sx, socketY + socketR, 0.9)
-        else
-            -- Empty metallic setting socket
-            love.graphics.setColor(0.24, 0.27, 0.32, 0.9)
-            love.graphics.circle("fill", sx, socketY, socketR + 0.8)
+    elseif s:find("golden") or s == "deity_golden" or s:find("diamonds") or s == "deity_diamonds" then
+        -- Midas Skeletal Hand & Gold Coins (Thổ Phỉ Hoàng Kim)
+        love.graphics.setColor(0.95, 0.80, 0.22, 1)
+        love.graphics.circle("fill", cx, cy - 3, 7)
+        love.graphics.circle("fill", cx - 7, cy + 4, 6)
+        love.graphics.circle("fill", cx + 7, cy + 4, 6)
+        love.graphics.setColor(0.12, 0.08, 0.04, 1)
+        love.graphics.circle("fill", cx, cy - 3, 4)
+        love.graphics.circle("fill", cx - 7, cy + 4, 3.5)
+        love.graphics.circle("fill", cx + 7, cy + 4, 3.5)
 
-            love.graphics.setColor(0.11, 0.13, 0.16, 0.95)
-            love.graphics.circle("fill", sx, socketY, socketR - 0.5)
+    elseif s:find("clubs") or s == "deity_clubs" then
+        -- Demonic Claw Slashes (Vuốt Quỷ Nguyên Sinh)
+        love.graphics.setLineWidth(2.5)
+        love.graphics.setColor(0.22, 0.85, 0.45, 1)
+        love.graphics.line(cx - 10, cy - 12, cx - 6, cy + 12)
+        love.graphics.line(cx - 2, cy - 14, cx + 2, cy + 14)
+        love.graphics.line(cx + 6, cy - 12, cx + 10, cy + 12)
 
-            love.graphics.setLineWidth(1)
-            love.graphics.setColor(0.55, 0.60, 0.68, 0.5)
-            love.graphics.circle("line", sx, socketY, socketR - 0.5)
+    elseif s:find("spades") or s == "deity_spades" then
+        -- Plunged Iron Greatsword (Thiết Quân Hắc Kiếm)
+        love.graphics.setColor(0.85, 0.88, 0.92, 1)
+        love.graphics.polygon("fill", cx - 3, cy - 14, cx + 3, cy - 14, cx, cy + 10)
+        love.graphics.setColor(0.95, 0.75, 0.22, 1)
+        love.graphics.rectangle("fill", cx - 8, cy - 14, 16, 3)
+        love.graphics.circle("fill", cx, cy - 17, 2.5)
 
-            -- Center indent
-            love.graphics.setColor(0.06, 0.08, 0.10, 0.85)
-            love.graphics.circle("fill", sx, socketY, 1.1)
-        end
+    elseif s:find("formation") or s == "deity_formation" then
+        -- War Banner Standard (Chiến Trận Quân Kỳ)
+        love.graphics.setColor(0.45, 0.50, 0.55, 1)
+        love.graphics.rectangle("fill", cx - 2, cy - 14, 4, 28)
+        love.graphics.setColor(0.85, 0.22, 0.28, 1)
+        love.graphics.polygon("fill", cx + 2, cy - 13, cx + 14, cy - 7, cx + 2, cy - 1)
+
+    elseif s:find("elite") or s == "deity_elite" then
+        -- Spectral Skull in Helm (Linh Hồn Tử Sĩ)
+        love.graphics.setColor(0.88, 0.90, 0.95, 0.95)
+        love.graphics.circle("fill", cx, cy - 2, 8)
+        love.graphics.rectangle("fill", cx - 4, cy + 4, 8, 5)
+        love.graphics.setColor(0.10, 0.12, 0.16, 1)
+        love.graphics.circle("fill", cx - 3, cy - 2, 2)
+        love.graphics.circle("fill", cx + 3, cy - 2, 2)
+
+    elseif s:find("banner") or s == "deity_banner" then
+        -- Bloodied War Horn (Huyết Tẩy Tàn Quân)
+        love.graphics.setColor(0.85, 0.65, 0.25, 1)
+        love.graphics.polygon("fill", cx - 12, cy + 6, cx + 10, cy - 10, cx + 12, cy - 6, cx - 10, cy + 10)
+
+    elseif s:find("floral") or s == "deity_floral" then
+        -- Wilted Dark Rose (Héo Mòn Hoa Độc)
+        love.graphics.setColor(0.75, 0.12, 0.18, 1)
+        love.graphics.circle("fill", cx, cy - 3, 7)
+        love.graphics.circle("fill", cx - 4, cy - 5, 5)
+        love.graphics.circle("fill", cx + 4, cy - 5, 5)
+        love.graphics.setColor(0.20, 0.45, 0.25, 1)
+        love.graphics.line(cx, cy + 3, cx, cy + 14)
+
+    elseif s:find("fruit") or s == "deity_sacred_fruit" then
+        -- Eldritch Forbidden Fruit (Cấm Quả Hỗn Mang)
+        love.graphics.setColor(0.85, 0.25, 0.35, 1)
+        love.graphics.circle("fill", cx, cy, 9)
+        love.graphics.setColor(0.25, 0.10, 0.12, 1)
+        love.graphics.line(cx - 3, cy - 3, cx + 3, cy + 3)
+        love.graphics.line(cx + 3, cy - 3, cx - 3, cy + 3)
+
+    elseif s:find("tree") or s == "deity_eternal_tree" then
+        -- World Tree Silhouette (Bất Diệt Cổ Thụ)
+        love.graphics.setColor(0.95, 0.85, 0.25, 1)
+        love.graphics.circle("fill", cx, cy - 4, 11)
+        love.graphics.setColor(0.10, 0.11, 0.13, 1)
+        love.graphics.rectangle("fill", cx - 2, cy - 2, 4, 14)
+
+    elseif s:find("echo") or s == "deity_echo" then
+        -- Concentric Echo Waves (Vọng Âm Trùng Điệp)
+        love.graphics.setLineWidth(1.8)
+        love.graphics.setColor(0.45, 0.75, 0.95, 0.9)
+        love.graphics.arc("line", "open", cx, cy, 6, -math.pi * 0.4, math.pi * 0.4)
+        love.graphics.arc("line", "open", cx, cy, 11, -math.pi * 0.4, math.pi * 0.4)
+        love.graphics.arc("line", "open", cx, cy, 16, -math.pi * 0.4, math.pi * 0.4)
+    else
+        -- Default: Occult Runic Seal
+        love.graphics.setLineWidth(1.5)
+        love.graphics.circle("line", cx, cy, size * 0.38)
+        love.graphics.polygon("line", cx, cy - size * 0.35, cx + size * 0.30, cy + size * 0.20, cx - size * 0.30, cy + size * 0.20)
     end
 
     love.graphics.pop()
+end
+
+-- Full Tarot Card Frame for Hộ Linh (Patrons)
+function UI.drawPatronCard(d, x, y, w, h, isHovered, isPressed, isDropTarget, copyTarget)
+    if not d then return end
+    w = w or 82
+    h = h or 118
+
+    love.graphics.push()
+    love.graphics.translate(x + w / 2, y + h / 2)
+    local s = (isHovered and 1.05 or 1.0)
+    if isPressed then s = 0.96 end
+    if isDropTarget then s = 1.08 end
+    love.graphics.scale(s, s)
+    love.graphics.translate(-w / 2, -h / 2)
+
+    -- Drop shadow
+    love.graphics.setColor(0, 0, 0, 0.45)
+    UI.drawRoundedRect("fill", 3, 5, w, h, 6)
+
+    -- Card Body: Deep Void Obsidian
+    love.graphics.setColor(0.10, 0.11, 0.13, 0.98)
+    UI.drawRoundedRect("fill", 0, 0, w, h, 6)
+
+    -- Border by Rarity
+    local rBorder = { 0.45, 0.48, 0.54, 1 }
+    local rGlow = { 0.5, 0.5, 0.5, 0.2 }
+    if d.rarity == "uncommon" then
+        rBorder = { 0.20, 0.78, 0.45, 1 }
+        rGlow = { 0.2, 0.8, 0.4, 0.25 }
+    elseif d.rarity == "rare" then
+        rBorder = { 0.22, 0.60, 0.98, 1 }
+        rGlow = { 0.2, 0.6, 1.0, 0.25 }
+    elseif d.rarity == "legendary" then
+        rBorder = { 0.96, 0.78, 0.22, 1 }
+        rGlow = { 0.95, 0.78, 0.2, 0.3 }
+    end
+
+    if isDropTarget then
+        rBorder = UI.COLORS.bossPurple
+    elseif isHovered then
+        rBorder = { 1, 1, 1, 1 }
+    end
+
+    -- Inner background halo
+    love.graphics.setColor(rGlow)
+    love.graphics.circle("fill", w / 2, h / 2 + 2, w * 0.42)
+
+    -- Ornate Gothic Double Hairline Border
+    love.graphics.setLineWidth(isHovered and 2.0 or 1.5)
+    love.graphics.setColor(rBorder)
+    UI.drawRoundedRect("line", 0, 0, w, h, 6)
+    love.graphics.setLineWidth(1)
+    love.graphics.setColor(rBorder[1], rBorder[2], rBorder[3], 0.45)
+    UI.drawRoundedRect("line", 3, 3, w - 6, h - 6, 4)
+
+    -- Corner Gothic Fleuron Notches
+    love.graphics.setColor(rBorder)
+    love.graphics.line(5, 7, 7, 5)
+    love.graphics.line(w - 5, 7, w - 7, 5)
+    love.graphics.line(5, h - 7, 7, h - 5)
+    love.graphics.line(w - 5, h - 7, w - 7, h - 5)
+
+    -- Title Ribbon Banner at Top
+    local bannerH = 22
+    love.graphics.setColor(0.06, 0.07, 0.08, 0.95)
+    love.graphics.rectangle("fill", 4, 6, w - 8, bannerH, 3)
+    love.graphics.setColor(rBorder[1], rBorder[2], rBorder[3], 0.7)
+    love.graphics.rectangle("line", 4, 6, w - 8, bannerH, 3)
+
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(1, 1, 1, 0.95)
+    local displayName = UI.toUpperUtf8(d.name)
+    love.graphics.printf(displayName, 5, 10, w - 10, "center")
+
+    -- Center Dedicated Relic Sigil / Artwork
+    local cx = w / 2
+    local cy = h / 2 + 5
+    UI.drawRelicSigil(d.id, cx, cy, 28, rBorder)
+
+    -- Bottom Rarity Jewel Talisman
+    love.graphics.setColor(rBorder)
+    local jR = 3.5
+    love.graphics.polygon("fill", cx, h - 12 - jR, cx + jR, h - 12, cx, h - 12 + jR, cx - jR, h - 12)
+    love.graphics.setColor(1, 1, 1, 0.8)
+    love.graphics.circle("fill", cx - 0.8, h - 12 - 0.8, 1.0)
+
+    -- Blueprint / Copy indicator
+    if d.isCopyDeity and copyTarget then
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(UI.COLORS.goldYellow)
+        love.graphics.printf("⇄", 4, h - 22, w - 8, "center")
+    end
+
+    if isDropTarget then
+        love.graphics.setColor(0, 0, 0, 0.75)
+        UI.drawRoundedRect("fill", 2, 2, w - 4, h - 4, 5)
+        love.graphics.setFont(UI.fonts.tiny)
+        love.graphics.setColor(UI.COLORS.goldYellow)
+        love.graphics.printf("⇄\nHOÁN\nĐỔI", 4, h / 2 - 18, w - 8, "center")
+    end
+
+    love.graphics.pop()
+end
+
+-- Rich Floating Tooltip for Hộ Linh (Patrons)
+function UI.drawPatronTooltip(d, mx, my, copyTarget)
+    if not d then return end
+    local ttW = 310
+    local ttH = 110
+    local ttx = math.min(1280 - ttW - 12, math.max(12, mx + 14))
+    local tty = math.min(720 - ttH - 12, math.max(12, my + 18))
+
+    -- Drop shadow
+    love.graphics.setColor(0, 0, 0, 0.75)
+    UI.drawRoundedRect("fill", ttx + 4, tty + 5, ttW, ttH, 7)
+
+    -- Background: Deep Void Obsidian Parchment
+    love.graphics.setColor(0.08, 0.09, 0.11, 0.98)
+    UI.drawRoundedRect("fill", ttx, tty, ttW, ttH, 7)
+
+    -- Gilded Frame & Corner Brackets
+    love.graphics.setLineWidth(1.5)
+    love.graphics.setColor(0.78, 0.65, 0.22, 0.95)
+    UI.drawRoundedRect("line", ttx, tty, ttW, ttH, 7)
+
+    -- Rarity badge string & color
+    local rText = "[THƯỜNG]"
+    local rCol = { 0.70, 0.75, 0.82, 1 }
+    if d.rarity == "uncommon" then
+        rText = "[HIẾM]"
+        rCol = { 0.22, 0.82, 0.45, 1 }
+    elseif d.rarity == "rare" then
+        rText = "[CỰC PHẨM]"
+        rCol = { 0.25, 0.65, 1.0, 1 }
+    elseif d.rarity == "legendary" then
+        rText = "[TRUYỀN THUYẾT]"
+        rCol = { 0.98, 0.82, 0.22, 1 }
+    end
+
+    -- Line 1: Title & Rarity
+    love.graphics.setFont(UI.fonts.medium)
+    love.graphics.setColor(0.98, 0.88, 0.45, 1)
+    love.graphics.print(d.name, ttx + 12, tty + 8)
+
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(rCol)
+    local rW = UI.fonts.small:getWidth(rText)
+    love.graphics.print(rText, ttx + ttW - rW - 12, tty + 13)
+
+    -- Divider Line
+    love.graphics.setLineWidth(1)
+    love.graphics.setColor(0.35, 0.30, 0.22, 0.8)
+    love.graphics.line(ttx + 10, tty + 36, ttx + ttW - 10, tty + 36)
+
+    -- Line 2: Mechanics Description
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(0.94, 0.95, 0.98, 1)
+    local desc = d.desc or ""
+    if d.isCopyDeity then
+        desc = copyTarget and ("Sao chép năng lực của " .. copyTarget.name) or "Đặt bên trái 1 Hộ Linh khác để sao chép"
+    end
+    love.graphics.printf(desc, ttx + 12, tty + 42, ttW - 24, "left")
+
+    -- Line 3: Grimdark Lore Flavor Quote
+    local lore = d.lore or "Một tàn tích cổ xưa thì thầm trong bóng đêm vô tận..."
+    love.graphics.setFont(UI.fonts.tiny)
+    love.graphics.setColor(0.62, 0.58, 0.52, 0.85)
+    love.graphics.printf('"' .. lore .. '"', ttx + 12, tty + 84, ttW - 24, "left")
 end
 
 function UI.drawMonsterHpBar(x, y, w, h, currentHp, maxHp, damageLagHp)
