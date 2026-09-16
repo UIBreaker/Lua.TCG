@@ -1,275 +1,368 @@
-# 🃏 LUA.TCG - POKER ROGUELIKE DECKBUILDER
+# 🃏 LUA.TCG — GRIMDARK POKER ROGUELIKE DECKBUILDER
 
-> Một tựa game thẻ bài chiến thuật Poker Roguelike phong cách Deck-building cổ điển, kết hợp yếu tố nhập vai diệt quái, phân chia 4 Đại Phe Phái (Factions), hệ thống Thứ Bậc Quân Chủng Thẻ Bài (Card Roles) và khảm ngọc trang bị độc đáo. Game được viết hoàn toàn bằng **Lua** và vận hành mượt mà trên nền tảng **LÖVE 2D (Love2D v11.5)**.
+> Một tựa game thẻ bài chiến thuật Poker Roguelike Deck-building phong cách Grimdark kỳ bí, kết hợp chiều sâu chiến thuật giữa cơ chế tính điểm của Balatro, hệ thống chiến đấu theo lượt quái vật của Slay the Spire, phân chia **4 Đại Phe Phái (Factions)**, **Thứ Bậc Quân Chủng (Card Hierarchy)**, **Khảm 5 Hốc Đá Quý (Gemstone Socketing)**, và kho tàng **25 Thần Hộ Mệnh (Deities)** cùng **Vật Phẩm Tiêu Hao (Consumables)**.
+>
+> Toàn bộ trò chơi được kiến tạo 100% bằng **Lua thuần túy** và vận hành mượt mà trên nền tảng **LÖVE 2D (Love2D v11.5)**.
 
 [![GitHub Repository](https://img.shields.io/badge/GitHub-UIBreaker%2FLua.TCG-blue?logo=github)](https://github.com/UIBreaker/Lua.TCG.git)
 [![Engine](https://img.shields.io/badge/Engine-LÖVE%2011.5-pink?logo=lua)](https://love2d.org/)
-[![Tests](https://img.shields.io/badge/Tests-46%2F46%20Passing-brightgreen)](test_system.lua)
+[![Lua](https://img.shields.io/badge/Language-Lua%205.1%20%2F%20LuaJIT-000080?logo=lua)](https://www.lua.org/)
+[![Tests](https://img.shields.io/badge/Tests-82%2F82%20Passing-brightgreen?logo=checkmarx)](test_system.lua)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
 
-## 📑 MỤC LỤC
-1. [Khởi Chạy Nhanh](#-khởi-chạy-nhanh)
-2. [4 Đại Phe Phái Khởi Đầu (Factions)](#-1-4-đại-phe-phái-khởi-đầu-factions)
-3. [Hệ Thống Thứ Bậc Quân Chủng (Card Hierarchy & Roles)](#-2-hệ-thống-thứ-bậc-quân-chủng-card-hierarchy--roles)
-4. [Bản Đồ Hành Trình 20 Tầng (Act 1 Map)](#-3-bản-đồ-hành-trình-20-tầng)
-5. [Cơ Chế Chiến Đấu & Công Thức Máu Quái Vật (10 HP +50%)](#-4-cơ-chế-chiến-đấu--công-thức-máu-quái-vật)
-6. [Hệ Thống Mở Khóa Thế Đánh & Sổ Tay Bí Tịch](#-5-hệ-thống-mở-khóa-thế-đánh--sổ-tay-bí-tịch)
-7. [Hệ Thống Khảm Trang Bị Vào Lá Bài (Socketing)](#-6-hệ-thống-khảm-trang-bị-vào-lá-bài-socketing)
-8. [Cửa Hàng Lữ Khách & Hoán Đổi Trang Bị](#-7-cửa-hàng-lữ-khách--hoán-đổi-trang-bị)
-9. [Hệ Thống Thần Bài Ban Ơn (Deities)](#-8-hệ-thống-thần-bài-ban-ơn-deities)
-10. [Bảng Toàn Bộ Bộ Bài (Deck Viewer [Tab])](#-9-bảng-toàn-bộ-bộ-bài-deck-viewer-tab)
-11. [Bảng Phím Tắt Toàn Tập](#-10-bảng-phím-tắt-toàn-tập)
-12. [Cấu Trúc Thư Mục & Mã Nguồn](#-11-cấu-trúc-thư-mục--mã-nguồn)
-13. [Kiểm Thử Tự Động (Automated Testing)](#-12-kiểm-thử-tự-động)
+## 📸 Thư Viện Hình Ảnh Trực Quan (Gameplay Showcase)
+
+| Chiến Đấu Theo Lượt & Bùng Nổ Điểm Số | Cửa Hàng & Gói Thẻ ("Dùng Ngay / Giữ Lại") |
+| :---: | :---: |
+| ![Trận Đấu Khởi Đầu](shot_combat_starter.png) | ![Gói Thẻ Tiêu Hao](shot_pack_keep.png) |
+| *Giao diện chiến đấu Grimdark, hiển thị Intent quái, thanh Hộ Mệnh & 2 ô Tiêu Hao* | *Mở Gói Booster: Lựa chọn "DÙNG NGAY" hoặc "GIỮ LẠI" vào ô Tiêu Hao* |
+
+| Cửa Hàng Lữ Khách & Phiếu Đặc Quyền | Bộ Sưu Tập Toàn Thư (Compendium) |
+| :---: | :---: |
+| ![Cửa Hàng](shot_shop.png) | ![Bộ Sưu Tập](shot_collection_hub.png) |
+| *Cửa hàng Balatro: Hàng hóa, Voucher, Booster Packs & Reroll ($5 -> $6 -> reset $5)* | *Toàn thư 11 danh mục tra cứu Thần Bài, Phù Chú, Dấu Ấn, Thế Bài & Dị Biến* |
+
+| Soi Chi Tiết Quân Vụ & 5 Hốc Khảm Đá Quý | Toàn Bộ Bộ Bài (Deck Viewer [Tab]) |
+| :---: | :---: |
+| ![Soi Lá Bài](shot_card_inspector.png) | ![Xem Bộ Bài](shot_deck_viewer_fix.png) |
+| *Chuột phải soi chi tiết cấp bậc Quân chủng, nội tại Phe phái & 5 hốc khảm bảo ngọc* | *Bấm Tab xem tỷ lệ 4 phe phái, thẻ bài đã khảm ngọc và bí kíp đã mở khóa* |
 
 ---
 
-## 🚀 Khởi Chạy Nhanh
+## 📑 Mục Lục Tính Năng
 
-### 1. Chạy trên Windows
-- **Cách 1 (Nhanh nhất)**: Nhấp đúp chuột vào file 
-un.bat trong thư mục gốc.
-- **Cách 2 (Dòng lệnh PowerShell / CMD)**:
-  `powershell
+1. [Khởi Chạy Nhanh (Quickstart)](#-khởi-chạy-nhanh-quickstart)
+2. [4 Đại Phe Phái Khởi Đầu (The 4 Factions)](#-1-4-đại-phe-phái-khởi-đầu-the-4-factions)
+3. [Thứ Bậc Quân Chủng Thẻ Bài (Card Hierarchy & Roles)](#-2-thứ-bậc-quân-chủng-thẻ-bài-card-hierarchy--roles)
+4. [Tiến Trình 8-Ante & 3-Blind (Progression System)](#-3-tiến-trình-8-ante--3-blind-progression-system)
+5. [Cơ Chế Chiến Đấu Theo Lượt & Quái Vật (Combat & Intent)](#-4-cơ-chế-chiến-đấu-theo-lượt--quái-vật-combat--intent)
+6. [Hệ Thống Thần Hộ Mệnh (Deities) & 4 Biến Thể Edition](#-5-hệ-thống-thần-hộ-mệnh-deities--4-biến-thể-edition)
+7. [Hệ Thống Ô Tiêu Hao & Gói Thẻ Bài (Consumables & Packs)](#-6-hệ-thống-ô-tiêu-hao--gói-thẻ-bài-consumables--packs)
+8. [4 Phân Lớp Thẻ Tiêu Hao (Spells, Seals, Spectrals, Planets)](#-7-4-phân-lớp-thẻ-tiêu-hao-spells-seals-spectrals-planets)
+9. [Hệ Thống Khảm 5 Hốc Đá Quý (Gemstone Socketing)](#-8-hệ-thống-khảm-5-hốc-đá-quý-gemstone-socketing)
+10. [Cửa Hàng Lữ Khách, Phí Reroll Tăng Dần & Vouchers](#-9-cửa-hàng-lữ-khách-phí-reroll-tăng-dần--vouchers)
+11. [Bộ Sưu Tập Toàn Thư (Compendium) & Sổ Tay Thế Bài](#-10-bộ-sưu-tập-toàn-thư-compendium--sổ-tay-thế-bài)
+12. [Đồ Họa Shaders, Hiệu Ứng Juice & Âm Thanh Procedural](#-11-đồ-họa-shaders-hiệu-ứng-juice--âm-thanh-procedural)
+13. [Bảng Phím Tắt Điều Khiển Toàn Tập](#-12-bảng-phím-tắt-điều-khiển-toàn-tập)
+14. [Cấu Trúc Thư Mục Dự Án](#-13-cấu-trúc-thư-mục-dự-án)
+15. [Bộ Kiểm Thử Tự Động Toàn Diện (82/82 Unit Tests)](#-14-bộ-kiểm-thử-tự-động-toàn-diện-8282-unit-tests)
+
+---
+
+## 🚀 Khởi Chạy Nhanh (Quickstart)
+
+### 1. Dành cho người dùng Windows
+- **Cách 1 (Nhanh nhất - 1 Click)**: Nhấp đúp chuột vào file `run.bat` tại thư mục gốc của dự án.
+- **Cách 2 (Dòng lệnh PowerShell / Terminal)**:
+  ```powershell
+  # Chạy game trực tiếp qua Love2D v11.5:
   ..\love-11.5-win64\love.exe .
-  `
-- **Chế độ Fullscreen tràn viền**: Nhấn phím **F11** bất kỳ lúc nào để chuyển đổi chế độ Toàn Màn Hình tràn viền. Game sử dụng Canvas ảo độ phân giải gốc 1280x720, tự động co giãn sắc nét và căn giữa mượt mà trên mọi kích thước màn hình.
+
+  # Chạy bộ kiểm thử tự động (82 test cases):
+  ..\love-11.5-win64\lovec.exe . --test
+  ```
+
+### 2. Tùy biến Màn hình & Tương thích
+- **Toàn Màn Hình Tràn Viền (F11)**: Nhấn phím **F11** bất kỳ lúc nào để chuyển đổi tức thì giữa chế độ Cửa sổ và Toàn màn hình viền mỏng.
+- **Virtual Canvas 1280x720**: Trò chơi render trên Canvas ảo độ phân giải gốc 1280x720 sắc nét, tự động scale bảo toàn tỷ lệ khung hình (Aspect Ratio) và căn giữa hoàn hảo trên mọi độ phân giải màn hình từ Full HD, 2K đến 4K.
 
 ---
 
-## 🏛️ 1. 4 Đại Phe Phái Khởi Đầu (Factions)
+## 🏛️ 1. 4 Đại Phe Phái Khởi Đầu (The 4 Factions)
 
-Tại màn hình khởi đầu, người chơi không còn chọn các chất bài thông thường mà sẽ tiến hành gia nhập **1 trong 4 Đại Phe Phái**, mỗi phe sở hữu đặc quyền chiến thuật và các hiệu ứng nội tại độc nhất:
+Khi bước vào hành trình mới, người chơi chọn gia nhập **1 trong 4 Đại Phe Phái Cổ Xưa**, thay thế hoàn toàn 4 chất bài truyền thống:
 
-| Phe Phái | Biểu Tượng | Sắc Thái | Kỹ Năng Nội Tại & Đặc Quyền |
-| :--- | :---: | :---: | :--- |
-| **Aurelia**<br>*(Phe Ánh Sáng)* | ☀️ | Vàng Kim Hoàng Gia | • **Hào Quang Thánh Thiện**: Nhân x1.15 XMult tổng sát thương mỗi khi tay bài đánh ra có chứa ít nhất 1 lá Aurelia.<br>• **Kỷ Luật Thần Thánh**: Các quân vương gia (J, Q, K) sở hữu điểm số uy dũng cố định, miễn nhiễm các hiệu ứng debuff từ quái vật. |
-| **Elaris**<br>*(Phe Thiên Nhiên)* | 🌲 | Xanh Lục Bảo | • **Sức Sống Rừng Già**: Cầm tối đa **9 lá bài trên tay** (thay vì 8 lá). Khi Đổi bài (Discard) các lá Chiến Binh (2–10), chúng lập tức được tái chế trở lại đáy bộ bài rút thay vì vào cọc bài bỏ.<br>• **Lộc Biếc Đâm Chồi**: Hạ gục quái vật chỉ bằng <= 50% số lượt đánh tối đa (dưới 2 lượt) sẽ giúp 1 lá bài ngẫu nhiên được nâng cấp vĩnh viễn +1 Rank cơ sở. |
-| **Vharos**<br>*(Phe Hắc Ám)* | 🔥 | Đỏ Thẫm Ma Quái | • **Hơi Thở Ma Quỷ**: Tặng ngay +40 Chips trực tiếp cho mỗi lá bài Vharos được đánh ra ghi điểm.<br>• **Huyết Tế Bóng Đêm**: Khi Đổi bài (Discard) các lá bài Chiến Binh (2–10), lá bài lập tức biến thành lễ vật, gây **Sát thương Chuẩn trực tiếp bằng đúng Rank lá bài** thẳng vào máu quái vật mà không cần đánh bài. |
-| **Valoria**<br>*(Phe Nhân Loại)* | ⚔️ | Lam Thép Kiên Cường | • **Chiến Thuật Hành Quân**: Khởi đầu mọi trận chiến với **4 lượt Đổi Bài miễn phí** (thay vì 3 lượt), tối ưu khả năng nặn các thế bài cấp cao.<br>• **Hậu Cần Quân Khí**: Nhận thêm +25% Vàng thưởng sau mỗi lần tiêu diệt quái vật. |
+| Phe Phái | Biểu Tượng & Chất | Định Hướng Chiến Thuật | Kỹ Năng Nội Tại & Đặc Quyền Tối Thượng |
+| :--- | :---: | :--- | :--- |
+| **Thiết Quân Thứ**<br>*(The Iron Axiom)* | ♠️ **Bích** | Phòng Thủ Thép &<br>Đòn Đánh Kỷ Luật | • **Chỉ Số Thép**: Các lá bài sở hữu chỉ số phòng hộ vững chãi, miễn nhiễm hoàn toàn trước các hiệu ứng cấm đoán của Boss.<br>• **Đội Hình Phalanx**: Xếp đủ các quân bài đồng chất nhận thêm +100 Chips.<br>• **Chỉ Huy J♠ / Q♠ / K♠**: Tướng J♠ buff +40 Chips/chiến binh, Q♠ nhân x1.4 XMult, K♠ tăng +15 Chips cho mỗi lá bài chưa đánh. |
+| **Giáo Hội Huyết Ước**<br>*(The Sanguine Covenant)* | ♥️ **Cơ** | Bạo Kích Máu &<br>Tử Đạo Tột Cùng | • **Huyết Thệ Sát Chiêu**: Mỗi lá bài ghi điểm buff trực tiếp **+5 Mult**.<br>• **Dấu Ấn Tử Đạo**: Khi máu người chơi dưới 50%, kích hoạt bạo kích thần thánh (+24 Mult, nhân x1.45 XMult).<br>• **Trẫm Cung K♥**: Đánh ở lượt bài cuối cùng ban thêm +100 Chips & +25 Mult.<br>• **Hiến Tế Q♥**: Tự giảm 1 Rank để đổi lấy x1.35 XMult cuồng nộ. |
+| **Trật Tự Hoàng Kim**<br>*(The Gilded Conclave)* | ♦️ **Rô** | Đế Chế Tư Bản &<br>Tích Trữ Tiền Tệ | • **Kim Ngân Đầy Tay**: Thu về **+$1 Vàng** cho mỗi lá bài ghi điểm xuất trận.<br>• **Trần Lãi Siêu Việt**: Nâng trần tích trữ lãi suất từ $25 lên tới $100 ($25 tiền lãi mỗi round).<br>• **Khảm Nén Quặng**: Mọi trang bị khảm trên bài phe Hoàng Kim được tăng +50% hiệu số chỉ số.<br>• **Vương Quyền Q♦ & K♦**: Q♦ tăng xMult tỷ lệ thuận theo kho vàng; K♦ có khả năng đút lót tiền cứu người chơi khi sắp cạn máu. |
+| **Bầy Nguyên Sinh**<br>*(The Feral Swarm)* | ♣️ **Tép** | Bầy Đàn Số Đông &<br>Sinh Khối Tái Sinh | • **Sức Chứa Bầy Đàn**: Khởi đầu với **9 lá bài trên tay** (thay vì 8 lá).<br>• **Tuần Hoàn Sinh Mệnh**: Khi Discard các lá Chiến Binh (2–10), chúng hồi sinh ngay vào đáy bộ bài rút thay vì vào cọc bài bỏ.<br>• **Biến Hình Q♣**: Cho phép xếp Sảnh (Straight) & Thùng (Flush) chỉ với 4 lá bài!<br>• **Chúa Tể K♣**: Ban x1.9 XMult bộc phát đồng thời hồi phục 20 HP trực tiếp cho người chơi. |
 
-- **Bộ Bài Khởi Đầu Thuần Khiết (3 Lá Ngẫu Nhiên)**:
-  - Bạn khởi đầu hành trình chỉ với **chính xác 3 lá bài ngẫu nhiên** thuộc phe phái đã lựa chọn (ví dụ: K☀️, 7☀️, 3☀️).
-  - Toàn bộ các lá bài khác thuộc các phe khác sẽ thu thập dần thông qua chiến lợi phẩm, Rương báu hoặc Cửa hàng.
-- **Không có Thần Bài hỗ trợ ban đầu**:
-  - Khởi đầu với 0 vị Thần. Các Thần Bài chỉ xuất hiện ban ơn sau khi bạn đánh bại Boss Tầng 20.
-- **Giới hạn thế đánh ban đầu**:
-  - Chỉ được phép đánh **1 lá đơn lẻ (ĐƠN THỦ - High Card)**. Các thế bài phối hợp cấp cao cần thu thập Sách Bí Tịch để khai mở.
+- **Bộ Bài Tối Giản Khởi Đầu**: Người chơi xuất trận với **chính xác 3 lá bài ngẫu nhiên** thuộc phe đã chọn, tạo thử thách xây dựng bộ bài (Deck-building) từ con số không!
 
 ---
 
-## 🎖️ 2. Hệ Thống Thứ Bậc Quân Chủng (Card Hierarchy & Roles)
+## 🎖️ 2. Thứ Bậc Quân Chủng Thẻ Bài (Card Hierarchy & Roles)
 
-Các lá bài không chỉ đơn thuần là con số mà đại diện cho các cấp bậc quân chủng trong một đạo quân:
+Mỗi lá bài không còn là con số vô tri mà mang linh hồn của một cấp bậc quân sự trong đạo quân:
 
-### 1. Hàng Ngũ Chiến Binh (Soldiers / Footmen — Lá 2 đến Lá 10)
-- **Ý nghĩa**: Là lực lượng nòng cốt đông đảo để xếp các thế bài cơ bản như Trường Long (Sảnh), Đồng Khí (Thùng), Song Đao (Đôi),...
-- **Chỉ số**: Điểm số Chips tăng dần từ 2 đến 10 theo Rank.
-- **Tương tác Phe**: Được dùng làm vật phẩm Huyết Tế gây sát thương trực tiếp của phe Vharos, hoặc Tái Chế vô tận của phe Elaris.
+```mermaid
+graph LR
+    A["Lá 2 .. 10<br>CHIẾN BINH (Footmen)"] --> B["Quân J<br>HIỆP SĨ (Vanguard)"]
+    B --> C["Quân Q<br>HOÀNG HẬU (Matriarch)"]
+    C --> D["Quân K<br>QUỐC VƯƠNG (Warlord)"]
+    D --> E["Quân A<br>THẦN KHÍ (Relic)"]
+```
 
-### 2. Hiệp Sĩ / Cận Vệ (Knight / Vanguard — Quân J)
-- **Ý nghĩa**: Đóng vai trò tướng lĩnh chỉ huy, mang lại hiệu ứng khuếch đại sức mạnh khi đứng cạnh quân sĩ.
-- **Nội tại**: Tặng ngay +15 Chips & +2 Mult cho **mỗi lá bài Chiến Binh (2–10)** đi cùng trong tay bài xuất trận.
-
-### 3. Hoàng Hậu / Phù Sư (Queen / Matriarch — Quân Q)
-- **Ý nghĩa**: Bậc thầy ma thuật và điều phối bảo vật trang bị.
-- **Nội tại**: Cung cấp trực tiếp x1.1 XMult tổng sát thương, đồng thời nhận thêm +15 Chips & +2 Mult cho **mỗi món trang bị đã khảm** trên người nàng.
-
-### 4. Quốc Vương / Lãnh Chúa (King / Warlord — Quân K)
-- **Ý nghĩa**: Sức mạnh vương giả áp đảo, là trụ cột gánh vác sát thương cho toàn bộ bàn cờ.
-- **Nội tại**: Cố định tăng thêm +25 Chips & +5 Mult độc lập ngay khi ghi điểm.
-
-### 5. Át Chủ Bài / Thần Khí (Ace / Relic — Quân A)
-- **Ý nghĩa**: Thần khí tối thượng mang sức mạnh biến hóa linh hoạt.
-- **Nội tại**: Tặng +15 Chips cộng hưởng. Có thể linh hoạt tính làm đầu thấp (1) hoặc đầu cao (14) khi kết hợp xếp các thế bài Sảnh (Straight).
-
-> *(Ghi chú: Cơ chế hao mòn suy giảm -1 Rank khi đánh bài và vỡ thẻ A cũ đã được loại bỏ hoàn toàn. Thẻ bài của bạn giờ đây giữ vững cấp bậc bền bỉ suốt toàn bộ trận đấu).*
+1. **Hàng Ngũ Chiến Binh (Soldiers / Footmen — Quân 2 đến 10)**:
+   - Điểm số Chips tăng dần từ 2 đến 10 theo Rank.
+   - Là lực lượng đông đảo làm nền tảng kết hợp các thế bài poker và nhận buff chỉ huy từ Hiệp sĩ.
+2. **Hiệp Sĩ / Tiền Tuyến (Knight / Vanguard — Quân J)**:
+   - Tướng tiên phong chỉ huy. Tặng thêm **+15 Chips & +2 Mult** cho **mỗi lá bài Chiến Binh (2–10)** cùng đánh ra trong tay bài.
+3. **Hoàng Hậu / Ma Pháp Sư (Queen / Matriarch — Quân Q)**:
+   - Ban phát ma thuật trang bị. Cung cấp trực tiếp **x1.1 XMult**, đồng thời buff thêm **+15 Chips & +2 Mult** cho mỗi viên đá quý đã khảm trên người nàng.
+4. **Quốc Vương / Lãnh Chúa (King / Warlord — Quân K)**:
+   - Cột trụ sát thương vương giả. Tăng cố định **+25 Chips & +5 Mult** độc lập ngay khi ghi điểm.
+5. **Át Chủ Bài / Thần Khí Cổ Vật (Ace / Relic — Quân A)**:
+   - Thần khí biến hóa. Cung cấp **+15 Chips**, linh hoạt đảm nhận đầu thấp (1) hoặc đầu cao (14) khi kết nối thế bài Trường Long (Straight).
 
 ---
 
-## 🗺️ 3. Bản Đồ Hành Trình 20 Tầng
+## 🗺️ 3. Tiến Trình 8-Ante & 3-Blind (Progression System)
 
-Hành trình Vùng Đất 1 (Act 1) gồm **20 tầng thử thách** liên tiếp:
+Trò chơi áp dụng hệ thống viễn chinh **8 Ante**, mỗi Ante bao gồm chuỗi **3 Thử Thách (Blinds)** liên tiếp:
 
-| Biểu tượng | Loại Địa Điểm | Ý Nghĩa & Phần Thưởng |
+```
+[ANTE X] 
+   ├── 1. Small Blind (Mục tiêu HP cơ sở)  ---> [BỎ QUA nhận TAG] hoặc [CHIẾN ĐẤU] ---> [CỬA HÀNG]
+   ├── 2. Big Blind   (1.5x HP cơ sở)     ---> [BỎ QUA nhận TAG] hoặc [CHIẾN ĐẤU] ---> [CỬA HÀNG]
+   └── 3. Boss Blind  (2.0x HP & Dị Biến) ---> [BẮT BUỘC ĐẤU]                      ---> [CỬA HÀNG] ---> [LÊN ANTE KẾ]
+```
+
+### 6 Dị Biến Boss Hung Tàn (Disruptive Boss Abilities)
+Boss ở cuối mỗi Ante sở hữu những hiệu ứng nguyền rủa làm đảo lộn hoàn toàn chiến thuật:
+- 🪡 **The Needle (Mũi Kim)**: Giới hạn nghiêm ngặt — Bạn **chỉ được phép đánh đúng 1 tay bài duy nhất** trong cả trận đấu!
+- 💧 **The Water (Nước Lũ)**: Tước đoạt hỗ trợ — Khởi đầu trận đánh với **0 lượt Đổi bài (0 Discards)**!
+- 🏛️ **The Pillar (Cột Trụ Cổ)**: Bào mòn uy lực — Mọi lá bài đã từng chơi trong Ante hiện tại bị suy giảm Chips.
+- 🪝 **The Hook (Lưỡi Móc)**: Quấy nhiễu — Tự động vứt bỏ ngẫu nhiên 2 lá bài trên tay sau mỗi lần xuất chiêu.
+- 🐟 **The Fish (Cá Biển Sâu)**: Mù lòa — Mọi lá bài rút lên sau khi đánh bài sẽ bị **Úp mặt (Face Down)**, che giấu Rank và Chất!
+- 💪 **The Arm (Cánh Tay Khổng Lồ)**: Thoái hóa — Giảm vĩnh viễn **-1 Cấp độ (Level)** của thế bài bạn vừa đánh ra!
+
+### Phần Thưởng Bỏ Qua Blind (Skip Tags)
+Người chơi có thể chủ động **Bỏ Qua (Skip)** Small Blind hoặc Big Blind để nhận ngay các Huy Hiệu Đặc Quyền (Tags) như: *Túi Vàng Cực Lớn, Gói Thần Ơn Miễn Phí, Vé Làm Mới Cửa Hàng Miễn Phí, Thẻ Âm Bản Negative Cực Hiếm...*
+
+---
+
+## ⚔️ 4. Cơ Chế Chiến Đấu Theo Lượt & Quái Vật (Combat & Intent)
+
+Khác với poker giải đố tĩnh thông thường, LUA.TCG mang linh hồn của một tựa game RPG chiến thuật theo lượt khốc liệt:
+
+### 1. Ý Định Quái Vật (Monster Intent) & Giáp Bảo Hộ (Armor)
+- Quái vật hiển thị rõ **Hành động kế tiếp (Intent)**: Sát thương tấn công, kỹ năng gầm thét tăng công hoặc buff khiên.
+- Đánh bài tích lũy **Giáp (Armor)** cho người chơi để triệt tiêu trực tiếp sát thương đòn đánh của quái trong lượt tới.
+- **Tiêu Diệt Tức Thì (Zero Counter-Attack)**: Nếu tay bài của bạn gây sát thương làm quái cạn kiệt sinh lực (HP ≤ 0), quái sẽ **CHẾT NGAY LẬP TỨC** và trận đấu kết thúc, quái hoàn toàn không có cơ hội phản đòn!
+
+### 2. Bảo Hiểm Chống One-Shot (Anti-OneShot Protection)
+- Nhằm tránh tình trạng người chơi bị đột tử bất công, sát thương từ một đòn đơn lẻ của quái bị chặn trần tối đa **45% Max HP**.
+- Nếu người chơi còn trên 50% HP, không một đòn đánh nào có thể hạ gục bạn trong 1 hit, giữ lại tối thiểu 1 HP (Death Defiance).
+
+### 3. Công Thức Tính Sát Thương Thực
+$$\text{Sát Thương} = \left( \text{Base Chips} + \sum \text{Card Chips} + \sum \text{Gem Chips} + \sum \text{Deity Chips} \right) \times \left( \text{Base Mult} + \sum \text{Deity Mult} \right) \times \prod \text{XMult}$$
+
+### 4. Thu Hoạch Chiến Lợi Phẩm (Cash Out 4 Nguồn)
+Sau mỗi trận thắng, người chơi nhận vàng minh bạch từ 4 nguồn tài chính:
+1. **Tiền Thưởng Blind**: Cố định theo độ khó của Blind.
+2. **Lượt Đánh Còn Dư**: Nhận thêm +$1 Vàng cho mỗi lượt Hand chưa dùng.
+3. **Tiền Lãi Tích Trữ (Interest)**: +$1 cho mỗi $5 đang sở hữu trong túi (Mặc định tối đa +$5, nâng lên tới $10 - $25 với Voucher và Phe Hoàng Kim).
+4. **Kỹ Năng Thần Bài / Phe Phái**: Thưởng thêm từ Thần Kim Tài hoặc nội tại +25% Vàng của phe phái.
+
+---
+
+## 👑 5. Hệ Thống Thần Hộ Mệnh (Deities) & 4 Biến Thể Edition
+
+Thần Hộ Mệnh (tương tự Jokers trong Balatro) là trái tim định hình lối chơi và các combo bùng nổ điểm số. Người chơi có thể mang theo tối đa các vị thần trên thanh Hộ Linh và **kéo thả tự do để sắp xếp thứ tự kích hoạt từ Trái sang Phải** (tối ưu: cộng Mult trước, nhân XMult sau).
+
+### 🌟 4 Biến Thể Phiên Bản Quý Hiếm (Editions)
+Mỗi Thần Bài khi xuất hiện có thể ngẫu nhiên mang các phiên bản đặc biệt:
+- ⚪ **Foil (Ánh Bạc)**: Tặng thêm **+50 Chips** trực tiếp khi ghi điểm.
+- 🟣 **Holographic (Ánh 7 Màu)**: Tăng thêm **+10 Mult** bùng nổ.
+- 🌈 **Polychrome (Đa Sắc)**: Nhân trực tiếp **x1.5 XMult** vào tổng sát thương!
+- 🖤 **Negative (Âm Bản)**: **ĐẶC BIỆT — Tự Động Tăng Thêm +1 Ô Chứa Thần Hộ Mệnh**! Giúp thanh Hộ Mệnh mở rộng linh hoạt lên **6, 7 hoặc 8 ô**, phá vỡ giới hạn 5 ô truyền thống!
+
+### 💫 Bảng Các Thần Hộ Mệnh Tiêu Biểu Trong Số 25 Vị Thần
+- **Thần Khởi Nguyên** *(Joker)*: +4 Mult vô điều kiện cho mọi thế bài.
+- **Tứ Đại Thần Tộc** *(Greedy / Lusty / Wrathful / Gluttonous)*: +4 Mult cho mỗi lá bài thuộc phe tương ứng ghi điểm.
+- **Thần Trận Pháp** *(Sly / Wily)*: +50 Chips khi đánh các thế bài Song Đao hoặc Tam Hoa.
+- **Thần Tinh Binh** *(Half Joker)*: +20 Mult cực mạnh nếu tay bài chỉ có ≤ 3 lá bài.
+- **Thần Chiến Kỷ** *(Banner)*: +30 Chips cho mỗi lượt Đổi Bài (Discard) còn lại trong trận.
+- **Thần Bách Hoa** *(Popcorn)*: Ban đầu +20 Mult, suy giảm dần -4 Mult sau mỗi round cho đến khi lụi tàn.
+- **Thần Quả Thần Bí $\rightarrow$ Bất Diệt Cổ Thụ** *(Gros Michel $\rightarrow$ Cavendish)*: Thần Quả cho +15 Mult (tỷ lệ 1/6 tự diệt); khi diệt sẽ mở khóa Bất Diệt Cổ Thụ trong Shop với uy lực **x3.0 XMult vĩnh cửu**!
+- **Thần Điệp Kích** *(Card Sharp)*: Nhân **x3.0 XMult** nếu chơi lặp lại thế bài đã từng đánh trong cùng trận.
+- **Thần Phản Chiếu** *(Blueprint)*: Sao chép toàn bộ kỹ năng của Thần Hộ Mệnh đứng liền kề bên phải nó.
+- **Kiên Nhẫn Thần Thụ** *(Delayed Gratification)*: Nhận thêm +$2 Vàng mỗi lượt nếu không sử dụng lượt Discard nào.
+
+---
+
+## 🎒 6. Hệ Thống Ô Tiêu Hao & Gói Thẻ Bài (Consumables & Packs)
+
+Nhằm nâng cao tính tự chủ chiến thuật, trò chơi trang bị **Túi Tiêu Hao 2 Ngăn Độc Lập**:
+
+### 1. Kích Hoạt Tức Thì Trong Trận Đánh (Mid-Blind Activation)
+- 2 ô vật phẩm tiêu hao luôn ngự trị ở góc trên giao diện trận chiến.
+- Người chơi có thể click trực tiếp vào ô tiêu hao bất kỳ lúc nào để: nâng cấp tay bài, thiêu hủy bài rác nhận tiền, ban hiệu ứng đặc biệt hoặc tạo thẻ cứu cánh ngay giữa trận!
+
+### 2. Mở Gói Tiếp Viện: "DÙNG NGAY" hoặc "GIỮ LẠI"
+- Khi bóc các Gói Thẻ Bài (Booster Packs) trong Cửa Hàng, người chơi không còn bị ép buộc phải xài ngay lập tức.
+- Bạn có quyền lựa chọn:
+  - ⚡ **DÙNG NGAY**: Kích hoạt hiệu ứng thẻ lên lá bài hoặc Hộ Linh được chỉ định ngay trong giao diện Shop.
+  - 📥 **GIỮ LẠI**: Cất thẻ bài vào 1 trong 2 ô Tiêu Hao dự trữ, để dành cho những tình huống ngặt nghèo tại các trận Boss hung tợn!
+
+---
+
+## 🔮 7. 4 Phân Lớp Thẻ Tiêu Hao (Spells, Seals, Spectrals, Planets)
+
+Kho tàng thẻ tiêu hao phong phú mang lại chiều sâu tùy biến vô tận cho bộ bài:
+
+### 1. Phù Chú Hộ Linh (Joker Spells)
+- **Aura (Quang Hóa)**: Ban ngẫu nhiên hiệu ứng Foil, Holo hoặc Polychrome cho 1 Thần Hộ Mệnh.
+- **Ectoplasm (Ngoại Chất)**: Biến 1 Thần Hộ Mệnh thành dạng **Negative (+1 Slot Hộ Mệnh)** với cái giá đánh đổi -1 Hand Size.
+- **Ankh (Tái Sinh Thần Linh)**: Nhân bản 1 Thần Hộ Mệnh ngẫu nhiên và hiến tế các Thần Hộ Mệnh khác.
+- **Hex (Nguyền Rủa)**: Ban Polychrome (x1.5 XMult) cho 1 Thần Hộ Mệnh.
+
+### 2. Dấu Ấn Thẻ Bài (Card Seals)
+Đóng dấu ấn thần bí trực tiếp lên mặt lá bài:
+- 🟡 **Gold Seal**: Tặng ngay **+$3 Vàng** mỗi khi lá bài này được đánh ra và tính điểm.
+- 🔴 **Red Seal**: Cho phép lá bài này **Kích hoạt tính điểm lại thêm một lần nữa (Retrigger)**!
+- 🔵 **Blue Seal**: Tạo ra 1 thẻ Tinh Cầu Hành Tinh ngẫu nhiên nếu lá bài này còn nằm trên tay khi kết thúc trận.
+- 🟣 **Purple Seal**: Tạo ra 1 thẻ Tiêu Hao ngẫu nhiên khi lá bài này bị Đổi bài (Discard).
+
+### 3. Biến Đổi Ma Thuật Cổ Xưa (Spectral Cards)
+- **Cryptid (Nhân Bản Vô Tính)**: Chọn 1 lá bài trong tay, tạo ra thêm 2 bản sao hoàn hảo của lá bài đó vào bộ bài.
+- **Immolate (Hỏa Tế)**: Thiêu hủy ngẫu nhiên 5 lá bài rác trong tay để nhận ngay **+$20 Vàng** ròng!
+- **Ouija (Hồn Triệu)**: Đồng bộ hóa toàn bộ các lá bài trên tay thành cùng một Rank ngẫu nhiên (đánh đổi -1 Hand Size).
+- **Black Hole (Hố Đen Vũ Trụ)**: Nuốt chửng không gian, **nâng cấp đồng loạt tất cả 9 thế bài Poker lên +1 Level**!
+
+### 4. Tinh Cầu Thiên Thể (Celestial Planets & Hand Leveling)
+Nâng cấp vĩnh viễn chỉ số sát thương nền (Base Chips & Base Mult) cho từng thế bài cụ thể:
+- 🪐 **Pluto**: Nâng cấp Đơn Thủ (High Card)
+- ☿️ **Mercury**: Nâng cấp Song Đao (Pair)
+- ♀️ **Venus**: Nâng cấp Tam Hoa (Three of a Kind)
+- ♁ **Earth**: Nâng cấp Hỗn Nguyên (Full House)
+- ♂️ **Mars**: Nâng cấp Tứ Tượng (Four of a Kind)
+- 🌟 **Supernova (Siêu Tân Tinh)**: Tăng vọt **+3 Level** tức thì cho thế bài được bạn sử dụng nhiều nhất trong trận đấu!
+
+---
+
+## 💎 8. Hệ Thống Khảm 5 Hốc Đá Quý (Gemstone Socketing)
+
+Mỗi lá bài trong bộ bài sở hữu cấu trúc vật lý gồm **5 Hốc Khảm Đá Quý Giác Cạnh (Faceted Sockets)** với 3 trạng thái đồ họa chi tiết (Hốc Rỗng, Đã Khảm, Hiệu Ứng Phát Sáng):
+
+| Biểu Tượng | Tên Bảo Thạch Khảm | Hiệu Ứng Khi Lá Bài Ghi Điểm Xuất Trận |
 | :---: | :--- | :--- |
-| ⚔️ | **Màn Thường (Monster)** | Gặp quái vật hoang dã. Chiến thắng nhận Vàng thưởng và mở đường đi tiếp. |
-| 👹 | **Màn Tinh Anh (Elite)** | Quái vật đột biến hung bạo (1.5x HP). Đánh bại sẽ được mở Rương Cổ Vật nhận bài hiếm hoặc trang bị. |
-| 🛍️ | **Cửa Hàng (Shop)** | Mua Sách Bí Tịch mở thế bài, mua Trang bị, Phù chú tiếp lực và hoán đổi trang bị giữa các lá bài. |
-| 🏕️ | **Trạm Nghỉ (Rest Site)** | Lựa chọn giữa: **Dưỡng Sức** (+1 Lượt Đánh & +1 Lượt Đổi tối đa) hoặc **Tôi Luyện Lò Rèn** (+1 Rank vĩnh viễn cho 1 lá bài). |
-| 🎁 | **Rương Báu (Treasure)** | Nhận miễn phí 1 trong 3 phần quà: Thẻ bài tiếp viện chỉ số cao hoặc Cổ vật trang bị. |
-| ❓ | **Sự Kiện (Event)** | Gặp các nhân vật thần bí (Tiên Tri Thần Bài, Đền Cổ Bị Lãng Quên,...) mang lại cơ duyên bất ngờ. |
-| 👑 | **Trùm Cuối (Boss)** | Tầng 20: Đối đầu Tối Thượng Ma Thần (2.5x HP). Chiến thắng sẽ triệu hồi 2 Vị Thần để bạn chọn 1. |
+| 💎 | **Đá Lửa** | Tặng trực tiếp **+35 Chips** cho lá bài này. |
+| 🔥 | **Đá Bùng Nổ** | Tăng thêm **+10 Mult** cho toàn bộ tay bài xuất kích. |
+| 🪞 | **Gương Lan Tỏa** | Lan tỏa sức mạnh, buff thêm **+25 Chips** cho 2 lá bài nằm kế bên. |
+| 🌪️ | **Mắt Bão** | Cung cấp **+3 Mult** cho tất cả các lá bài CÙNG CHẤT PHE trong tay bài. |
+| 💰 | **Đồng Tiền May Mắn** | Thưởng ngay **+$2 Vàng** vào túi tiền người chơi khi ghi điểm. |
+| 🪶 | **Lông Vũ Tự Do** | Khi Đổi bài (Discard) lá này, **KHÔNG bị trừ lượt đổi bài**. |
+| 🩸 | **Nhẫn Huyết Thần** | Gây thêm sát thương chuẩn tương đương **15% sát thương** trừ thẳng vào máu quái. |
+| 👑 | **Ngọc Bội Thánh Tích** | Nhân bộc phát **x1.3 XMult** vào tổng sát thương tay bài! |
 
-- **Cuộn bản đồ**: Sử dụng con lăn chuột (Mouse Wheel) để cuộn mượt mà xem trước lộ trình từ Tầng 1 đến Tầng 20.
-
----
-
-## ⚔️ 4. Cơ Chế Chiến Đấu & Công Thức Máu Quái Vật
-
-- **Công Thức Máu Quái Vật Tăng Tiến Vô Hạn (10 HP +50%/Màn)**:
-  - Để phù hợp hoàn hảo với bộ bài khởi đầu 3 lá nhỏ gọn, Quái vật đầu tiên (Màn 1) có đúng **10 HP**.
-  - Mỗi khi bước vào một trận chạm trán quái vật mới ($), lượng HP của quái sẽ tự động tăng thêm **50% không giới hạn**:
-    HP_n = \text{round}\left( 10 \times 1.5^{n-1} \right)
-  - *Bảng tiến trình HP thực tế:*
-    - **Màn 1**: 10 HP
-    - **Màn 2**: 15 HP
-    - **Màn 3**: 23 HP
-    - **Màn 4**: 34 HP
-    - **Màn 5**: 51 HP
-    - **Màn 6**: 76 HP
-    - **Màn 10**: 384 HP
-    - **Màn 15**: 2,919 HP
-    - Quái **Tinh Anh (Elite)**: 1.5x HP của màn đó.
-    - Quái **Trùm Cuối (Boss)**: 2.5x HP của màn đó.
-- **Tài Nguyên Trong Trận Đấu**:
-  - **Lượt Đánh (Hands)**: Mặc định 4 lượt. Hết lượt đánh mà quái chưa chết thì thua trận (Game Over).
-  - **Lượt Đổi Bài (Discards)**: Mặc định 3 lượt (Phe Valoria được 4 lượt).
-- **Công Thức Tính Sát Thương Thực**:
-  \text{Sát Thương} = \left( \sum \text{Chips}_{\text{Cơ bản}} + \sum \text{Chips}_{\text{Role}} + \sum \text{Chips}_{\text{Trang bị}} + \sum \text{Chips}_{\text{Thần}} \right) \times \left( \text{Mult}_{\text{Cơ bản}} + \text{Mult}_{\text{Buff}} \right) \times \prod \text{XMult}
+> 💡 **Chuyển Đồ Trong Cửa Hàng (Shop Transfer)**: Bạn có thể tự do tháo gỡ bảo ngọc từ lá bài cũ và khảm sang lá bài mới chỉ với vài thao tác kéo chọn trực quan trong Cửa Hàng!
 
 ---
 
-## 📖 5. Hệ Thống Mở Khóa Thế Đánh & Sổ Tay Bí Tịch
+## 🏪 9. Cửa Hàng Lữ Khách, Phí Reroll Tăng Dần & Vouchers
 
-Mới vào game, người chơi **chỉ đánh được thế bài 1 lá (ĐƠN THỦ)**. Để tung ra các tuyệt kỹ nhiều lá, bạn phải thu thập các **Sách Bí Tịch**:
+Cửa Hàng sau mỗi trận đấu mô phỏng hoàn hảo cấu trúc thương trường của Balatro:
 
-| STT | Thế Bài Poker | Tên Tiếng Việt | Số Lá | Chỉ Số Cơ Bản | Sách Bí Tịch Tương Ứng |
-| :---: | :--- | :--- | :---: | :---: | :--- |
-| 1 | **High Card** | ĐƠN THỦ | 1 | 5 Chips x 1 Mult | *Mở khóa sẵn từ đầu game* |
-| 2 | **Pair** | SONG ĐAO (Đôi) | 2 | 10 Chips x 2 Mult | Bí Tịch: Song Đao Quyết () |
-| 3 | **Two Pair** | SONG ĐÔI (Hai Đôi) | 4 | 20 Chips x 2 Mult | Bí Tịch: Song Tinh Hợp Bích () |
-| 4 | **Three of a Kind** | TAM HOA (Sám Cô) | 3 | 30 Chips x 3 Mult | Bí Tịch: Tam Hoa Tụ Đỉnh () |
-| 5 | **Straight** | TRƯỜNG LONG (Sảnh) | 5 | 30 Chips x 4 Mult | Bí Tịch: Trường Long Xuất Hải () |
-| 6 | **Flush** | ĐỒNG KHÍ (Thùng) | 5 | 35 Chips x 4 Mult | Bí Tịch: Đồng Khí Quy Tâm () |
-| 7 | **Full House** | HỖN NGUYÊN (Cù Lũ) | 5 | 40 Chips x 4 Mult | Bí Tịch: Hỗn Nguyên Nhất Thể () |
-| 8 | **Four of a Kind** | TỨ TƯỢNG (Tứ Quý) | 4 | 60 Chips x 7 Mult | Bí Tịch: Tứ Tượng Trận Đồ () |
-| 9 | **Straight Flush** | VẠN KIẾM QUY TÔNG | 5 | 100 Chips x 8 Mult | Bí Tịch: Vạn Kiếm Quy Tông () |
+### 1. Phân Tầng Mặt Hàng Chuyên Biệt
+- **Tầng Trên (Upper Items)**: Thần Hộ Mệnh, Lá Bài Bổ Sung, Đá Quý Khảm.
+- **Tầng Giữa (Voucher Slot)**: Phiếu Đặc Quyền duy nhất mỗi Ante với năng lực vĩnh viễn (như *Mở Rộng Tay Bài +1 Hand Size, Giảm Giá Cửa Hàng, Tăng Tiền Lãi...*).
+- **Tầng Dưới (Booster Packs)**: Các gói bài Tarot, Spectral, Tinh Cầu và Gói Thần Ơn.
 
-- **Hệ Thống Hạ Cấp Thông Minh**: Nếu bạn đánh ra 5 lá bài thỏa mãn Thùng Phá Sảnh nhưng chưa mua bí tịch này, hệ thống sẽ tự động hạ cấp xuống thế bài hợp lệ cao nhất bạn đã sở hữu (ví dụ: Sảnh hoặc Thùng), không làm mất lượt của người chơi.
-- **Sổ Tay Bí Tịch (SỔ TAY [H])**: Nhấn phím **H** hoặc click nút SỔ TAY [H] để tra cứu nhanh danh sách các thế bài và tiến độ mở khóa.
+### 2. Cơ Chế Tăng Phí Làm Mới (Incremental Shop Reroll)
+- Phí Reroll cơ sở: **$5**.
+- Mỗi lần nhấn Reroll trong cùng một lượt ghé thăm Shop, chi phí tăng dần: **$5 $\rightarrow$ $6 $\rightarrow$ $7...**
+- Chi phí Reroll **tự động Reset về mốc $5** khi bạn tiến sang Blind tiếp theo, ngăn chặn lạm dụng vàng vô hạn!
 
 ---
 
-## 💎 6. Hệ Thống Khảm Trang Bị Vào Lá Bài (Socketing)
+## 📚 10. Bộ Sưu Tập Toàn Thư (Compendium) & Sổ Tay Thế Bài
 
-Mỗi lá bài sở hữu **tối đa 5 ô khảm trang bị (Sockets)**. Các bảo vật mang lại hiệu ứng độc đáo khi lá bài được xuất chiêu:
+Trò chơi tích hợp bách khoa toàn thư đầy đủ ngay trong game:
 
-1. 💎 **Đá Lửa**: +35 Chips trực tiếp cho lá bài này khi tính điểm.
-2. 🔥 **Đá Bùng Nổ**: +10 Mult cho toàn bộ tay bài khi lá này ghi điểm.
-3. 🪞 **Gương Lan Tỏa**: Buff +25 Chips cho 2 lá bài nằm kế bên khi đánh ra.
-4. 🌪️ **Mắt Bão**: +3 Mult cho tất cả các lá bài CÙNG PHE trong tay bài.
-5. 💰 **Đồng Tiền May Mắn**: Thưởng ngay + Vàng khi lá bài ghi điểm.
-6. 🪶 **Lông Vũ Tự Do**: Khi Đổi bài (Discard) lá này, KHÔNG bị trừ lượt đổi bài.
-7. 🩸 **Nhẫn Huyết Thần**: Khi lá này ghi điểm, gây thêm 15% sát thương chuẩn trừ thẳng vào máu quái.
-8. 👑 **Ngọc Bội Thánh Tích**: Nhân trực tiếp x1.3 XMult vào tổng sát thương.
+```mermaid
+graph TD
+    Hub["🏛️ BỘ SƯU TẬP TOÀN THƯ (11 Danh Mục)"]
+    Hub --> C1["25 Thần Hộ Mệnh"]
+    Hub --> C2["4 Biến Thể Edition"]
+    Hub --> C3["Phù Chú Hộ Linh"]
+    Hub --> C4["Dấu Ấn Phong Ấn"]
+    Hub --> C5["Biến Đổi Spectral"]
+    Hub --> C6["Tinh Cầu Hành Tinh"]
+    Hub --> C7["9 Thế Bài Poker"]
+    Hub --> C8["4 Đại Phe Phái"]
+    Hub --> C9["8 Loại Đá Quý Khảm"]
+    Hub --> C10["16 Phiếu Vouchers"]
+    Hub --> C11["6 Dị Biến Boss Blinds"]
+```
 
-> 💡 **Mẹo**: Nhấp **Chuột Phải** vào bất kỳ lá bài nào trên tay hoặc trong kho để mở bảng **Soi Chi Tiết Quân Chủng & Trang Bị** (phóng to hình ảnh thẻ bài, cấp bậc quân vụ, chỉ số và danh sách 5 ô trang bị).
-
----
-
-## 🏪 7. Cửa Hàng Lữ Khách & Hoán Đổi Trang Bị
-
-- **Mua Sắm**:
-  - Mua Sách Bí Tịch để mở khóa thế đánh mới.
-  - Mua Trang Bị Cổ Vật và khảm trực tiếp vào 1 lá bài trong kho bài.
-  - Mua Phù Chú Tiếp Lực (+1 Lượt Đánh & +1 Lượt Đổi bài tức thì).
-  - Mua Lá Bài Tiếp Viện (bổ sung quân lực thuộc các phe khác).
-  - Làm mới hàng bán (Reroll) với giá .
-- **Hoán Đổi Trang Bị (Shop Transfer)**:
-  - Cho phép tháo lắp tự do trang bị giữa các lá bài ngay trong Cửa Hàng:
-    1. Chọn lá bài nguồn đang có trang bị.
-    2. Chọn ô trang bị muốn tháo.
-    3. Chọn lá bài đích để chuyển sang (tối đa 5 ô/lá).
+- **Sổ Tay Bí Tịch (Phím H)**: Tra cứu nhanh cấp độ, hệ số Chips x Mult hiện tại của cả 9 thế bài Poker (từ Đơn Thủ đến Vạn Kiếm Quy Tông).
+- **Xem Toàn Bộ Bộ Bài (Phím Tab)**: Thống kê chi tiết số lượng thẻ theo phe phái, thẻ đã khảm ngọc và các bí tích đã mở khóa.
 
 ---
 
-## 👑 8. Hệ Thống Thần Bài Ban Ơn (Deities — Jokers Cổ Xưa)
+## 🎨 11. Đồ Họa Shaders, Hiệu Ứng Juice & Âm Thanh Procedural
 
-Người chơi có thể thờ phụng tối đa **5 vị Thần Bài cùng lúc** (hiển thị tại thanh trên cùng màn hình). Hỗ trợ **kéo thả (Drag & Drop)** để sắp xếp lại thứ tự kích hoạt nội tại.
-
-### 🌟 10 Thần Bài Tiêu Biểu (Chuyển Thể Từ Balatro Jokers)
-1. **Thần Khởi Nguyên** *(Joker)*: +4 Mult vô điều kiện cho mọi tay bài.
-2. **Tứ Đại Thần Tộc** *(Greedy/Lusty/Wrathful/Gluttonous)*:
-   - **Thần Quang Huy (Aurelia ☀️)**: +4 Mult cho mỗi lá Aurelia ghi điểm.
-   - **Thần Trường Sinh (Elaris 🌲)**: +4 Mult cho mỗi lá Elaris ghi điểm.
-   - **Thần Huyết Lửa (Vharos 🔥)**: +4 Mult cho mỗi lá Vharos ghi điểm.
-   - **Thần Thiết Huyết (Valoria ⚔️)**: +4 Mult cho mỗi lá Valoria ghi điểm.
-3. **Thần Trận Pháp** *(Sly / Wily)*: +50 Chips nếu tay bài là Song Đao hoặc Tam Hoa.
-4. **Thần Tinh Binh** *(Half Joker)*: +20 Mult nếu tay bài đánh ra có <= 3 lá bài (cực mạnh với bài khởi đầu 3 lá!).
-5. **Thần Chiến Kỷ** *(Banner)*: +30 Chips cho mỗi lượt Đổi Bài (Discard) còn lại (synergy tuyệt vời với Valoria).
-6. **Thần Bách Hoa** *(Popcorn)*: Ban đầu +20 Mult, suy giảm -4 Mult sau mỗi trận cho đến khi tan biến.
-7. **Thần Kim Tài** *(Golden Joker)*: Nhận +$4 Vàng khi chiến thắng mỗi trận để tối ưu Tiền Lãi (Interest).
-8. **Thần Quả Thần Bí $\rightarrow$ Thần Thụ Bất Diệt** *(Gros Michel $\rightarrow$ Cavendish)*:
-   - *Thần Quả Thần Bí*: +15 Mult, 1/6 tỉ lệ thăng thiên sau mỗi trận.
-   - Khi thăng thiên sẽ mở khóa *Thần Thụ Bất Diệt* trong Shop với **x3.0 XMult vĩnh viễn**!
-9. **Thần Điệp Kích** *(Card Sharp)*: Nhân x3.0 XMult nếu thế bài này đã được chơi trong cùng trận đấu.
-10. **Thần Phản Chiếu** *(Blueprint)*: Sao chép toàn bộ kỹ năng và nội tại của Thần Bài đứng ngay bên phải nó.
-
-- Các vị Thần xuất hiện trong Cửa Hàng, Gói Thần Ơn (Deity Packs) hoặc sau khi đánh bại Boss Tầng 20.
-- Có thể bán lại Thần trong Shop để thu hồi 50% vàng khi muốn thay đổi chiến thuật.
+- **Curved CRT Scanline Shader**: Bộ lọc màn hình CRT cổ điển tái hiện không khí máy thùng hoài niệm và bí ẩn.
+- **Psychedelic Color-Cycling Shaders**: Hiệu ứng nền động huyền ảo biến chuyển màu sắc theo nhịp độ trận đánh.
+- **3D Card Tilt & Balatro Buttons**: Lá bài nghiêng đa chiều theo vị trí chuột; các nút bấm có độ dày 3D (Extrusion & Depress), nhún nảy sống động khi click chuột.
+- **Âm Thanh Procedural Tinh Chỉnh**: Tiếng lật bài giòn giã, tiếng leng keng vàng bạc, tiếng xé gói Booster Pack chân thực và tiếng trống báo hiệu chiến thắng hào hùng.
 
 ---
 
-## 🗃️ 9. Bảng Toàn Bộ Bộ Bài (Deck Viewer [Tab])
+## ⌨️ 12. Bảng Phím Tắt Điều Khiển Toàn Tập
 
-Bấm phím **Tab** bất cứ lúc nào (trong trận chiến hoặc ngoài bản đồ) để mở Bảng Tổng Quan:
-- Xem tổng số lá bài hiện có trong bộ bài.
-- Thống kê tỷ lệ các phe phái (☀️ Aurelia, 🌲 Elaris, 🔥 Vharos, ⚔️ Valoria).
-- Bộ lọc nhanh theo từng phe hoặc chỉ xem các lá đã khảm trang bị.
-- Danh mục chi tiết các bí tịch và trạng thái đã mở khóa bên cột phải.
-
----
-
-## ⌨️ 10. Bảng Phím Tắt Toàn Tập
-
-| Phím Tắt | Chức Năng |
+| Phím Tắt | Thao Tác Nhanh Trong Trò Chơi |
 | :---: | :--- |
-| **F11** | Bật / Tắt chế độ Toàn màn hình tràn viền (Fullscreen borderless). |
-| **H** | Mở / Đóng nhanh **Sổ Tay Các Thế Bài Poker** (Handbook). |
-| **Tab** | Mở / Đóng **Toàn Bộ Bộ Bài & Bí Tịch** (Deck Viewer). |
-| **Chuột Phải** | Nhấp vào lá bài để mở bảng **Soi Chi Tiết Quân Chủng & Trang Bị**. |
-| **Space** hoặc **Enter** | Tấn Công (Đánh tay bài đã chọn) / Tua nhanh hoạt ảnh tính điểm. |
-| **D** | Đổi Bài (Discard các lá bài đã chọn). |
-| **R** | Sắp xếp các lá bài trên tay theo Rank (Số: K -> A). |
-| **S** | Sắp xếp các lá bài trên tay theo Phe Phái (Aurelia -> Elaris -> Vharos -> Valoria). |
-| **Phím 1 .. 8** | Bật/tắt chọn nhanh lá bài tương ứng từ 1 đến 8 trên tay. |
-| **Cuộn Chuột** | Cuộn camera di chuyển trên Bản Đồ 20 tầng. |
-| **Esc** | Đóng cửa sổ modal / Bảng thông tin đang mở. |
+| **F11** | Bật / Tắt chế độ Toàn Màn Hình tràn viền (Borderless Fullscreen). |
+| **Space** / **Enter** | **Xuất Chiêu** (Đánh các lá bài đã chọn) / Tua nhanh hiệu ứng cộng điểm. |
+| **D** | **Đổi Bài** (Discard các lá bài đã chọn để rút bài mới). |
+| **R** | Sắp xếp các lá bài trên tay theo **Cấp Bậc Quân Chủng (Rank: K $\rightarrow$ 2)**. |
+| **S** | Sắp xếp các lá bài trên tay theo **Phe Phái (Suit: ♠ $\rightarrow$ ♥ $\rightarrow$ ♦ $\rightarrow$ ♣)**. |
+| **Số 1 .. 9** | Chọn / Hủy chọn nhanh lá bài thứ 1 đến 9 trên tay. |
+| **Chuột Phải** | Nhấp vào lá bài để mở bảng **Soi Chi Tiết Quân Vụ & 5 Hốc Khảm**. |
+| **Kéo Thả Chuột** | Tự do sắp xếp thứ tự Thần Hộ Mệnh trên thanh linh vị hoặc sắp xếp lá bài trên tay. |
+| **Tab** | Mở / Đóng Bảng Tổng Quan Toàn Bộ Bộ Bài (Deck Viewer). |
+| **H** | Mở / Đóng nhanh Sổ Tay Thế Bài Poker (Handbook). |
+| **Esc** | Tạm dừng game / Đóng các cửa sổ thông tin đang mở. |
 
 ---
 
-## 📂 11. Cấu Trúc Thư Mục & Mã Nguồn
+## 📂 13. Cấu Trúc Thư Mục Dự Án
 
-`	ext
+Kiến trúc mã nguồn được module hóa sạch sẽ và tối ưu hiệu năng:
+
+```text
 poker-roguelike/
-├── conf.lua               # Cấu hình cửa sổ LÖVE 2D (1280x720, VSync, Canvas)
-├── main.lua               # Vòng lặp chính, quản lý Game State, Renderer và Input
-├── run.bat                # Kịch bản khởi chạy game nhanh 1-click
-├── test_system.lua        # Bộ kiểm thử tự động toàn diện 24 bài test
-├── fonts/                 # Bộ phông chữ hỗ trợ tiếng Việt Unicode hoàn chỉnh
+├── conf.lua                 # Cấu hình cửa sổ Love2D (1280x720, VSync, Tiêu đề)
+├── main.lua                 # Game State Machine, vòng lặp chính, Input & Renderer
+├── run.bat                  # Script khởi chạy game nhanh 1-click cho Windows
+├── test_system.lua          # Toàn bộ bộ kiểm thử tự động 82 bài test
+├── fonts/                   # Phông chữ Unicode hiển thị tiếng Việt hoàn mỹ
 └── src/
-    ├── deck.lua           # Xử lý 4 Phe phái, Quân chủng (Roles), tạo bài, xáo bài
-    ├── deities.lua        # Hệ thống Thần bài, nội tại buff, draft sau khi diệt Boss
-    ├── equipment.lua      # 8 loại trang bị, cơ chế khảm ngọc 5 ô, tính toán hiệu ứng
-    ├── events.lua         # Hệ thống sự kiện ngẫu nhiên trên bản đồ
-    ├── map.lua            # Thuật toán sinh bản đồ 20 tầng phân nhánh và cuộn camera
-    ├── monster.lua        # Chỉ số quái (10 HP +50%), quái tinh anh và trùm cuối (HP & Debuff)
-    ├── poker.lua          # Thuật toán đánh giá 9 thế bài poker & phân cấp thông minh
-    ├── scoring.lua        # Bộ tính điểm theo bước (Chips x Mult x XMult), Roles & Factions
-    ├── shop.lua           # Cửa hàng lữ khách, sách bí tịch, mua bán thần bài & chuyển đồ
-    ├── sound.lua          # Bộ phát âm thanh giao diện và hiệu ứng chiến đấu
-    └── ui.lua             # Thư viện vẽ UI, thẻ bài, huy hiệu vector 4 phe phái và bảng màu
-`
+    ├── anim.lua             # Hệ thống Tweening hoạt ảnh, hiệu ứng nảy và rung màn hình
+    ├── background.lua       # Shaders nền Psychedelic và hiệu ứng xoáy màu
+    ├── card_inspector.lua   # Bảng soi chi tiết cấp bậc quân chủng & 5 hốc khảm
+    ├── card_renderer.lua    # Vẽ hình ảnh lá bài, họa tiết Gothic, hốc đá quý & hiệu ứng 3D
+    ├── collection_ui.lua    # Giao diện Bộ Sưu Tập Toàn Thư 11 danh mục
+    ├── crt_shader.lua       # Bộ lọc quét tia điện tử màn hình CRT cong
+    ├── deck.lua             # Quản lý 4 Phe phái, Quân chủng, rút bài, xáo bài
+    ├── deck_viewer.lua      # Giao diện xem toàn bộ bộ bài và thống kê tỷ lệ
+    ├── deities.lua          # 25 Thần Hộ Mệnh, 4 Editions (Foil, Holo, Poly, Negative +1 Slot)
+    ├── equipment.lua        # 8 Loại đá quý khảm hốc và hiệu ứng kích hoạt
+    ├── handbook.lua         # Sổ tay tra cứu 9 thế bài poker và cấp độ
+    ├── monster.lua          # Chỉ số quái vật, Intent tấn công, phòng thủ & 6 Dị biến Boss
+    ├── poker.lua            # Đánh giá 9 thế bài poker & thuật toán hạ cấp thông minh
+    ├── reward_system.lua    # Giao diện tổng kết chiến thắng và chọn thưởng
+    ├── run_manager.lua      # Quản lý vòng lặp 8 Ante, 3 Blind/Ante, Skip Tags & Cash Out
+    ├── scoring.lua          # Động cơ tính điểm bùng nổ theo bước (Chips x Mult x XMult)
+    ├── shop.lua             # Cửa hàng Balatro, Reroll tăng dần, Vouchers, Mở gói & Ô Tiêu Hao
+    ├── sound.lua            # Quản lý âm thanh giao diện, âm nhạc và tiếng động FX
+    └── ui.lua               # Hệ thống nút bấm Balatro 3D, thanh tiến trình & huy hiệu vector
+```
 
 ---
 
-## 🧪 12. Kiểm Thử Tự Động
+## 🧪 14. Bộ Kiểm Thử Tự Động Toàn Diện (82/82 Unit Tests)
 
-Game tích hợp bộ kiểm thử tự động 24 bài test độc lập để đảm bảo độ ổn định tuyệt đối:
+Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **82 Unit Tests độc lập**, kiểm soát chặt chẽ từ logic toán học, tính điểm, cơ chế bài đến khả năng chịu tải runtime:
 
-`	ext
+```text
 === RUNNING ROGUELIKE POKER SYSTEM TESTS ===
 [PASS] 1. Encounter 1 Monster HP is 10 HP: Yêu Tinh Rừng Xanh (10 HP)
 [PASS] 2. Monster HP scaling (+50% each encounter) verified: 10 -> 15 -> 23 -> 34 -> 51 HP
@@ -285,7 +378,7 @@ Game tích hợp bộ kiểm thử tự động 24 bài test độc lập để 
 [PASS] 11. Starter deck has exactly 3 random cards for all 4 Factions
 [PASS] 12. Card Hierarchy verified: Chiến Binh (2-10), Hiệp Sĩ (J), Hoàng Hậu (Q), Quốc Vương (K), Thần Khí (A)
 [PASS] 13. Equipment transfer between cards verified successfully
-[PASS] 14. Deities.addDeity successfully adds chosen deity: Tối Thượng Thần
+[PASS] 14. Deities.addDeity successfully adds chosen deity: Bất Diệt Cổ Thụ
 [PASS] 15. Encounter deck restoration verified: cards restore to initial rank in new encounter
 [PASS] 16. Card addition adds strictly to deck and not hand (prevents duplicate selection bug)
 [PASS] 17. Unlocked Straight correctly plays as Straight despite sharing same suit: TRƯỜNG LONG
@@ -320,9 +413,49 @@ Game tích hợp bộ kiểm thử tự động 24 bài test độc lập để 
 [PASS] 44. Thần Quả Thần Bí & Thần Thụ Bất Diệt verified: extinction triggers Cavendish unlock & x3.0 XMult
 [PASS] 45. Thần Điệp Kích verified: x3.0 XMult on repeated hand in same combat
 [PASS] 46. Thần Phản Chiếu (Blueprint) verified: dynamically copies deity to right across hand and card triggers
+[PASS] 47. Ante & Blind HP Progression verified: 8 Antes mathematically validated (Small 76->2040, Big 114->3060, Boss 152->4080)
+[PASS] 48. RunManager.newRun & 3-Blind Ante structure verified (Small/Big canSkip, Boss debuff active)
+[PASS] 49. Cash Out Calculator verified: 5 Sources (Base, Hands, Interest, Deities, Valoria +25%) and Skip mechanics
+[PASS] 50. Skip Blind Tags, Free Reroll Tag, and Shop Reroll mechanics ($5 -> $6 -> reset $5) verified
+[PASS] 51. Full 8-Ante Progression (3 Blinds & 3 Shops per Ante) and Ante 8 VICTORY verified
+[PASS] 52. ♠️ Thiết Quân Thứ (The Iron Axiom): Chỉ Số Thép, Boss Debuff Immunity, Phalanx Progression (+100c), J♠ (+40c/soldier), Q♠ (x1.4), K♠ (+15c/unplayed), A♠ Sát Khí verified
+[PASS] 53. ♥️ Giáo Hội Huyết ƯỚc (The Sanguine Covenant): +5 Mult/card, Dấu Ấn Tử Đạo (+24m, x1.45), K♥ (+100c/+25m on last hand), Q♥ (-1 rank, x1.35), A♥ Blood Gold verified
+[PASS] 54. ♦️ Trật Tự Hoàng Kim (The Gilded Conclave): Kim Ngân (+$1/card), Trần Lãi Siêu Việt ($100->$25 interest), Khảm Nén Quặng (+50% stats), J♦ (+$2 steal), Q♦ (wealth xmult), K♦ (bribe rescue), A♦ (devour +15c) verified
+[PASS] 55. ♣️ Bầy Nguyên Sinh (The Feral Swarm): Bầy Đàn (9-card hand), Tuần Hoàn Thể, Q♣ (4-card Straight & Flush), K♣ (x1.9 XMult & Heal 20 HP), A♣ Wild Suit, Chân Rết Nguyên Thủy (+50c/+5m) verified
+[PASS] 56. Tự do sắp xếp Thần Bài (Deities Drag & Drop & Left-to-Right Scoring Order): Đặt ô bất kỳ (1..5), Hoán đổi ô, Thứ tự Trái sang Phải (+Mult trước xMult: 180 vs 84 Sát thương), Thần Phản Chiếu sao chép qua ô trống verified
+[PASS] 57. Toàn bộ Vòng Lặp Màn Chơi (4 Phe Phái), Đấu Small Blind, Bỏ qua Big Blind nhận Tag, Đấu Boss Debuff, Tăng Ante 1->2, Cửa Hàng & Reroll ($5->$6->$5), An toàn UTF-8 tiếng Việt verified
+[PASS] 58. Bộ Sưu Tập Toàn Thư (Collection Compendium 11 Danh Mục, 25 Thần Hộ Mệnh, 8 Trang Bị Khảm, 4 Phe Phái, Phiếu & Dị Biến Boss) verified 100%
+[PASS] 59. Hệ Thống Nút Bấm Balatro 3D (Extrusion, Depress, 3D Tilt, In Hoa UTF-8 & Keycap Badges) verified 100%
+[PASS] 60. Đại Tu Grimdark & Cổ Điển (Hốc Khảm Đá Quý 3 Trạng Thái, Chân Dung Gothic K-Q-J-A, Hộ Linh Tarot & Sigil Cổ Vật) verified 100%
+[PASS] 61. 3-Turn Turn-Based Combat Benchmark (Armor absorption, HP healing & Zero Counter-attack on fatal hit) verified 100%
+[PASS] 62. Dual Loss Condition & 3-Card Straight (TRƯỜNG LONG) verified 100%
+[PASS] 63. Monster Attack Scaling verified across all 8 Antes (No One-Shot, Boss capped at 50 DMG)
+[PASS] 64. Anti-OneShot Protection verified (Single hit capped to 45% max HP and death defiance above 50 HP)
+[PASS] 65. 4 Fixed Financial Sources & Cash Out Formula verified 100%
+[PASS] 66. Voucher Seed Money raises interest cap to $10 verified 100%
+[PASS] 67. Delayed Gratification (Kiên Nhẫn Thần Thụ) Joker verified 100%
+[PASS] 68. RewardSystem.draw rendering runtime safety & button layout verified 100%
+[PASS] 69. Button Subtitle vertical stacking (zero text collision) verified 100%
+[PASS] 70. High score & XMult screen shake clamping (< 7px) verified 100%
+[PASS] 71. Endless Mode scaling and progression beyond Ante 8 verified 100%
+[PASS] 72. Ante 8 Victory trigger and 2-button choice state verified 100%
+[PASS] 73. Starter hand size = 3 and selectable cards limit = 1 verified 100%
+[PASS] 74. Mở Rộng Tay Bài shop item ($8 -> +1 permanent Hand Size) verified 100%
+[PASS] 75. Joker Editions (Foil +50c, Holo +10m, Poly x1.5m, Negative +1 Slot) verified 100%
+[PASS] 76. Joker Spells (Aura, Ectoplasm, Ankh, Hex) mechanics verified 100%
+[PASS] 77. Card Seals (Gold +$3, Red re-trigger, Blue, Purple) verified 100%
+[PASS] 78. Spectral Transformations (Cryptid, Immolate +$20, Ouija, Black Hole) verified 100%
+[PASS] 79. Hand Leveling & Planet Cards (Base scaling & Supernova +3 Lv) verified 100%
+[PASS] 80. Consumables Inventory (Slots capacity = 2) verified 100%
+[PASS] 81. Shop.keepPackCard (Keep Pack Cards into Consumables & Cap 2/2) verified 100%
+[PASS] 82. Dynamic Negative Deity Slots (Expansion to 6+ slots, Slot 6 Scoring & Rewards) verified 100%
 === ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===
-`
+```
 
 ---
 
-*Chúc bạn có những phút giây trải nghiệm chiến thuật đỉnh cao, xây dựng đội quân bài thiện chiến và chinh phục thành công Tối Thượng Ma Thần tại Tầng 20!*
+## 📜 Giấy Phép & Bản Quyền (License)
+
+Dự án phát hành dưới giấy phép mã nguồn mở **MIT License**. Bạn có quyền tự do sử dụng, nghiên cứu, sửa đổi và phân phối theo quy định của giấy phép.
+
+*Chúc bạn có những trải nghiệm chiến thuật đỉnh cao, nặn bài bùng nổ và chinh phục thành công cả 8 Ante của LUA.TCG!*
