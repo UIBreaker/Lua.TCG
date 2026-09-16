@@ -465,9 +465,17 @@ function Scoring.calculate(handInfo, deities, context)
                 end
             end
 
-            -- Check Deities triggered by card (evaluated sequentially across slots 1 to 5)
+            -- Check Deities triggered by card (evaluated sequentially across all slots)
             local deityTriggers = {}
-            for di = 1, 5 do
+            local maxDeitySlots = 5
+            if deities then
+                for k in pairs(deities) do
+                    if type(k) == "number" and k > maxDeitySlots then
+                        maxDeitySlots = k
+                    end
+                end
+            end
+            for di = 1, maxDeitySlots do
                 local deity = deities and deities[di]
                 if deity then
                     local effectiveDeity = Deities.resolveDeity and Deities.resolveDeity(deities, di) or deity
@@ -699,7 +707,7 @@ end
                         xMult = cardXMult,
                         resultingChips = currentChips,
                         resultingMult = currentMult,
-                        message = displayName .. ": " .. (res.message or effectiveDeity.desc or deity.desc)
+                        message = displayName .. ": " .. (res.message or effectiveDeity.desc or deity.desc or effectiveDeity.name or deity.name or "")
                     })
                 end
             end

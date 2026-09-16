@@ -782,6 +782,39 @@ function Shop.choosePackCard(shop, chosenIndex, gameState)
     return true
 end
 
+function Shop.keepPackCard(shop, chosenIndex, gameState)
+    if not shop.currentPackOpening then return false, "Không có gói bài nào đang mở!" end
+    local pack = shop.currentPackOpening.pack
+    local card = shop.currentPackOpening.cards and shop.currentPackOpening.cards[chosenIndex]
+    if not card then return false, "Lá bài không hợp lệ!" end
+
+    local validPacks = {
+        joker_edition = "joker_spell",
+        seal = "seal",
+        spectral = "spectral",
+        celestial = "celestial"
+    }
+    local cat = validPacks[pack.packType]
+    if not cat then
+        return false, "Chỉ có thể cất giữ Thẻ Phép & Hành Tinh vào Ô Tiêu Hao!"
+    end
+
+    gameState.consumables = gameState.consumables or {}
+    if #gameState.consumables >= 2 then
+        Sound.play("cant_afford")
+        return false, "Ô tiêu hao đã đầy (2/2)!"
+    end
+
+    local storedCard = {}
+    for k, v in pairs(card) do storedCard[k] = v end
+    storedCard.category = cat
+
+    table.insert(gameState.consumables, storedCard)
+    Sound.play("shop_buy")
+    shop.currentPackOpening = nil
+    return true, "Đã cất [" .. (storedCard.name or "Thẻ Phép") .. "] vào Ô Tiêu Hao!"
+end
+
 function Shop.skipPack(shop)
     shop.currentPackOpening = nil
     Sound.play("ui_click")

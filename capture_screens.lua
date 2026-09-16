@@ -57,6 +57,16 @@ function Capture.update(gameRef, callbacks)
 
     elseif frame == 34 then
         callbacks.startMonsterEncounter(1, false)
+        gameRef.deities = {
+            [1] = { id = "deity_aurelia", name = "Aurelia", edition = "negative" },
+            [2] = { id = "deity_genesis", name = "Khởi Nguyên", currentMult = 4 },
+            [3] = { id = "deity_iron", name = "Thiết Thứ" },
+            [4] = { id = "deity_gold", name = "Kim Tài" },
+            [5] = { id = "deity_swarm", name = "Bầy Đàn" },
+        }
+        gameRef.consumables = {
+            { id = "spell_aura", name = "Aura", category = "joker_spell", icon = "✨", desc = "Thêm Foil, Holo hoặc Poly cho 1 Joker ngẫu nhiên", color = { 0.95, 0.45, 0.85, 1 } }
+        }
         if gameRef.hand and gameRef.hand[1] then
             Equipment.attach(gameRef.hand[1], Equipment.ITEMS.gem_fire)
             Equipment.attach(gameRef.hand[1], Equipment.ITEMS.mirror_adjacent)
@@ -79,7 +89,18 @@ function Capture.update(gameRef, callbacks)
     elseif frame == 68 then
         saveImage("shot_shop.png")
 
-    elseif frame == 76 then
+    elseif frame == 70 then
+        if callbacks.openPack then
+            callbacks.openPack({ packType = "joker_edition", name = "Gói Phù Phép Joker", cost = 6 })
+        end
+
+    elseif frame == 72 then
+        saveImage("shot_pack_keep.png")
+
+    elseif frame == 74 then
+        if callbacks.closePack then callbacks.closePack() end
+
+    elseif frame == 78 then
         callbacks.openShopTransfer()
         saveImage("shot_shop_transfer.png")
 

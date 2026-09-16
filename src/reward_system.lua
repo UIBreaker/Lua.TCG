@@ -35,7 +35,8 @@ function RewardSystem.calculate(blind, gameState, wasSkipped)
     local deityBonus = 0
     local deityDetails = {}
     if not wasSkip and gameState.deities then
-        for di = 1, 5 do
+        local maxDeiSlots = Deities.getMaxSlots and Deities.getMaxSlots(gameState) or 10
+        for di = 1, maxDeiSlots do
             local d = gameState.deities[di]
             if d then
                 local effectiveDeity = Deities.resolveDeity and Deities.resolveDeity(gameState.deities, di) or d

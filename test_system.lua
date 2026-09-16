@@ -2206,6 +2206,83 @@ do
     log("[PASS] 80. Consumables Inventory (Slots capacity = 2) verified 100%")
 end
 
+-- 81. Test Shop.keepPackCard (Keep Booster Pack Cards into Consumables)
+do
+    local shop = {
+        currentPackOpening = {
+            pack = { packType = "joker_edition", name = "Gói Phù Phép Joker" },
+            cards = {
+                { id = "spell_aura", name = "Aura", desc = "Thêm Foil, Holo hoặc Poly cho 1 Joker" },
+                { id = "spell_ectoplasm", name = "Ectoplasm", desc = "+1 Slot Negative Joker, -1 Hand Size" },
+            }
+        }
+    }
+    local testGame = { consumables = {} }
+    local ok, msg = Shop.keepPackCard(shop, 1, testGame)
+    assert(ok == true, "keepPackCard must succeed when consumables has space")
+    assert(#testGame.consumables == 1, "Consumable must be added to inventory")
+    assert(testGame.consumables[1].id == "spell_aura", "Stored card must match chosen card")
+    assert(testGame.consumables[1].category == "joker_spell", "Stored card must be tagged with correct category")
+    assert(shop.currentPackOpening == nil, "Pack opening must close after keeping card")
+
+    -- Add a 2nd card to reach capacity
+    table.insert(testGame.consumables, { id = "planet_mars", name = "Sao Hỏa", category = "celestial" })
+    assert(#testGame.consumables == 2, "Consumables is now 2/2")
+
+    -- Try keeping another card when full
+    shop.currentPackOpening = {
+        pack = { packType = "celestial", name = "Gói Hành Tinh" },
+        cards = { { id = "planet_jupiter", name = "Sao Mộc" } }
+    }
+    local okFail, failMsg = Shop.keepPackCard(shop, 1, testGame)
+    assert(okFail == false, "keepPackCard must fail when consumables is at capacity (2/2)")
+    assert(failMsg:find("đầy"), "Must return inventory full error message")
+    assert(shop.currentPackOpening ~= nil, "Pack opening remains active when rejected so player doesn't lose pack")
+    log("[PASS] 81. Shop.keepPackCard (Keep Pack Cards into Consumables & Cap 2/2) verified 100%")
+end
+
+-- 82. Test Dynamic Negative Deity Slots (Expansion to 6+ slots & Scoring Trigger)
+do
+    local testGame = {
+        deities = {
+            [1] = { id = "deity_aurelia", name = "Aurelia", edition = "negative" },
+            [2] = { id = "deity_genesis", name = "Khởi Nguyên", currentMult = 4, onHandScored = function(handInfo, ctx, d) return { addMult = 4 } end },
+            [3] = { id = "deity_iron", name = "Thiết Thứ" },
+            [4] = { id = "deity_gold", name = "Kim Tài", onRoundWin = function(g, d) return { addGold = 4, message = "+$4 Gold" } end },
+            [5] = { id = "deity_swarm", name = "Bầy Đàn" },
+        }
+    }
+    local maxSlots = Deities.getMaxSlots(testGame)
+    assert(maxSlots == 6, "1 Negative deity must expand max slots to 6, got: " .. tostring(maxSlots))
+
+    -- Add 6th deity into slot 6
+    local deity6 = {
+        id = "deity_slot6_test",
+        name = "Thần Thứ Sáu",
+        onCardScored = function(card, ctx, d) return { addChips = 50 } end,
+        onRoundWin = function(g, d) return { addGold = 5, message = "+$5 Slot 6 Gold" } end,
+    }
+    local added = Deities.addDeity(testGame, deity6)
+    assert(added == true, "Must be able to add 6th deity when maxSlots is 6")
+    assert(testGame.deities[6] ~= nil, "6th deity must occupy slot 6")
+    assert(Deities.getCount(testGame.deities) == 6, "Total equipped deities count must be 6")
+
+    -- Test scoring triggers for slot 6 deity
+    local evalTest = {
+        scoringCards = { { rank = 8, rankName = "8", suit = "spades", suitSymbol = "♠", baseChips = 8 } },
+        pokerHand = { id = "high_card", name = "High Card", vnName = "Đơn Thủ", baseChips = 5, baseMult = 1 },
+    }
+    local scoringRes = Scoring.calculate(evalTest, testGame.deities, testGame)
+    assert(scoringRes.totalChips >= 50, "Slot 6 onCardScored (+50 Chips) must trigger in scoring, got totalChips: " .. scoringRes.totalChips)
+
+    -- Test round win rewards for slot 6 deity
+    testGame.gold = 0
+    testGame.handsRemaining = 0
+    local rew = RewardSystem.calculate({ reward = 4 }, testGame, false)
+    assert(rew.deityBonus == 9, "Deities in slots 4 ($4) and 6 ($5) must both award round win gold ($9 total), got: " .. tostring(rew.deityBonus))
+    log("[PASS] 82. Dynamic Negative Deity Slots (Expansion to 6+ slots, Slot 6 Scoring & Rewards) verified 100%")
+end
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then
