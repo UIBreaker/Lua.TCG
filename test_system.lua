@@ -1297,6 +1297,138 @@ do
     log("[PASS] 56. Tự do sắp xếp Thần Bài (Deities Drag & Drop & Left-to-Right Scoring Order): Đặt ô bất kỳ (1..5), Hoán đổi ô, Thứ tự Trái sang Phải (+Mult trước xMult: 180 vs 84 Sát thương), Thần Phản Chiếu sao chép qua ô trống verified")
 end
 
+-- 57. Test TOÀN BỘ CƠ CHẾ CHỌN PHE PHÁI, CHIẾN ĐẤU BLIND, CASH OUT, SHOP VÀ CÁC NÚT BẤM (Full Button & Progression Flow)
+do
+    local factions = { "aurelia", "elaris", "vharos", "valoria" }
+    for _, fkey in ipairs(factions) do
+        -- 1. Khởi tạo Run cho từng phe phái
+        local run = RunManager.newRun(fkey)
+        assert(run.ante == 1, "Run starts at Ante 1")
+        assert(#run.blinds == 3, "Ante must contain exactly 3 blinds")
+
+        local mockGame = {
+            gold = 15,
+            playerHp = 100,
+            maxPlayerHp = 100,
+            handsRemaining = 4,
+            maxHands = 4,
+            discardsRemaining = 3,
+            maxDiscards = 3,
+            selectedFaction = fkey,
+            selectedSuit = fkey,
+            deities = {},
+            unlockedHands = { high_card = true },
+            run = run,
+        }
+
+        -- 2. Small Blind: Chiến đấu & Thắng
+        local sb = RunManager.getCurrentBlind(run)
+        assert(sb ~= nil and sb.type == "small", "First blind must be Small Blind")
+        assert(sb.canSkip == true, "Small Blind can be skipped")
+
+        local monster = RunManager.createBlindMonster(sb, mockGame)
+        assert(monster.hp == sb.hp, "Monster HP matches Small Blind HP")
+        assert(monster.isBoss == false, "Small Blind is not a boss")
+
+        -- Đánh bại monster
+        RunManager.completeCurrentBlind(run)
+        assert(sb.status == "completed", "Small blind status must be completed")
+
+        -- 3. Màn hình Thưởng (Cash Out)
+        local cashBreakdown = RewardSystem.calculate(sb, mockGame, false)
+        assert(cashBreakdown.basePayout == sb.baseReward, "Base reward matches blind reward")
+        assert(cashBreakdown.interestBonus == 3, "Interest for $15 is $3")
+        assert(cashBreakdown.totalGold > 0, "Cash out grants positive gold")
+        mockGame.gold = mockGame.gold + cashBreakdown.totalGold
+
+        -- 4. Nhịp độ Cửa Hàng (Shop Flow)
+        local shop = Shop.new()
+        Shop.refresh(shop, mockGame)
+        assert(#shop.items > 0, "Shop must contain items")
+        assert(shop.rerollCost == 5, "Initial reroll cost must be $5")
+
+        -- Test Reroll ($5 -> $6)
+        local goldBeforeReroll = mockGame.gold
+        local rerollOk = Shop.reroll(shop, mockGame)
+        assert(rerollOk == true, "Shop reroll must succeed")
+        assert(mockGame.gold == goldBeforeReroll - 5, "Reroll must deduct $5")
+        assert(shop.rerollCost == 6, "Next reroll cost increases to $6")
+
+        -- Test Mua Thần Bài vào Ô bất kỳ
+        local testDeity = Deities.CATALOG.deity_genesis
+        local buyOk = Deities.addDeity(mockGame, testDeity, 2)
+        assert(buyOk == true, "Adding deity to preferred slot 2 must succeed")
+        assert(Deities.getCount(mockGame.deities) == 1, "Deity count must be 1")
+        assert(mockGame.deities[2] ~= nil, "Slot 2 holds the deity")
+
+        -- Test Bán Thần Bài
+        Shop.sellDeity(mockGame, 2)
+        assert(mockGame.deities[2] == nil, "Deity sold from slot 2")
+        assert(Deities.getCount(mockGame.deities) == 0, "Deity count returns to 0")
+
+        -- Rời shop chuyển sang Big Blind
+        local cont, reason = RunManager.advanceAfterShop(run, mockGame)
+        assert(cont == true, "Run continues to next blind")
+        Shop.resetReroll(shop)
+        assert(shop.rerollCost == 5, "Reroll cost resets to $5 for new blind")
+
+        -- 5. Big Blind: Bỏ qua (Skip) lấy Bùa Thưởng (Tag)
+        local bb = RunManager.getCurrentBlind(run)
+        assert(bb ~= nil and bb.type == "big", "Second blind must be Big Blind")
+        assert(bb.canSkip == true, "Big Blind can be skipped")
+
+        local skipOk, skipMsg, tag = RunManager.skipCurrentBlind(run, mockGame)
+        assert(skipOk == true, "Skipping Big Blind must succeed")
+        assert(bb.status == "skipped", "Big Blind marked as skipped")
+        assert(tag ~= nil, "Skip must award a tag")
+
+        -- Cash Out khi Bỏ qua
+        local skipBreakdown = RewardSystem.calculate(bb, mockGame, true)
+        assert(skipBreakdown.basePayout == 0, "Skipped blind grants $0 base reward")
+
+        -- Chuyển sang Boss Blind
+        local contBoss = RunManager.advanceAfterShop(run, mockGame)
+        assert(contBoss == true, "Run continues to Boss Blind")
+
+        -- 6. Boss Blind: Áp chế (Debuff) & Không thể Bỏ qua
+        local boss = RunManager.getCurrentBlind(run)
+        assert(boss ~= nil and boss.type == "boss", "Third blind must be Boss Blind")
+        assert(boss.canSkip == false, "Boss Blind cannot be skipped")
+        assert(boss.debuff ~= nil, "Boss Blind must possess an active debuff")
+
+        local bossMonster = RunManager.createBlindMonster(boss, mockGame)
+        assert(bossMonster.isBoss == true, "Monster flagged as Boss")
+        assert(bossMonster.hp == boss.hp, "Boss HP matches requirement")
+
+        -- Thắng Boss Blind
+        RunManager.completeCurrentBlind(run)
+        assert(boss.status == "completed", "Boss Blind completed")
+
+        -- Chuyển sang Ante tiếp theo (Ante 1 -> Ante 2)
+        local contAnte2 = RunManager.advanceAfterShop(run, mockGame)
+        assert(contAnte2 == true, "Run advances to next Ante")
+        assert(run.ante == 2, "Ante progressed from 1 to 2")
+    end
+
+    -- 7. Test An toàn UTF-8 & Cắt chuỗi không lỗi ký tự tiếng Việt
+    local utf8 = require("utf8")
+    local vnStrings = {
+        "Định luật Bất Biến & Lũy Tiến Chips Cơ Học",
+        "Tử Đạo, Chuyển Hóa Máu & Bùng Nổ Mult Siêu Cấp",
+        "Tài Phiệt, Khai Thác 5 Ô Khảm & Lãi Suất Vận Mệnh",
+        "Ký Sinh Tiến Hóa, Tuần Hoàn Bộ Bài & Đột Biến Rank",
+        "Trảm Vương: Bài Hoàng Gia bị vô hiệu hóa (0c / 0m)!"
+    }
+    for _, str in ipairs(vnStrings) do
+        local truncated = UI.truncateUtf8(str, 25)
+        local len = utf8.len(truncated)
+        assert(len ~= nil, "Truncated string must be 100% valid UTF-8 without decoding error: " .. str)
+        assert(len <= 28, "Truncated string must not exceed limit")
+    end
+
+    log("[PASS] 57. Toàn bộ Vòng Lặp Màn Chơi (4 Phe Phái), Đấu Small Blind, Bỏ qua Big Blind nhận Tag, Đấu Boss Debuff, Tăng Ante 1->2, Cửa Hàng & Reroll ($5->$6->$5), An toàn UTF-8 tiếng Việt verified")
+end
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.event then

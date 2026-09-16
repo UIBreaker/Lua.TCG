@@ -33,6 +33,19 @@ function UI.sanitizeText(str)
     return s
 end
 
+local utf8 = require("utf8")
+function UI.truncateUtf8(str, maxChars)
+    if type(str) ~= "string" then return "" end
+    maxChars = maxChars or 35
+    local ok, len = pcall(utf8.len, str)
+    if not ok or not len or len <= maxChars then return str end
+    local okOffset, byteOffset = pcall(utf8.offset, str, maxChars + 1)
+    if okOffset and byteOffset then
+        return str:sub(1, byteOffset - 1) .. "..."
+    end
+    return str
+end
+
 function UI.initFonts()
     local fontPath = "fonts/arial.ttf"
     local function loadFont(size)

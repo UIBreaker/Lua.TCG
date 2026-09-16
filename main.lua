@@ -2685,8 +2685,13 @@ local function drawPlayingState()
     local curDeiCount = Deities.getCount(game.deities)
     love.graphics.print("THẦN HỘ MỆNH (" .. curDeiCount .. "/5)", topStartX + 4, topStartY)
 
+    local deitySlotW = 112
+    local deitySlotH = 88
+    local deityGap = 12
+    local deityY = topStartY + 22
+
     for i = 1, 5 do
-        local dx, deityY, deitySlotW, deitySlotH = getDeitySlotRect(i, "playing")
+        local dx = getDeitySlotRect(i, "playing")
         local d = game.deities and game.deities[i]
         local isDraggedSource = (deityDrag.active and deityDrag.isDragging and deityDrag.deityIndex == i)
         local isHoveredSlot = (mx >= dx and mx <= dx + deitySlotW and my >= deityY and my <= deityY + deitySlotH)
@@ -5565,9 +5570,7 @@ local function drawShopState()
             love.graphics.setColor(0.12, 0.15, 0.19, 0.9)
             UI.drawRoundedRect("fill", 6, cardH - 46, cardW - 12, 38, 4)
             love.graphics.setFont(UI.fonts.tiny)
-            love.graphics.setColor(UI.COLORS.textLight)
-            local shortDesc = it.desc or ""
-            if #shortDesc > 38 then shortDesc = shortDesc:sub(1, 35) .. "..." end
+            local shortDesc = UI.truncateUtf8(it.desc, 32)
             love.graphics.printf(shortDesc, 8, cardH - 42, cardW - 16, "center")
 
             love.graphics.pop()

@@ -199,7 +199,7 @@ function Shop.buyItem(shop, itemIndex, gameState)
     end
 
     if item.category == "deity" then
-        if #(gameState.deities or {}) >= 5 then
+        if Deities.getCount(gameState.deities) >= 5 then
             Sound.play("cant_afford")
             return false, "Đã đầy 5 Thần Hộ Mệnh! Hãy bán bớt thần cũ trước khi mua mới."
         end
@@ -300,7 +300,7 @@ function Shop.choosePackCard(shop, chosenIndex, gameState)
     if not card then return false end
 
     if pack.packType == "buffoon" then
-        if #(gameState.deities or {}) >= 5 then
+        if Deities.getCount(gameState.deities) >= 5 then
             Sound.play("cant_afford")
             return false, "Đã đầy 5 Thần Hộ Mệnh!"
         end
