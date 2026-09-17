@@ -99,11 +99,13 @@ local testDeities = {
 }
 local calc = Scoring.calculate(testHand, testDeities, { handsRemaining = 3 })
 printLog("Scoring calculation result: " .. calc.totalChips .. " Chips x " .. calc.totalMult .. " Mult x " .. calc.xMultTotal .. " XMult = " .. calc.finalScore)
-assert(calc.totalChips == 78, "Expected 78 chips, got " .. calc.totalChips)
-assert(calc.totalMult == 6, "Expected 6 mult, got " .. calc.totalMult)
+assert(calc.totalChips == 118, "Expected 118 chips, got " .. calc.totalChips)
+assert(calc.totalMult == 9, "Expected 9 effective mult after ordered deity triggers, got " .. calc.totalMult)
 assert(calc.xMultTotal == 1.5, "Expected 1.5 xMult, got " .. calc.xMultTotal)
-assert(calc.finalScore == 702, "Expected 702 final score, got " .. calc.finalScore)
+assert(calc.finalScore == 1062, "Expected 1062 final score, got " .. calc.finalScore)
 printLog(" Test 11 Passed: Scoring Formula & Deities Integration")
 
 printLog("=== ALL 11 TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
+if love and love.audio then love.audio.stop() end
+if love and love.event then love.event.quit(0) end

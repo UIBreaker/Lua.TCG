@@ -1,6 +1,7 @@
 local Equipment = require("src.equipment")
 local Poker = require("src.poker")
 local Deck = require("src.deck")
+local Rng = require("src.rng")
 
 local Events = {}
 
@@ -98,7 +99,7 @@ Events.LIST = {
                         end
                     end
                     if #lockedKeys > 0 then
-                        local chosenKey = lockedKeys[math.random(#lockedKeys)]
+                        local chosenKey = lockedKeys[Rng.random(#lockedKeys)]
                         gameState.unlockedHands[chosenKey] = true
                         local book = Poker.SKILL_BOOKS[chosenKey]
                         return "Ánh sáng khai mở tâm trí! Bạn đã mở khóa: " .. book.handName .. "!"
@@ -135,16 +136,16 @@ Events.LIST = {
         options = {
             {
                 title = "Đồng Khí Quy Tâm",
-                desc = "Biến đổi 3 lá bài ngẫu nhiên trong bộ bài thành PHE KHỞI ĐẦU của bạn!",
+                desc = "Biến đổi 3 lá bài ngẫu nhiên trong bộ bài thành cùng một CHẤT ngẫu nhiên!",
                 action = function(gameState)
                     local targetDeck = (gameState.persistentDeck and #gameState.persistentDeck > 0) and gameState.persistentDeck or gameState.deck
                     local changed = 0
-                    local userFaction = gameState.selectedFaction or gameState.selectedSuit or "aurelia"
-                    local sInfo = Deck.FACTIONS[userFaction] or Deck.SUITS[userFaction] or Deck.FACTIONS.aurelia
+                    local targetSuit = Deck.SUIT_ORDER[Rng.random(#Deck.SUIT_ORDER)]
+                    local sInfo = Deck.SUITS[targetSuit]
                     for _, c in ipairs(targetDeck) do
-                        if c.suit ~= userFaction then
-                            c.suit = userFaction
-                            c.suitName = sInfo.name
+                        if c.suit ~= targetSuit then
+                            c.suit = targetSuit
+                            c.suitName = Deck.STANDARD_SUIT_NAMES[targetSuit] or sInfo.name
                             c.suitSymbol = sInfo.symbol
                             c.color = sInfo.color
                             changed = changed + 1
@@ -152,10 +153,10 @@ Events.LIST = {
                         end
                     end
                     if changed > 0 then
-                        return "Lời nguyền đảo ngược! " .. changed .. " lá bài đã quy thuận Phe " .. sInfo.name .. "!"
+                        return "Lời nguyền đảo ngược! " .. changed .. " lá bài đã đổi sang chất " .. (Deck.STANDARD_SUIT_NAMES[targetSuit] or sInfo.name) .. "!"
                     else
                         gameState.gold = gameState.gold + 8
-                        return "Bộ bài của bạn đã thuần phục Phe " .. sInfo.name .. "! Bà tiên tri tặng bạn: +$8 Vàng!"
+                        return "Bộ bài đã đồng chất " .. (Deck.STANDARD_SUIT_NAMES[targetSuit] or sInfo.name) .. "! Bà tiên tri tặng bạn: +$8 Vàng!"
                     end
                 end,
             },
@@ -163,7 +164,7 @@ Events.LIST = {
                 title = "Đánh Cược Vận Mệnh",
                 desc = "50% trúng lớn nhận +$18 Vàng, 50% mất -$4 Vàng.",
                 action = function(gameState)
-                    if math.random() < 0.5 then
+                    if Rng.random() < 0.5 then
                         gameState.gold = gameState.gold + 18
                         return "Vận may mỉm cười rực rỡ! Bạn trúng cược: +$18 Vàng!"
                     else
@@ -185,7 +186,7 @@ Events.LIST = {
 }
 
 function Events.getRandomEvent()
-    local idx = math.random(#Events.LIST)
+    local idx = Rng.random(#Events.LIST)
     return Events.LIST[idx]
 end
 

@@ -3,6 +3,7 @@ local Poker = require("src.poker")
 local Sound = require("src.sound")
 local Deck = require("src.deck")
 local Deities = require("src.deities")
+local Rng = require("src.rng")
 
 local Shop = {}
 
@@ -66,11 +67,11 @@ function Shop.refresh(shop, gameState)
 
     -- C. Quân Bài Chiêu Mộ (Reinforcement Card for Deck)
     local rewardCard = nil
-    if math.random() < 0.5 then
+    if Rng.random() < 0.5 then
         rewardCard = Deck.createRewardCard(userFaction)
     else
         local rankPool = { 9, 10, 11, 12, 13, 14 }
-        local r = rankPool[math.random(#rankPool)]
+        local r = rankPool[Rng.random(#rankPool)]
         rewardCard = Deck.newCard(r, userFaction)
     end
     table.insert(shop.items, {
@@ -79,7 +80,7 @@ function Shop.refresh(shop, gameState)
         card = rewardCard,
         name = (rewardCard.roleTitle or "Chiến Binh") .. " " .. rewardCard.rankName .. rewardCard.suitSymbol,
         subtitle = "QUÂN BÀI",
-        desc = "Thêm lá " .. (rewardCard.roleTitle or "") .. " " .. rewardCard.rankName .. rewardCard.suitSymbol .. " (+" .. rewardCard.baseChips .. " Chips, Phe " .. rewardCard.suitName .. ") vào bộ bài!",
+        desc = "Thêm lá " .. (rewardCard.roleTitle or "") .. " " .. rewardCard.rankName .. rewardCard.suitSymbol .. " (+" .. rewardCard.baseChips .. " Chips, Chất " .. rewardCard.suitName .. ") vào bộ bài!",
         cost = 4,
         icon = rewardCard.suitSymbol,
         color = rewardCard.color,
@@ -108,7 +109,7 @@ function Shop.refresh(shop, gameState)
         end
     end
     for i = #availableBooks, 2, -1 do
-        local j = math.random(i)
+        local j = Rng.random(i)
         availableBooks[i], availableBooks[j] = availableBooks[j], availableBooks[i]
     end
 
@@ -133,7 +134,7 @@ function Shop.refresh(shop, gameState)
             { id = "v_hand_plus", name = "Bùa Hảo Thủ", desc = "Tăng vĩnh viễn +1 Lượt Đánh (Max Hands) mỗi trận!", cost = 10, color = { 0.85, 0.45, 0.95, 1 } },
             { id = "v_hand_size", name = "Mở Rộng Tay Bài", desc = "Tăng vĩnh viễn +1 Kích thước tay bài tối đa (Hand Size: 3 -> 4 -> 5...)!", cost = 8, color = { 0.85, 0.45, 0.95, 1 } },
         }
-        local v = vouchers[math.random(#vouchers)]
+        local v = vouchers[Rng.random(#vouchers)]
         table.insert(shop.items, {
             section = "lower_voucher",
             category = "voucher",
@@ -215,7 +216,7 @@ function Shop.refresh(shop, gameState)
     }
 
     for i = #packCatalog, 2, -1 do
-        local j = math.random(i)
+        local j = Rng.random(i)
         packCatalog[i], packCatalog[j] = packCatalog[j], packCatalog[i]
     end
 
@@ -234,7 +235,7 @@ function Shop.refresh(shop, gameState)
         icon = pack1.icon,
     })
 
-    if (gameState.playerHp or 100) < 60 and math.random() < 0.5 then
+    if (gameState.playerHp or 100) < 60 and Rng.random() < 0.5 then
         table.insert(shop.items, {
             section = "lower_pack",
             category = "heal",
@@ -411,7 +412,7 @@ function Shop.openPack(packItem, gameState)
             },
         }
         for i = #spells, 2, -1 do
-            local j = math.random(i)
+            local j = Rng.random(i)
             spells[i], spells[j] = spells[j], spells[i]
         end
         for i = 1, 3 do table.insert(candidates, spells[i]) end
@@ -460,7 +461,7 @@ function Shop.openPack(packItem, gameState)
             },
         }
         for i = #seals, 2, -1 do
-            local j = math.random(i)
+            local j = Rng.random(i)
             seals[i], seals[j] = seals[j], seals[i]
         end
         for i = 1, 3 do table.insert(candidates, seals[i]) end
@@ -477,7 +478,7 @@ function Shop.openPack(packItem, gameState)
             { id = "spec_black_hole", name = "Black Hole", subtitle = "HỐ ĐEN", desc = "Tăng Cấp Độ của TẤT CẢ các thế bài Poker lên +1 Cấp (Level)!", icon = "🕳️", color = { 0.30, 0.30, 0.45, 1 } },
         }
         for i = #spectrals, 2, -1 do
-            local j = math.random(i)
+            local j = Rng.random(i)
             spectrals[i], spectrals[j] = spectrals[j], spectrals[i]
         end
         for i = 1, 3 do table.insert(candidates, spectrals[i]) end
@@ -486,7 +487,7 @@ function Shop.openPack(packItem, gameState)
         local planets = {}
         for _, p in ipairs(Poker.PLANET_CARDS) do table.insert(planets, p) end
         for i = #planets, 2, -1 do
-            local j = math.random(i)
+            local j = Rng.random(i)
             planets[i], planets[j] = planets[j], planets[i]
         end
         for i = 1, 3 do table.insert(candidates, planets[i]) end
@@ -552,9 +553,9 @@ function Shop.choosePackCard(shop, chosenIndex, gameState)
                 Sound.play("cant_afford")
                 return false, "Không có Thần Hộ Mệnh nào để phù phép!"
             end
-            local chosen = deityList[math.random(#deityList)]
+            local chosen = deityList[Rng.random(#deityList)]
             local edPool = { "foil", "holo", "polychrome" }
-            chosen.deity.edition = edPool[math.random(#edPool)]
+            chosen.deity.edition = edPool[Rng.random(#edPool)]
             Sound.play("round_win")
             shop.currentPackOpening = nil
             return true, "Aura: Thần [" .. chosen.deity.name .. "] nhận hiệu ứng " .. chosen.deity.edition:upper() .. "!"
@@ -564,7 +565,7 @@ function Shop.choosePackCard(shop, chosenIndex, gameState)
                 Sound.play("cant_afford")
                 return false, "Không có Thần Hộ Mệnh nào!"
             end
-            local chosen = deityList[math.random(#deityList)]
+            local chosen = deityList[Rng.random(#deityList)]
             chosen.deity.edition = "negative"
             gameState.maxHandSize = math.max(1, (gameState.maxHandSize or 3) - 1)
             Sound.play("xmult_boom")
@@ -576,7 +577,7 @@ function Shop.choosePackCard(shop, chosenIndex, gameState)
                 Sound.play("cant_afford")
                 return false, "Không có Thần Hộ Mệnh nào!"
             end
-            local chosen = deityList[math.random(#deityList)]
+            local chosen = deityList[Rng.random(#deityList)]
             local cloned = {}
             for k, v in pairs(chosen.deity) do cloned[k] = v end
             -- Clear all other slots and put two copies in slots 1 and 2
@@ -590,7 +591,7 @@ function Shop.choosePackCard(shop, chosenIndex, gameState)
                 Sound.play("cant_afford")
                 return false, "Không có Thần Hộ Mệnh nào!"
             end
-            local chosen = deityList[math.random(#deityList)]
+            local chosen = deityList[Rng.random(#deityList)]
             chosen.deity.edition = "polychrome"
             local kept = chosen.deity
             gameState.deities = { [1] = kept }
@@ -622,10 +623,10 @@ function Shop.choosePackCard(shop, chosenIndex, gameState)
         local userFaction = gameState.selectedFaction or gameState.selectedSuit or "aurelia"
         if card.id == "spec_familiar" then
             if gameState.hand and #gameState.hand > 0 then
-                table.remove(gameState.hand, math.random(#gameState.hand))
+                table.remove(gameState.hand, Rng.random(#gameState.hand))
             end
             if gameState.persistentDeck and #gameState.persistentDeck > 0 then
-                table.remove(gameState.persistentDeck, math.random(#gameState.persistentDeck))
+                table.remove(gameState.persistentDeck, Rng.random(#gameState.persistentDeck))
             end
             local ranks = { 11, 12, 13 }
             for i = 1, 3 do
@@ -640,10 +641,10 @@ function Shop.choosePackCard(shop, chosenIndex, gameState)
 
         elseif card.id == "spec_grim" then
             if gameState.hand and #gameState.hand > 0 then
-                table.remove(gameState.hand, math.random(#gameState.hand))
+                table.remove(gameState.hand, Rng.random(#gameState.hand))
             end
             if gameState.persistentDeck and #gameState.persistentDeck > 0 then
-                table.remove(gameState.persistentDeck, math.random(#gameState.persistentDeck))
+                table.remove(gameState.persistentDeck, Rng.random(#gameState.persistentDeck))
             end
             for i = 1, 2 do
                 local nc = Deck.newCard(14, userFaction)
@@ -656,13 +657,13 @@ function Shop.choosePackCard(shop, chosenIndex, gameState)
 
         elseif card.id == "spec_incantation" then
             if gameState.hand and #gameState.hand > 0 then
-                table.remove(gameState.hand, math.random(#gameState.hand))
+                table.remove(gameState.hand, Rng.random(#gameState.hand))
             end
             if gameState.persistentDeck and #gameState.persistentDeck > 0 then
-                table.remove(gameState.persistentDeck, math.random(#gameState.persistentDeck))
+                table.remove(gameState.persistentDeck, Rng.random(#gameState.persistentDeck))
             end
             for i = 1, 4 do
-                local r = math.random(2, 10)
+                local r = Rng.random(2, 10)
                 local nc = Deck.newCard(r, userFaction)
                 nc.equipments = { Equipment.getRandomEquipment() }
                 Deck.addCardToDeck(gameState, nc)
@@ -678,9 +679,9 @@ function Shop.choosePackCard(shop, chosenIndex, gameState)
                 return false, "Không tìm thấy lá bài để nhân bản!"
             end
             local clone1 = Deck.cloneCard(targetCard)
-            clone1.id = "card_" .. tostring(math.random(100000, 999999))
+            clone1.id = "card_" .. tostring(Rng.random(100000, 999999))
             local clone2 = Deck.cloneCard(targetCard)
-            clone2.id = "card_" .. tostring(math.random(100000, 999999))
+            clone2.id = "card_" .. tostring(Rng.random(100000, 999999))
             Deck.addCardToDeck(gameState, clone1)
             Deck.addCardToDeck(gameState, clone2)
             if gameState.hand then
@@ -710,23 +711,23 @@ function Shop.choosePackCard(shop, chosenIndex, gameState)
             return true, "Immolate: Thiêu rụi " .. destroyed .. " lá, nhận ngay +$20 Tiền Vàng!"
 
         elseif card.id == "spec_sigil" then
-            local factions = { "aurelia", "elaris", "vharos", "valoria" }
-            local targetFaction = factions[math.random(#factions)]
-            local fInfo = Deck.FACTIONS[targetFaction]
+            local suits = Deck.SUIT_ORDER
+            local targetSuit = suits[Rng.random(#suits)]
+            local fInfo = Deck.SUITS[targetSuit]
             if gameState.hand then
                 for _, c in ipairs(gameState.hand) do
-                    c.suit = targetFaction
-                    c.suitName = fInfo.name
+                    c.suit = targetSuit
+                    c.suitName = Deck.STANDARD_SUIT_NAMES[targetSuit] or fInfo.name
                     c.suitSymbol = fInfo.symbol
                     c.color = fInfo.color
                 end
             end
             Sound.play("round_win")
             shop.currentPackOpening = nil
-            return true, "Sigil: Toàn bộ bài trên tay biến đổi thành Phe " .. fInfo.name .. " (" .. fInfo.symbol .. ")!"
+            return true, "Sigil: Toàn bộ bài trên tay biến đổi thành Chất " .. (Deck.STANDARD_SUIT_NAMES[targetSuit] or fInfo.name) .. " (" .. fInfo.symbol .. ")!"
 
         elseif card.id == "spec_ouija" then
-            local r = math.random(2, 14)
+            local r = Rng.random(2, 14)
             local rName = Deck.RANK_NAMES[r] or tostring(r)
             if gameState.hand then
                 for _, c in ipairs(gameState.hand) do
@@ -755,7 +756,7 @@ function Shop.choosePackCard(shop, chosenIndex, gameState)
         if card.handId == "random" or card.id == "planet_supernova" or card.id == "supernova" then
             local allHands = {}
             for _, ht in pairs(Poker.HAND_TYPES) do table.insert(allHands, ht) end
-            local h = allHands[math.random(#allHands)]
+            local h = allHands[Rng.random(#allHands)]
             gameState.handLevels[h.id] = (gameState.handLevels[h.id] or 1) + 3
             Sound.play("round_win")
             shop.currentPackOpening = nil

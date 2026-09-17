@@ -1,3 +1,4 @@
+local Rng = require("src.rng")
 local Map = {}
 
 Map.NODE_TYPES = {
@@ -82,7 +83,7 @@ Map.SKIP_TAGS = {
             if gameState.persistentDeck and #gameState.persistentDeck > 0 then
                 local Deck = require("src.deck")
                 for i = 1, math.min(2, #gameState.persistentDeck) do
-                    local idx = (love and love.math and love.math.random(#gameState.persistentDeck)) or i
+                    local idx = Rng.random(#gameState.persistentDeck)
                     local c = gameState.persistentDeck[idx]
                     if c then
                         Deck.upgradeCard(c)
@@ -102,7 +103,7 @@ Map.SKIP_TAGS = {
         apply = function(gameState)
             local Equipment = require("src.equipment")
             local items = { Equipment.ITEMS.gem_fire, Equipment.ITEMS.gem_lightning, Equipment.ITEMS.holy_relic, Equipment.ITEMS.dark_blade }
-            local chosenEq = items[(love and love.math and love.math.random(#items)) or 1]
+            local chosenEq = items[Rng.random(#items)]
             if gameState.persistentDeck and #gameState.persistentDeck > 0 then
                 local c = gameState.persistentDeck[1]
                 Equipment.attach(c, chosenEq)

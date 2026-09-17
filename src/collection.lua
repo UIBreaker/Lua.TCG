@@ -22,10 +22,10 @@ Collection.CATEGORIES = {
     {
         id = "decks",
         title = "Bộ Bài",
-        sub = "Phe Phái Khởi Đầu",
+        sub = "Bộ Bài Khởi Đầu",
         col = "left",
         btnColor = { 0.92, 0.28, 0.22, 1 },
-        badge = "4",
+        badge = "1",
     },
     {
         id = "vouchers",
@@ -204,22 +204,17 @@ function Collection.getItems(category)
         table.sort(items, function(a, b) return a.name < b.name end)
 
     elseif category == "decks" then
-        -- 4 Archetype Factions using Deck.FACTION_ORDER
-        for _, fid in ipairs(Deck.FACTION_ORDER or { "vharos", "valoria", "aurelia", "elaris" }) do
-            local f = Deck.FACTIONS[fid]
-            if f then
-                table.insert(items, {
-                    id = f.id or fid,
-                    name = f.name or f.title,
-                    subtitle = f.fullName or f.title,
-                    rarity = "Phe Phái",
-                    desc = (f.archetype or "") .. "\n• " .. (f.passive1 or "") .. "\n• " .. (f.passive2 or ""),
-                    icon = f.symbol or "♠",
-                    color = f.color or { 0.8, 0.8, 0.8, 1 },
-                    badge = f.symbol,
-                })
-            end
-        end
+        local red = Deck.STARTER_DECKS.red_deck
+        table.insert(items, {
+            id = red.id,
+            name = red.name,
+            subtitle = "BỘ BÀI KHỞI ĐẦU",
+            rarity = "Starter Deck",
+            desc = red.desc,
+            icon = "🂠",
+            color = red.color,
+            badge = "🔴",
+        })
 
     elseif category == "vouchers" then
         for _, v in ipairs(VOUCHERS) do
@@ -280,7 +275,7 @@ function Collection.getItems(category)
             color = { 0.95, 0.55, 0.20, 1 },
         })
 
-        -- 6 Disruptive Bosses
+        -- Active disruptive bosses
         for id, b in pairs(Monster.DISRUPTIVE_BOSSES or {}) do
             table.insert(items, {
                 id = b.id or id,

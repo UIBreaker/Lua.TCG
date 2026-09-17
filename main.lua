@@ -12,13 +12,23 @@ local Events = require("src.events")
 local RunManager = require("src.run_manager")
 local RewardSystem = require("src.reward_system")
 local Collection = require("src.collection")
+local Persistence = require("src.persistence")
+local Rng = require("src.rng")
+local GameState = require("src.game_state")
+local Combat = require("src.combat")
 
 io.stdout:setvbuf("no")
 local isCaptureMode = false
 for _, a in ipairs(arg or {}) do
     if a == "--test" then
         require("test_system")
-        os.exit(0)
+        return
+    elseif a == "--test-poker" then
+        require("test_poker")
+        return
+    elseif a == "--test-features" then
+        require("test_features")
+        return
     elseif a == "--capture" then
         isCaptureMode = true
     end
@@ -47,48 +57,7 @@ local bgCurrentColors = {
 }
 
 -- Run data
-local game = {
-    selectedSuit = "hearts",
-    round = 1,
-    act = 1,
-    map = nil,
-    currentNodeId = nil,
-    currentEvent = nil,
-    eventOutcomeText = nil,
-    bossDeityDraft = {},
-    maxHandSize = 3,
-    unlockedHands = { high_card = true },
-    handLevels = {
-        high_card = 1,
-        pair = 1,
-        two_pair = 1,
-        three_of_a_kind = 1,
-        straight = 1,
-        flush = 1,
-        full_house = 1,
-        four_of_a_kind = 1,
-        straight_flush = 1,
-    },
-    consumables = {},
-    monster = nil,
-    playerHp = 100,
-    maxPlayerHp = 100,
-    playerShield = 0,
-    playerArmor = 0,
-    handsRemaining = 3,
-    maxHands = 3,
-    discardsRemaining = 3,
-    maxDiscards = 3,
-    gold = 6,
-    deities = {},
-    persistentDeck = {}, -- Master persistent deck of cards
-    deck = {},
-    discardPile = {},
-    hand = {},
-    selectedIndices = {},
-    sortMode = "rank",
-    discardBuffs = { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 },
-}
+local game = GameState.new("red_deck")
 
 local pendingCombatNode = nil -- For Encounter / Skip Blind modal
 local cashOutAnim = nil -- For Cash Out Modal Breakdown
@@ -124,7 +93,7 @@ local isDeckViewerOpen = false
 local deckViewerFilter = "all" -- "all", "rank", "suit", "equipped"
 
 -- Main Menu & Pause Menu State
-local menuMode = "title" -- "title", "faction_select"
+local menuMode = "title" -- "title", "deck_select"
 local isPauseMenuOpen = false
 local isSettingsOpen = false
 local lastActiveState = "map"
@@ -142,6 +111,16 @@ local settings = {
     fullscreen = false,
     crtEnabled = true,
 }
+
+local function saveSettings()
+    Persistence.saveSettings(settings)
+end
+
+local function saveRunAtSafePoint()
+    if game and game.run and not isCaptureMode then
+        Persistence.saveRun(game, state)
+    end
+end
 
 -- Shop Drag & Drop State
 local shopDrag = {
@@ -344,7 +323,7 @@ local function spawnSparks(x, y, count, color)
             g = color[2],
             b = color[3],
             alpha = 1.0,
-            life = math.random(0.35, 0.65),
+            life = 0.35 + math.random() * 0.30,
             maxLife = 0.65,
         })
     end
@@ -549,263 +528,38 @@ local function getMaxSelectableCards()
     return math.max(1, maxCount)
 end
 
-local function startMonsterEncounter(floor, isBossNode, isEliteNode)
-    game.round = floor or 1
-    game.monsterEncounterCount = game.monsterEncounterCount or 1
-    game.monster = Monster.create(game.round, isBossNode, isEliteNode, game.monsterEncounterCount)
-    game.handsRemaining = game.maxHands
-    game.playerArmor = 0
-    game.playerShield = 0
-    game.discardsUsedInCombat = 0
-
-    -- Valoria Passive: +1 Discard per combat
-    if game.selectedFaction == "valoria" or game.selectedSuit == "valoria" then
-        game.discardsRemaining = game.maxDiscards + 1
-    else
-        game.discardsRemaining = game.maxDiscards
-    end
-
-    -- Apply Boss modifier if any
-    if game.monster.isBoss and game.monster.bossData and game.monster.bossData.applyModifier then
-        game.monster.bossData.applyModifier(game)
-    end
-
-    -- Trigger deities onRoundStart
-    local maxRoundDeiSlots = Deities.getMaxSlots and Deities.getMaxSlots(game) or 10
-    for di = 1, maxRoundDeiSlots do
-        local d = game.deities and game.deities[di]
-        if d and d.onRoundStart then
-            local res = d.onRoundStart(game)
-            if res and res.addDiscards then
-                game.discardsRemaining = game.discardsRemaining + res.addDiscards
-            end
-            if res and res.addHands then
-                game.handsRemaining = game.handsRemaining + res.addHands
-            end
-        end
-    end
-
-    game.martyrStacks = 0
-    game.jHeartDiscardUsed = false
-
-    -- Sát Khí carryover (A♠ Overkill)
-    if game.storedSlaughterChips and game.storedSlaughterChips > 0 then
-        local slaughter = game.storedSlaughterChips
-        game.discardBuffs = game.discardBuffs or {}
-        game.discardBuffs.chips = (game.discardBuffs.chips or 0) + slaughter
-        game.storedSlaughterChips = 0
+local function initializeCombat(monster, round)
+    local result = Combat.start(game, monster, round)
+    if result.slaughterChips > 0 then
         table.insert(anim.floatingTexts, {
-            text = "⚔️ SÁT KHÍ BỘC PHÁT (A♠): +" .. slaughter .. " Starting Chips!",
+            text = "⚔️ SÁT KHÍ BỘC PHÁT (A♠): +" .. result.slaughterChips .. " Starting Chips!",
             color = UI.COLORS.goldYellow,
             x = 640,
             y = 350,
             alpha = 3.0,
         })
     end
-
-    -- Restore persistentDeck back to original baseRank and rebuild active deck
-    if not game.persistentDeck or #game.persistentDeck == 0 then
-        game.persistentDeck = Deck.createStarterDeck(game.selectedFaction or game.selectedSuit or "aurelia")
-    end
-    Deck.restoreDeck(game.persistentDeck)
-    game.masterDeck = game.persistentDeck
-    game.deck = {}
-    for _, c in ipairs(game.persistentDeck) do
-        table.insert(game.deck, Deck.cloneCard(c))
-    end
-    game.discardPile = {}
-    game.hand = {}
-    game.discardBuffs = game.discardBuffs or { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 }
-    game.playedHandsHistory = {}
-    Deck.shuffle(game.deck)
-    clearAllSelections()
-
-    -- Draw up to maxHandSize cards
-    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and ((game.maxHandSize or 3) + 1) or (game.maxHandSize or 3)
-    while #game.hand < maxHandSize do
-        if #game.deck == 0 and #game.discardPile > 0 then
-            while #game.discardPile > 0 do
-                table.insert(game.deck, table.remove(game.discardPile))
-            end
-            Deck.shuffle(game.deck)
-        end
-        if #game.deck == 0 then break end
-        local drawn = table.remove(game.deck)
-        if drawn then
-            drawn.selected = false
-            drawn.visualX = 1180
-            drawn.visualY = 620
-            drawn.visualAngle = 0
-            drawn.visualScale = 0.7
-            local isSpadeCard = (drawn.suit == "spades" or drawn.suit == "vharos" or drawn.suit == "iron_axiom")
-            if not isSpadeCard and game.monster and game.monster.isBoss and game.monster.bossData and (game.monster.bossData.id == "the_fish" or game.monster.bossData.debuffId == "the_fish") then
-                drawn.faceDown = true
-            end
-            table.insert(game.hand, drawn)
-        end
-    end
-
-    -- ♠️ Thiết Quân Thứ: Axiom Lock (Luôn auto-sort theo Rank tăng dần)
-    if (game.selectedFaction == "vharos" or game.selectedFaction == "spades" or game.selectedFaction == "iron_axiom") or game.sortMode == "rank" then
-        Deck.sortByRank(game.hand)
-    else
-        Deck.sortBySuit(game.hand)
-    end
-
     clearAllSelections()
     syncCardSelections()
-
     state = "playing"
     Sound.play("card_deal")
+end
+
+local function startMonsterEncounter(floor, isBossNode, isEliteNode)
+    game.monsterEncounterCount = game.monsterEncounterCount or 1
+    local round = floor or 1
+    initializeCombat(Monster.create(round, isBossNode, isEliteNode, game.monsterEncounterCount), round)
 end
 
 local function startBlindCombat(blind)
     if not blind then return end
-    game.round = blind.ante or 1
-    game.monster = RunManager.createBlindMonster(blind, game)
-    game.handsRemaining = game.maxHands
-    game.playerArmor = 0
-    game.playerShield = 0
-    game.discardsUsedInCombat = 0
-
-    -- Valoria Passive: +1 Discard per combat
-    if game.selectedFaction == "valoria" or game.selectedSuit == "valoria" then
-        game.discardsRemaining = game.maxDiscards + 1
-    else
-        game.discardsRemaining = game.maxDiscards
-    end
-
-    -- Apply Boss modifier if any
-    if game.monster.isBoss and game.monster.bossData and game.monster.bossData.applyModifier then
-        game.monster.bossData.applyModifier(game)
-    end
-
-    -- Trigger deities onRoundStart
-    local maxRoundDeiSlots = Deities.getMaxSlots and Deities.getMaxSlots(game) or 10
-    for di = 1, maxRoundDeiSlots do
-        local d = game.deities and game.deities[di]
-        if d and d.onRoundStart then
-            local res = d.onRoundStart(game)
-            if res and res.addDiscards then
-                game.discardsRemaining = game.discardsRemaining + res.addDiscards
-            end
-            if res and res.addHands then
-                game.handsRemaining = game.handsRemaining + res.addHands
-            end
-        end
-    end
-
-    game.martyrStacks = 0
-    game.jHeartDiscardUsed = false
-
-    -- Sát Khí carryover (A♠ Overkill)
-    if game.storedSlaughterChips and game.storedSlaughterChips > 0 then
-        local slaughter = game.storedSlaughterChips
-        game.discardBuffs = game.discardBuffs or {}
-        game.discardBuffs.chips = (game.discardBuffs.chips or 0) + slaughter
-        game.storedSlaughterChips = 0
-        table.insert(anim.floatingTexts, {
-            text = "⚔️ SÁT KHÍ BỘC PHÁT (A♠): +" .. slaughter .. " Starting Chips!",
-            color = UI.COLORS.goldYellow,
-            x = 640,
-            y = 350,
-            alpha = 3.0,
-        })
-    end
-
-    -- Restore persistentDeck back to original baseRank and rebuild active deck
-    if not game.persistentDeck or #game.persistentDeck == 0 then
-        game.persistentDeck = Deck.createStarterDeck(game.selectedFaction or game.selectedSuit or "aurelia")
-    end
-    Deck.restoreDeck(game.persistentDeck)
-    game.masterDeck = game.persistentDeck
-    game.deck = {}
-    for _, c in ipairs(game.persistentDeck) do
-        table.insert(game.deck, Deck.cloneCard(c))
-    end
-    game.discardPile = {}
-    game.hand = {}
-    game.discardBuffs = game.discardBuffs or { chips = 0, mult = 0, xMult = 1.0, bonusDamagePct = 0 }
-    game.playedHandsHistory = {}
-    Deck.shuffle(game.deck)
-    clearAllSelections()
-
-    -- Draw up to maxHandSize cards
-    local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and ((game.maxHandSize or 3) + 1) or (game.maxHandSize or 3)
-    while #game.hand < maxHandSize do
-        if #game.deck == 0 and #game.discardPile > 0 then
-            while #game.discardPile > 0 do
-                table.insert(game.deck, table.remove(game.discardPile))
-            end
-            Deck.shuffle(game.deck)
-        end
-        if #game.deck == 0 then break end
-        local drawn = table.remove(game.deck)
-        if drawn then
-            drawn.selected = false
-            drawn.visualX = 1180
-            drawn.visualY = 620
-            drawn.visualAngle = 0
-            drawn.visualScale = 0.7
-            local isSpadeCard = (drawn.suit == "spades" or drawn.suit == "vharos" or drawn.suit == "iron_axiom")
-            if not isSpadeCard and game.monster and game.monster.isBoss and game.monster.bossData and (game.monster.bossData.id == "the_fish" or game.monster.bossData.debuffId == "the_fish") then
-                drawn.faceDown = true
-            end
-            table.insert(game.hand, drawn)
-        end
-    end
-
-    -- ♠️ Thiết Quân Thứ: Axiom Lock (Luôn auto-sort theo Rank tăng dần)
-    if (game.selectedFaction == "vharos" or game.selectedFaction == "spades" or game.selectedFaction == "iron_axiom") or game.sortMode == "rank" then
-        Deck.sortByRank(game.hand)
-    else
-        Deck.sortBySuit(game.hand)
-    end
-
-    clearAllSelections()
-    syncCardSelections()
-
-    state = "playing"
+    initializeCombat(RunManager.createBlindMonster(blind, game), blind.ante or 1)
     lastActiveState = "playing"
-    Sound.play("card_deal")
 end
 
-local function startNewGame(chosenFaction)
-    game.selectedFaction = chosenFaction or "aurelia"
-    game.selectedSuit = game.selectedFaction
-    game.monsterEncounterCount = 1
-    game.round = 1
-    game.act = 1
-    game.gold = 6
-    game.maxHands = 3
-    game.handsRemaining = 3
-    game.maxDiscards = (game.selectedFaction == "valoria") and 4 or 3
-    game.maxHandSize = 3
-    game.unlockedHands = { high_card = true }
-    game.handLevels = {
-        high_card = 1,
-        pair = 1,
-        two_pair = 1,
-        three_of_a_kind = 1,
-        straight = 1,
-        flush = 1,
-        full_house = 1,
-        four_of_a_kind = 1,
-        straight_flush = 1,
-    }
-    game.consumables = {}
-    game.deities = {} -- Mới vào game không có vị thần nào hết!
-    game.playerHp = 100
-    game.maxPlayerHp = 100
-    game.playerShield = 0
-    game.playerArmor = 0
-    game.martyrStacks = 0
-    game.storedSlaughterChips = 0
-    game.jHeartDiscardUsed = false
-    game.isGildedConclave = (game.selectedFaction == "diamonds" or game.selectedFaction == "aurelia" or game.selectedFaction == "gilded_conclave")
-    game.isAxiom = (game.selectedFaction == "spades" or game.selectedFaction == "vharos" or game.selectedFaction == "iron_axiom")
-    game.isSanguine = (game.selectedFaction == "hearts" or game.selectedFaction == "valoria" or game.selectedFaction == "sanguine_covenant")
-    game.isSwarm = (game.selectedFaction == "clubs" or game.selectedFaction == "elaris" or game.selectedFaction == "feral_swarm")
+local function startNewGame(chosenDeck)
+    Persistence.deleteRun()
+    GameState.resetRun(game, chosenDeck or "red_deck")
     pendingCombatNode = nil
 
     inspectCardModal = nil
@@ -815,23 +569,20 @@ local function startNewGame(chosenFaction)
     transferSourceEqIndex = nil
     transferMessage = nil
 
-    -- 1. Create starter persistent deck of 3 RANDOM cards of the chosen faction
-    game.persistentDeck = Deck.createStarterDeck(game.selectedFaction)
+    -- Red Deck contains a standard 52-card pool; each combat draws exactly
+    -- three random cards from it as the opening hand.
+    game.persistentDeck = Deck.createStarterDeck(game.starterDeckId)
     Deck.restoreDeck(game.persistentDeck)
     game.masterDeck = game.persistentDeck
-
-    -- Outside combat, active combat piles are empty
-    game.deck = {}
-    game.hand = {}
-    game.discardPile = {}
 
     clearAllSelections()
     syncCardSelections()
 
-    -- 2. Generate Act 1 Map (20 floors)
-    game.map = Map.generate(1)
+    -- The supported campaign is the Balatro-style 8-Ante loop. The legacy
+    -- 20-floor map remains available to screenshot/dev tooling only.
+    game.map = nil
 
-    -- 3. Initialize Balatro Run Loop (8 Ante, 3 Blinds per Ante)
+    -- Initialize Balatro Run Loop (8 Ante, 3 Blinds per Ante)
     game.run = RunManager.newRun(game.selectedFaction)
     state = "BLIND_SELECT"
     hasRunStarted = true
@@ -839,6 +590,7 @@ local function startNewGame(chosenFaction)
     isPauseMenuOpen = false
     isSettingsOpen = false
     Sound.play("card_deal")
+    saveRunAtSafePoint()
 end
 
 local function getSelectedCards()
@@ -924,10 +676,11 @@ local function discardSelected()
 
     for _, card in ipairs(discardedCards) do
         local suit = card.suit or game.selectedFaction or "aurelia"
-        local isSpadeCard = (suit == "spades" or suit == "vharos" or suit == "iron_axiom")
-        local isHeartCard = (suit == "hearts" or suit == "valoria" or suit == "sanguine_covenant")
-        local isDiamondCard = (suit == "diamonds" or suit == "aurelia" or suit == "gilded_conclave")
-        local isClubCard = (suit == "clubs" or suit == "elaris" or suit == "feral_swarm" or card.isWildSuit)
+        local factionsEnabled = not card.disableFactionPassives and game.factionPassivesEnabled ~= false
+        local isSpadeCard = factionsEnabled and (suit == "spades" or suit == "vharos" or suit == "iron_axiom")
+        local isHeartCard = factionsEnabled and (suit == "hearts" or suit == "valoria" or suit == "sanguine_covenant")
+        local isDiamondCard = factionsEnabled and (suit == "diamonds" or suit == "aurelia" or suit == "gilded_conclave")
+        local isClubCard = factionsEnabled and (suit == "clubs" or suit == "elaris" or suit == "feral_swarm" or card.isWildSuit)
 
         -- 1. ♥️ GIÁO HỘI HUYẾT ƯỚC: Huyết Tế Discard, Dấu Ấn Tử Đạo, J♥ Hồi Hand
         if isHeartCard then
@@ -1009,7 +762,7 @@ local function discardSelected()
                 { id = "spell_aura", name = "Aura", subtitle = "HÀO QUANG", desc = "Thêm Foil, Holo, hoặc Polychrome cho 1 Thần ngẫu nhiên!" },
                 { id = "seal_deja_vu", name = "Deja Vu", subtitle = "DẤU ĐỎ", desc = "Đóng Dấu Đỏ lên 1 lá bài (kích hoạt lại điểm +1 lần)!" },
             }
-            local chosen = spellPool[math.random(#spellPool)]
+            local chosen = spellPool[Rng.random(#spellPool)]
             game.consumables = game.consumables or {}
             if #game.consumables < 2 then
                 table.insert(game.consumables, chosen)
@@ -1092,7 +845,7 @@ local function useConsumable(idx)
         if c.handId == "random" then
             local allHands = {}
             for _, ht in pairs(Poker.HAND_TYPES) do table.insert(allHands, ht) end
-            local h = allHands[love.math and love.math.random(#allHands) or math.random(#allHands)]
+            local h = allHands[Rng.random(#allHands)]
             game.handLevels[h.id] = (game.handLevels[h.id] or 1) + 3
             Sound.play("round_win")
             table.remove(game.consumables, idx)
@@ -1156,9 +909,9 @@ local function useConsumable(idx)
         end
 
         if c.id == "spell_aura" then
-            local chosen = deityList[love.math and love.math.random(#deityList) or math.random(#deityList)]
+            local chosen = deityList[Rng.random(#deityList)]
             local edPool = { "foil", "holo", "polychrome" }
-            chosen.deity.edition = edPool[love.math and love.math.random(#edPool) or math.random(#edPool)]
+            chosen.deity.edition = edPool[Rng.random(#edPool)]
             Sound.play("round_win")
             table.remove(game.consumables, idx)
             table.insert(anim.floatingTexts, {
@@ -1170,7 +923,7 @@ local function useConsumable(idx)
             })
             return true
         elseif c.id == "spell_ectoplasm" then
-            local chosen = deityList[love.math and love.math.random(#deityList) or math.random(#deityList)]
+            local chosen = deityList[Rng.random(#deityList)]
             chosen.deity.edition = "negative"
             game.maxHandSize = math.max(1, (game.maxHandSize or 3) - 1)
             Sound.play("xmult_boom")
@@ -1184,7 +937,7 @@ local function useConsumable(idx)
             })
             return true
         elseif c.id == "spell_ankh" then
-            local chosen = deityList[love.math and love.math.random(#deityList) or math.random(#deityList)]
+            local chosen = deityList[Rng.random(#deityList)]
             local cloned = {}
             for k, v in pairs(chosen.deity) do cloned[k] = v end
             game.deities = { [1] = chosen.deity, [2] = cloned }
@@ -1199,7 +952,7 @@ local function useConsumable(idx)
             })
             return true
         elseif c.id == "spell_hex" then
-            local chosen = deityList[love.math and love.math.random(#deityList) or math.random(#deityList)]
+            local chosen = deityList[Rng.random(#deityList)]
             chosen.deity.edition = "polychrome"
             local kept = chosen.deity
             game.deities = { [1] = kept }
@@ -1250,8 +1003,8 @@ local function useConsumable(idx)
     elseif c.category == "spectral" or (c.id and c.id:find("spec_")) then
         local userFaction = game.selectedFaction or game.selectedSuit or "aurelia"
         if c.id == "spec_familiar" then
-            if game.hand and #game.hand > 0 then table.remove(game.hand, love.math and love.math.random(#game.hand) or 1) end
-            if game.persistentDeck and #game.persistentDeck > 0 then table.remove(game.persistentDeck, love.math and love.math.random(#game.persistentDeck) or 1) end
+            if game.hand and #game.hand > 0 then table.remove(game.hand, Rng.random(#game.hand)) end
+            if game.persistentDeck and #game.persistentDeck > 0 then table.remove(game.persistentDeck, Rng.random(#game.persistentDeck)) end
             local ranks = { 11, 12, 13 }
             for i = 1, 3 do
                 local nc = Deck.newCard(ranks[i], userFaction)
@@ -1263,8 +1016,8 @@ local function useConsumable(idx)
             table.insert(anim.floatingTexts, { text = "👻 Familiar: Thêm 3 lá J/Q/K có trang bị!", color = UI.COLORS.goldYellow, x = 640, y = 350, alpha = 3.0 })
             return true
         elseif c.id == "spec_grim" then
-            if game.hand and #game.hand > 0 then table.remove(game.hand, love.math and love.math.random(#game.hand) or 1) end
-            if game.persistentDeck and #game.persistentDeck > 0 then table.remove(game.persistentDeck, love.math and love.math.random(#game.persistentDeck) or 1) end
+            if game.hand and #game.hand > 0 then table.remove(game.hand, Rng.random(#game.hand)) end
+            if game.persistentDeck and #game.persistentDeck > 0 then table.remove(game.persistentDeck, Rng.random(#game.persistentDeck)) end
             for i = 1, 2 do
                 local nc = Deck.newCard(14, userFaction)
                 nc.equipments = { Equipment.getRandomEquipment() }
@@ -1275,10 +1028,10 @@ local function useConsumable(idx)
             table.insert(anim.floatingTexts, { text = "💀 Grim: Thêm 2 lá Át (A) có trang bị!", color = UI.COLORS.goldYellow, x = 640, y = 350, alpha = 3.0 })
             return true
         elseif c.id == "spec_incantation" then
-            if game.hand and #game.hand > 0 then table.remove(game.hand, love.math and love.math.random(#game.hand) or 1) end
-            if game.persistentDeck and #game.persistentDeck > 0 then table.remove(game.persistentDeck, love.math and love.math.random(#game.persistentDeck) or 1) end
+            if game.hand and #game.hand > 0 then table.remove(game.hand, Rng.random(#game.hand)) end
+            if game.persistentDeck and #game.persistentDeck > 0 then table.remove(game.persistentDeck, Rng.random(#game.persistentDeck)) end
             for i = 1, 4 do
-                local r = love.math and love.math.random(2, 10) or math.random(2, 10)
+                local r = Rng.random(2, 10)
                 local nc = Deck.newCard(r, userFaction)
                 nc.equipments = { Equipment.getRandomEquipment() }
                 Deck.addCardToDeck(game, nc)
@@ -1325,23 +1078,23 @@ local function useConsumable(idx)
             table.insert(anim.floatingTexts, { text = "🔥 Immolate: Thiêu rụi " .. destroyed .. " lá, +$20 Vàng!", color = UI.COLORS.goldYellow, x = 640, y = 350, alpha = 3.0 })
             return true
         elseif c.id == "spec_sigil" then
-            local factions = { "aurelia", "elaris", "vharos", "valoria" }
-            local targetFaction = factions[love.math and love.math.random(#factions) or math.random(#factions)]
-            local fInfo = Deck.FACTIONS[targetFaction]
+            local suits = Deck.SUIT_ORDER
+            local targetSuit = suits[Rng.random(#suits)]
+            local fInfo = Deck.SUITS[targetSuit]
             if game.hand then
                 for _, ch in ipairs(game.hand) do
-                    ch.suit = targetFaction
-                    ch.suitName = fInfo.name
+                    ch.suit = targetSuit
+                    ch.suitName = Deck.STANDARD_SUIT_NAMES[targetSuit] or fInfo.name
                     ch.suitSymbol = fInfo.symbol
                     ch.color = fInfo.color
                 end
             end
             Sound.play("round_win")
             table.remove(game.consumables, idx)
-            table.insert(anim.floatingTexts, { text = "🌀 Sigil: Tất cả lá bài đổi sang Phe " .. fInfo.name .. "!", color = UI.COLORS.goldYellow, x = 640, y = 350, alpha = 3.0 })
+            table.insert(anim.floatingTexts, { text = "🌀 Sigil: Tất cả lá bài đổi sang Chất " .. (Deck.STANDARD_SUIT_NAMES[targetSuit] or fInfo.name) .. "!", color = UI.COLORS.goldYellow, x = 640, y = 350, alpha = 3.0 })
             return true
         elseif c.id == "spec_ouija" then
-            local r = love.math and love.math.random(2, 14) or math.random(2, 14)
+            local r = Rng.random(2, 14)
             local rName = Deck.RANK_NAMES[r] or tostring(r)
             if game.hand then
                 for _, ch in ipairs(game.hand) do
@@ -1404,7 +1157,7 @@ local function playSelectedHand()
         if #game.hand > 0 then
             local hookedCount = math.min(2, #game.hand)
             for i = 1, hookedCount do
-                local hIdx = (love and love.math and love.math.random(#game.hand)) or 1
+                local hIdx = Rng.random(#game.hand)
                 local hooked = table.remove(game.hand, hIdx)
                 if hooked then
                     hooked.selected = false
@@ -1432,6 +1185,8 @@ local function playSelectedHand()
         selectedSuit = game.selectedSuit,
         selectedFaction = game.selectedFaction,
         playedHandsHistory = game.playedHandsHistory,
+        starterDeckId = game.starterDeckId,
+        handsPlayedThisCombat = game.handsPlayedThisCombat or 0,
         martyrStacks = game.martyrStacks or 0,
         gold = game.gold or 0,
         unplayedCards = game.hand,
@@ -1455,6 +1210,7 @@ local function playSelectedHand()
         end,
     }
     local scoreResult = Scoring.calculate(evalResult, game.deities, context)
+    game.handsPlayedThisCombat = (game.handsPlayedThisCombat or 0) + 1
 
     -- Pha Người Chơi: Kích hoạt Hiệu ứng Trang Bị/Ngọc Khảm sinh tồn trước (+Giáp, +Hồi Máu)
     if scoreResult.addArmor and scoreResult.addArmor > 0 then
@@ -1648,11 +1404,26 @@ end
 --------------------------------------------------------------------------------
 
 function love.load()
+    Rng.seed(os.time())
     UI.initFonts()
+    settings = Persistence.loadSettings(settings)
     Sound.init()
+    Sound.setVolume(settings.sfxVolume)
+    if settings.fullscreen then
+        love.window.setFullscreen(true, "desktop")
+    end
     updateScale()
     initShadersAndCanvas()
     shopData = Shop.new()
+    if not isCaptureMode then
+        local loadedGame, loadedState = Persistence.loadRun()
+        if loadedGame then
+            game = loadedGame
+            state = loadedState or "BLIND_SELECT"
+            lastActiveState = state
+            hasRunStarted = true
+        end
+    end
 end
 
 function love.resize(w, h)
@@ -2335,7 +2106,7 @@ function love.update(dt)
                         -- 3. ♣️ Bầy Nguyên Sinh: Tiến Hóa Nuốt Chửng (Predatory Evolution)
                         if anim.evalResult and anim.evalResult.scoringCards then
                             for _, sc in ipairs(anim.evalResult.scoringCards) do
-                                local isClubSc = (sc.suit == "clubs" or sc.suit == "elaris" or sc.suit == "feral_swarm" or sc.isWildSuit)
+                                local isClubSc = not sc.disableFactionPassives and (sc.suit == "clubs" or sc.suit == "elaris" or sc.suit == "feral_swarm" or sc.isWildSuit)
                                 if isClubSc and sc.rank >= 2 and sc.rank <= 10 and not sc.isPrimalDrone then
                                     if sc.rank < 10 then
                                         sc.rank = sc.rank + 1
@@ -2462,7 +2233,7 @@ function love.update(dt)
                         -- Elaris Passive: Lộc Biếc Đâm Chồi (Win within half of max hands upgrades a card)
                         if (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and game.handsRemaining >= math.ceil(game.maxHands / 2) then
                             if game.persistentDeck and #game.persistentDeck > 0 then
-                                local targetCard = game.persistentDeck[love.math and love.math.random(#game.persistentDeck) or 1]
+                                local targetCard = game.persistentDeck[Rng.random(#game.persistentDeck)]
                                 Deck.upgradeCard(targetCard)
                                 table.insert(anim.floatingTexts, {
                                     text = "[Lộc Biếc] Tôi luyện thành công lá " .. targetCard.rankName .. " " .. (targetCard.suitSymbol or "") .. " (+1 Rank)!",
@@ -2595,11 +2366,13 @@ function love.update(dt)
                     -- Dual Loss Condition: 1) HP <= 0, 2) Out of Hands while Monster alive
                     if anim.playerKilled or (game.playerHp and game.playerHp <= 0) then
                         state = "gameover"
+                        Persistence.deleteRun()
                         Sound.play("game_over")
                         return
                     end
                     if (not anim.monsterDefeated) and game.handsRemaining <= 0 and game.monster and game.monster.hp > 0 then
                         state = "gameover"
+                        Persistence.deleteRun()
                         Sound.play("game_over")
                         return
                     end
@@ -2648,6 +2421,7 @@ function love.update(dt)
                         end
                     elseif game.handsRemaining <= 0 then
                         state = "gameover"
+                        Persistence.deleteRun()
                         Sound.play("game_over")
                     else
                         -- Refill hand to maxHandSize cards while deck/discard has cards
@@ -3523,11 +3297,76 @@ local function drawFactionSelect()
     love.graphics.printf("Khởi đầu với 3 lá ngẫu nhiên thuộc phe đã chọn. Đánh bại BOSS để thỉnh Thần Bài Ban Ơn!", 0, V_HEIGHT - 35, V_WIDTH, "center")
 end
 
+local function drawStarterDeckSelect()
+    local winW, winH = love.graphics.getDimensions()
+    love.graphics.setColor(UI.COLORS.bg)
+    love.graphics.rectangle("fill", -offsetX / scale, -offsetY / scale, winW / scale, winH / scale)
+    local mx, my = toVirtual(love.mouse.getPosition())
+    buttons = {}
+
+    local btnBack = {
+        id = "back_to_title", text = "< QUAY LẠI MENU CHÍNH",
+        x = 40, y = 35, w = 220, h = 38,
+        font = UI.fonts.small, color = UI.COLORS.btnNormal,
+    }
+    table.insert(buttons, btnBack)
+    UI.drawButton(btnBack, mx >= btnBack.x and mx <= btnBack.x + btnBack.w and my >= btnBack.y and my <= btnBack.y + btnBack.h, juice.buttonPressedId == btnBack.id)
+
+    love.graphics.setFont(UI.fonts.title)
+    love.graphics.setColor(UI.COLORS.goldYellow)
+    love.graphics.printf("CHỌN BỘ BÀI KHỞI ĐẦU", 0, 40, V_WIDTH, "center")
+    love.graphics.setFont(UI.fonts.regular)
+    love.graphics.setColor(UI.COLORS.textLight)
+    love.graphics.printf("Không còn phe phái — chất bài chỉ dùng để tạo thế Poker.", 0, 88, V_WIDTH, "center")
+
+    local deckInfo = Deck.STARTER_DECKS.red_deck
+    local cardW, cardH = 390, 430
+    local cardX, cardY = (V_WIDTH - cardW) / 2, 135
+    local hovered = mx >= cardX and mx <= cardX + cardW and my >= cardY and my <= cardY + cardH
+    love.graphics.setColor(0, 0, 0, 0.45)
+    UI.drawRoundedRect("fill", cardX + 5, cardY + 7, cardW, cardH, 16)
+    love.graphics.setColor(hovered and { 0.24, 0.08, 0.10, 1 } or { 0.17, 0.08, 0.10, 1 })
+    UI.drawRoundedRect("fill", cardX, cardY, cardW, cardH, 16)
+    love.graphics.setLineWidth(hovered and 4 or 2)
+    love.graphics.setColor(deckInfo.color)
+    UI.drawRoundedRect("line", cardX, cardY, cardW, cardH, 16)
+
+    love.graphics.setFont(UI.fonts.title)
+    love.graphics.setColor(deckInfo.color)
+    love.graphics.printf("BỘ BÀI ĐỎ", cardX, cardY + 24, cardW, "center")
+    love.graphics.setFont(UI.fonts.huge)
+    love.graphics.setColor(0.95, 0.15, 0.20, 1)
+    love.graphics.printf("♦  ♥", cardX, cardY + 85, cardW, "center")
+    love.graphics.setColor(0.75, 0.78, 0.84, 1)
+    love.graphics.printf("♠  ♣", cardX, cardY + 145, cardW, "center")
+
+    love.graphics.setColor(0.30, 0.07, 0.09, 0.95)
+    UI.drawRoundedRect("fill", cardX + 34, cardY + 220, cardW - 68, 105, 10)
+    love.graphics.setFont(UI.fonts.medium)
+    love.graphics.setColor(1, 0.86, 0.48, 1)
+    love.graphics.printf("TAY ĐẦU TIÊN: +20 MULT", cardX + 40, cardY + 238, cardW - 80, "center")
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.textLight)
+    love.graphics.printf("Mỗi combat xáo bộ bài và chỉ rút 3 lá ngẫu nhiên lên tay.", cardX + 50, cardY + 278, cardW - 100, "center")
+
+    local choose = {
+        id = "deck_red", deckId = "red_deck", text = "CHỌN BỘ BÀI ĐỎ",
+        x = cardX + 65, y = cardY + cardH - 70, w = cardW - 130, h = 44,
+        color = deckInfo.color, font = UI.fonts.medium,
+    }
+    table.insert(buttons, choose)
+    UI.drawButton(choose, hovered, juice.buttonPressedId == choose.id)
+
+    love.graphics.setFont(UI.fonts.small)
+    love.graphics.setColor(UI.COLORS.textMuted)
+    love.graphics.printf("Bộ bài chuẩn 52 lá • Không có kỹ năng phe • Hand Size khởi đầu: 3", 0, V_HEIGHT - 50, V_WIDTH, "center")
+end
+
 local function drawMenu()
     if menuMode == "title" then
         drawMainMenu()
     else
-        drawFactionSelect()
+        drawStarterDeckSelect()
     end
 end
 
@@ -3691,6 +3530,8 @@ local function drawPlayingState()
         selectedSuit = game.selectedSuit,
         selectedFaction = game.selectedFaction,
         playedHandsHistory = game.playedHandsHistory,
+        starterDeckId = game.starterDeckId,
+        handsPlayedThisCombat = game.handsPlayedThisCombat or 0,
     }) or nil
 
     if state == "scoring" and anim.active then
@@ -4727,7 +4568,7 @@ local function drawVictoryState()
     -- Stats summary
     local stats = game.run and game.run.stats or {}
     local statRows = {
-        { label = "TỔ CHỨC / PHE PHÁI:", val = (game.selectedFaction or "Aurelia"):upper(), color = UI.COLORS.textLight },
+        { label = "BỘ BÀI KHỞI ĐẦU:", val = "BỘ BÀI ĐỎ", color = { 0.95, 0.28, 0.30, 1 } },
         { label = "VÒNG ĐẠT ĐƯỢC:", val = "ANTE 8 / 8 (HOÀN THÀNH)", color = UI.COLORS.goldYellow },
         { label = "SỐ ẢI ĐÃ CHIẾN THẮNG:", val = tostring(stats.blindsWon or 0) .. " Ải", color = { 0.35, 0.85, 0.45, 1 } },
         { label = "SỐ ẢI ĐÃ BỎ QUA (SKIP):", val = tostring(stats.blindsSkipped or 0) .. " Ải", color = { 0.85, 0.65, 0.35, 1 } },
@@ -5248,15 +5089,15 @@ local function drawDeckViewerModal()
     -- Left Column: Cards (Width 680)
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(UI.COLORS.textLight)
-    love.graphics.print("Tổng cộng: " .. #allCards .. " lá  (Aurelia ♦: " .. suitCounts.aurelia .. " | Elaris ♣: " .. suitCounts.elaris .. " | Vharos ♠: " .. suitCounts.vharos .. " | Valoria ♥: " .. suitCounts.valoria .. " | Đã khảm: " .. equippedCount .. " lá)", modalX + 24, modalY + 58)
+    love.graphics.print("Tổng cộng: " .. #allCards .. " lá  (Rô ♦: " .. suitCounts.aurelia .. " | Tép ♣: " .. suitCounts.elaris .. " | Bích ♠: " .. suitCounts.vharos .. " | Cơ ♥: " .. suitCounts.valoria .. " | Đã khảm: " .. equippedCount .. " lá)", modalX + 24, modalY + 58)
 
     -- Filter Tabs
     local filterTabs = {
         { id = "all", text = "Tất cả (" .. #allCards .. ")" },
-        { id = "aurelia", text = "Aurelia ♦ (" .. suitCounts.aurelia .. ")" },
-        { id = "elaris", text = "Elaris ♣ (" .. suitCounts.elaris .. ")" },
-        { id = "vharos", text = "Vharos ♠ (" .. suitCounts.vharos .. ")" },
-        { id = "valoria", text = "Valoria ♥ (" .. suitCounts.valoria .. ")" },
+        { id = "aurelia", text = "Rô ♦ (" .. suitCounts.aurelia .. ")" },
+        { id = "elaris", text = "Tép ♣ (" .. suitCounts.elaris .. ")" },
+        { id = "vharos", text = "Bích ♠ (" .. suitCounts.vharos .. ")" },
+        { id = "valoria", text = "Cơ ♥ (" .. suitCounts.valoria .. ")" },
         { id = "equipped", text = "Đã Khảm (" .. equippedCount .. ")" },
     }
     local tabStartX = modalX + 24
@@ -5530,7 +5371,7 @@ end
 
 local function generateTreasureRewards()
     treasureRewards = {}
-    local rewardCard = (love.math.random() < 0.5) and Deck.createRewardCard(game.selectedSuit) or Deck.newCard(love.math.random(9, 13), game.selectedSuit)
+    local rewardCard = (Rng.random() < 0.5) and Deck.createRewardCard(game.selectedSuit) or Deck.newCard(Rng.random(9, 13), game.selectedSuit)
     table.insert(treasureRewards, {
         type = "card",
         card = rewardCard,
@@ -5996,7 +5837,7 @@ local function drawCardInspectorModal(card)
 
     love.graphics.setFont(UI.fonts.tiny)
     love.graphics.setColor(card.color or UI.COLORS.textLight)
-    love.graphics.printf("Phe: " .. (card.suitName or "Aurelia"), cardArtX + 8, durY + 32, cardArtW - 16, "center")
+    love.graphics.printf("Chất: " .. (card.suitSymbol or "?"), cardArtX + 8, durY + 32, cardArtW - 16, "center")
 
     love.graphics.setFont(UI.fonts.tiny)
     love.graphics.setColor(UI.COLORS.textLight)
@@ -7308,7 +7149,7 @@ local function drawShopState()
                 love.graphics.printf(card.rankName .. " " .. card.suitSymbol, cx + 6, drawCY + 105, cW - 12, "center")
                 love.graphics.setFont(UI.fonts.tiny)
                 love.graphics.setColor(UI.COLORS.textLight)
-                love.graphics.printf("+" .. (card.baseChips or 10) .. " Chips\nPhe " .. (card.suitName or "Aurelia"), cx + 8, drawCY + 140, cW - 16, "center")
+                love.graphics.printf("+" .. (card.baseChips or 10) .. " Chips\nChất " .. (card.suitSymbol or "?"), cx + 8, drawCY + 140, cW - 16, "center")
 
             elseif pack.packType == "arcana" then
                 love.graphics.setFont(UI.fonts.tiny)
@@ -8000,6 +7841,7 @@ local function handleShopMousepressed(mx, my, button)
                         lastActiveState = "BLIND_SELECT"
                         Sound.play("card_deal")
                     end
+                    saveRunAtSafePoint()
                     return true
                 end
                 if game.currentNodeId and game.map then
@@ -8028,25 +7870,30 @@ local function handleModalsMousepressed(mx, my, button)
                     elseif btn.id == "setting_voldown" then
                         settings.sfxVolume = math.max(0, settings.sfxVolume - 0.1)
                         Sound.setVolume(settings.sfxVolume)
+                        saveSettings()
                         Sound.play("ui_click")
                         return true
                     elseif btn.id == "setting_volup" then
                         settings.sfxVolume = math.min(1.0, settings.sfxVolume + 0.1)
                         Sound.setVolume(settings.sfxVolume)
+                        saveSettings()
                         Sound.play("ui_click")
                         return true
                     elseif btn.id == "setting_speed" then
                         settings.fastScoring = not settings.fastScoring
+                        saveSettings()
                         Sound.play("ui_click")
                         return true
                     elseif btn.id == "setting_fullscreen" then
                         settings.fullscreen = not settings.fullscreen
                         love.window.setFullscreen(settings.fullscreen, "desktop")
                         updateScale()
+                        saveSettings()
                         Sound.play("ui_click")
                         return true
                     elseif btn.id == "setting_crt" then
                         settings.crtEnabled = not settings.crtEnabled
+                        saveSettings()
                         Sound.play("ui_click")
                         return true
                     end
@@ -8087,6 +7934,7 @@ local function handleModalsMousepressed(mx, my, button)
                         state = "menu"
                         menuMode = "title"
                         hasRunStarted = false
+                        Persistence.deleteRun()
                         Sound.play("ui_click")
                         return true
                     elseif btn.id == "pause_quit" then
@@ -8380,7 +8228,7 @@ function love.mousepressed(x, y, button)
                         if hasRunStarted then
                             state = lastActiveState or "map"
                         else
-                            menuMode = "faction_select"
+                            menuMode = "deck_select"
                         end
                         Sound.play("ui_click")
                         return
@@ -8452,28 +8300,14 @@ function love.mousepressed(x, y, button)
                 end
             end
             return
-        else -- menuMode == "faction_select"
+        else -- menuMode == "deck_select"
             for _, btn in ipairs(buttons) do
                 if btn.id == "back_to_title" and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
                     menuMode = "title"
                     Sound.play("ui_click")
                     return
-                elseif btn.id and btn.id:sub(1, 8) == "faction_" and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
-                    startNewGame(btn.factionId)
-                    return
-                end
-            end
-
-            local cardW = 240
-            local cardH = 370
-            local startX = (V_WIDTH - (4 * cardW + 3 * 24)) / 2
-            local cardY = 140
-            local factionKeys = { "aurelia", "elaris", "vharos", "valoria" }
-
-            for i, fkey in ipairs(factionKeys) do
-                local cx = startX + (i - 1) * (cardW + 24)
-                if mx >= cx and mx <= cx + cardW and my >= cardY and my <= cardY + cardH then
-                    startNewGame(fkey)
+                elseif btn.id == "deck_red" and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
+                    startNewGame(btn.deckId or "red_deck")
                     return
                 end
             end
@@ -8904,6 +8738,7 @@ function love.mousepressed(x, y, button)
                     state = "menu"
                     menuMode = "title"
                     hasRunStarted = false
+                    Persistence.deleteRun()
                     return
                 end
             end
@@ -8916,6 +8751,7 @@ function love.mousepressed(x, y, button)
                     state = "menu"
                     menuMode = "title"
                     hasRunStarted = false
+                    Persistence.deleteRun()
                     return
                 elseif btn.id == "victory_endless" then
                     if game.run then
@@ -8930,6 +8766,7 @@ function love.mousepressed(x, y, button)
                         lastActiveState = "BLIND_SELECT"
                         Sound.play("card_deal")
                         hasRunStarted = true
+                        saveRunAtSafePoint()
                     else
                         state = "menu"
                         menuMode = "title"
@@ -8948,6 +8785,7 @@ function love.keypressed(key)
         settings.fullscreen = not settings.fullscreen
         love.window.setFullscreen(settings.fullscreen, "desktop")
         updateScale()
+        saveSettings()
         return
     end
 
@@ -9003,7 +8841,7 @@ function love.keypressed(key)
             return
         end
         if state == "menu" then
-            if menuMode == "faction_select" then
+            if menuMode == "deck_select" then
                 menuMode = "title"
                 Sound.play("ui_click")
                 return

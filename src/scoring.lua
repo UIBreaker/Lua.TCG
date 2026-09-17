@@ -4,21 +4,25 @@ local Deck = require("src.deck")
 
 local function isSpade(card)
     if not card then return false end
+    if card.disableFactionPassives then return false end
     return card.suit == "spades" or card.suit == "vharos" or card.suit == "iron_axiom"
 end
 
 local function isHeart(card)
     if not card then return false end
+    if card.disableFactionPassives then return false end
     return card.suit == "hearts" or card.suit == "valoria" or card.suit == "sanguine_covenant"
 end
 
 local function isDiamond(card)
     if not card then return false end
+    if card.disableFactionPassives then return false end
     return card.suit == "diamonds" or card.suit == "aurelia" or card.suit == "gilded_conclave"
 end
 
 local function isClub(card)
     if not card then return false end
+    if card.disableFactionPassives then return false end
     return card.suit == "clubs" or card.suit == "elaris" or card.suit == "feral_swarm" or card.isWildSuit
 end
 
@@ -87,6 +91,18 @@ function Scoring.calculate(handInfo, deities, context)
                 message = "⚡ CHIẾN THUẬT BỎ BÀI: " .. table.concat(msgParts, ", "),
             })
         end
+    end
+
+    -- Red Deck passive: a flat +20 Mult on the first played hand of each
+    -- combat. Preview and actual scoring share this condition without
+    -- mutating the combat counter here.
+    if context and context.starterDeckId == "red_deck" and (context.handsPlayedThisCombat or 0) == 0 then
+        bonusMult = bonusMult + 20
+        table.insert(steps, {
+            type = "starter_deck_bonus",
+            addedMult = 20,
+            message = "🔴 BỘ BÀI ĐỎ: Tay đầu tiên +20 Mult!",
+        })
     end
 
     -- Check pre-hand equipment buffs (adjacent mirror, same suit storm eye)
@@ -203,7 +219,7 @@ function Scoring.calculate(handInfo, deities, context)
             end
 
             -- 2. ♥️ GIÁO HỘI HUYẾT ƯỚC: Cộng Hưởng (+5 Mult per scored Heart)
-            local isSanguineHeart = (card.suit == "hearts" or card.suit == "sanguine_covenant" or (context and (context.isSanguine or context.selectedFaction == "hearts" or context.selectedFaction == "sanguine_covenant")))
+            local isSanguineHeart = not card.disableFactionPassives and (card.suit == "hearts" or card.suit == "sanguine_covenant" or (context and (context.isSanguine or context.selectedFaction == "hearts" or context.selectedFaction == "sanguine_covenant")))
             if isSanguineHeart then
                 bonusMult = bonusMult + 5
                 cardEvent.addedMult = cardEvent.addedMult + 5
@@ -211,8 +227,8 @@ function Scoring.calculate(handInfo, deities, context)
             end
 
             -- 3. ♦️ TRẬT TỰ HOÀNG KIM: Kim Ngân (+1 Gold per scored Diamond)
-            local isGildedDiamond = (card.suit == "diamonds" or card.suit == "gilded_conclave" or (context and (context.isGildedConclave or context.selectedFaction == "diamonds" or context.selectedFaction == "gilded_conclave")))
-            if card.suit == "aurelia" or (context and context.selectedSuit == "aurelia") then
+            local isGildedDiamond = not card.disableFactionPassives and (card.suit == "diamonds" or card.suit == "gilded_conclave" or (context and (context.isGildedConclave or context.selectedFaction == "diamonds" or context.selectedFaction == "gilded_conclave")))
+            if not card.disableFactionPassives and (card.suit == "aurelia" or (context and context.selectedSuit == "aurelia")) then
                 hasAureliaCard = true
             end
             if isGildedDiamond then

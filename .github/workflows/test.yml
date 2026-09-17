@@ -1,0 +1,20 @@
+name: LÖVE tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LÖVE and virtual display
+        run: sudo apt-get update && sudo apt-get install -y love xvfb
+      - name: Run system suite
+        run: xvfb-run -a love . --test
+      - name: Run poker suite
+        run: xvfb-run -a love . --test-poker
+      - name: Run feature suite
+        run: xvfb-run -a love . --test-features

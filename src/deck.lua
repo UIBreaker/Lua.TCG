@@ -1,3 +1,4 @@
+local Rng = require("src.rng")
 local Deck = {}
 
 Deck.FACTIONS = {
@@ -72,6 +73,21 @@ Deck.SUITS.iron_axiom         = Deck.FACTIONS.vharos
 
 Deck.FACTION_ORDER = { "vharos", "valoria", "aurelia", "elaris" }
 Deck.SUIT_ORDER = Deck.FACTION_ORDER
+Deck.STANDARD_SUIT_NAMES = {
+    aurelia = "Rô",
+    elaris = "Chuồn",
+    vharos = "Bích",
+    valoria = "Cơ",
+}
+
+Deck.STARTER_DECKS = {
+    red_deck = {
+        id = "red_deck",
+        name = "Bộ Bài Đỏ",
+        color = { 0.88, 0.16, 0.20, 1 },
+        desc = "+20 Mult cho tay bài đầu tiên của mỗi trận. Bắt đầu combat với 3 lá ngẫu nhiên.",
+    },
+}
 
 Deck.RANK_NAMES = {
     [1] = "A",
@@ -114,7 +130,7 @@ Deck.CARD_ROLES = {
         name = "Thần Khí",
         title = "Át Chủ Bài / Thần Khí (A)",
         icon = "⚡",
-        desc = "Linh hoạt tối đa: Có thể làm đầu/cuối trong Sảnh và kích hoạt cộng hưởng phe phái.",
+        desc = "Linh hoạt tối đa: Có thể làm đầu hoặc cuối trong Sảnh.",
     },
 }
 
@@ -146,7 +162,21 @@ function Deck.getChipValue(rank)
 end
 
 local nextCardId = 1
+
+-- Keep generated card ids unique after restoring a saved run whose cards may
+-- have ids larger than the number of cards currently in the deck.
+function Deck.ensureNextCardId(id)
+    local numericId = tonumber(id)
+    if numericId and numericId >= nextCardId then
+        nextCardId = numericId + 1
+    end
+end
+
 function Deck.newCard(rank, suit)
+    local requestedSuit = suit
+    if suit == "red_deck" then
+        suit = Deck.FACTION_ORDER[Rng.random(#Deck.FACTION_ORDER)]
+    end
     local suitInfo = Deck.FACTIONS[suit] or Deck.SUITS[suit] or Deck.FACTIONS.aurelia
     local actualSuit = suitInfo.id
     local role = Deck.getCardRole(rank)
@@ -173,10 +203,12 @@ function Deck.newCard(rank, suit)
         equipments = {}, -- Up to 5 equipment slots
         maxSockets = 5,
         unlockedSockets = isDiamond and 2 or 1, -- Gilded Conclave opens 2 sockets by default
-        isWildSuit = isAceOfClubs,
-        isDualRankAce = isAceOfSpades,
+        isWildSuit = requestedSuit ~= "red_deck" and isAceOfClubs,
+        isDualRankAce = requestedSuit ~= "red_deck" and isAceOfSpades,
         isPrimalDrone = false,
         seal = nil, -- "gold" | "red" | "blue" | "purple"
+        disableFactionPassives = requestedSuit == "red_deck",
+        starterDeckId = requestedSuit == "red_deck" and "red_deck" or nil,
         -- Visual properties
         x = 0,
         y = 0,
@@ -186,14 +218,37 @@ function Deck.newCard(rank, suit)
         rotation = 0,
         alpha = 1.0,
     }
+    if requestedSuit == "red_deck" then
+        card.suitName = Deck.STANDARD_SUIT_NAMES[actualSuit] or card.suitName
+        card.unlockedSockets = 1
+    end
     nextCardId = nextCardId + 1
     return card
 end
 
 Deck.DEFAULT_HAND_SIZE = 3
 
--- Create starter deck of exactly 3 core cards of the chosen faction: 2 Soldiers (Rank 3 & 8) + 1 Knight (Rank 11, J)
+function Deck.createRedStarterDeck()
+    local cards = {}
+    for _, suit in ipairs(Deck.FACTION_ORDER) do
+        for rank = 2, 14 do
+            local card = Deck.newCard(rank, suit)
+            card.disableFactionPassives = true
+            card.starterDeckId = "red_deck"
+            card.isWildSuit = false
+            card.isDualRankAce = false
+            card.suitName = Deck.STANDARD_SUIT_NAMES[card.suit] or card.suitName
+            card.unlockedSockets = 1
+            table.insert(cards, card)
+        end
+    end
+    return cards
+end
+
+-- Create the selected starter deck. Legacy faction decks remain readable for
+-- old saves/tests, while new runs use the 52-card Red Deck.
 function Deck.createStarterDeck(suit)
+    if suit == "red_deck" then return Deck.createRedStarterDeck() end
     local cards = {
         Deck.newCard(3, suit),  -- Lính 3 (Soldier 3)
         Deck.newCard(8, suit),  -- Lính 8 (Soldier 8)
@@ -261,6 +316,7 @@ end
 function Deck.cloneCard(card)
     local newC = Deck.newCard(card.baseRank or card.rank, card.suit)
     newC.id = card.id -- Preserve exact persistent card identity
+    Deck.ensureNextCardId(card.id)
     newC.baseRank = card.baseRank or card.rank
     newC.rank = newC.baseRank
     newC.rankName = Deck.RANK_NAMES[newC.rank] or tostring(newC.rank)
@@ -277,6 +333,8 @@ function Deck.cloneCard(card)
     newC.isPrimalDrone = card.isPrimalDrone or false
     newC.isWildSuit = card.isWildSuit or false
     newC.isDualRankAce = card.isDualRankAce or false
+    newC.disableFactionPassives = card.disableFactionPassives or false
+    newC.starterDeckId = card.starterDeckId
     newC.seal = card.seal
     newC.unlockedSockets = card.unlockedSockets or newC.unlockedSockets
     newC.maxSockets = card.maxSockets or 5
@@ -299,6 +357,10 @@ function Deck.devourCard(targetCard, sacrificedCard, gameState)
     -- A♦ (Lõi Vàng Thủy Tổ): Devour soldier card (2-10) to permanently gain +15 base chips
     local isAceOfDiamonds = (targetCard.rank == 1 or targetCard.rank == 14) and (targetCard.suit == "aurelia" or targetCard.suit == "diamonds")
     local isKingOfClubs = (targetCard.rank == 13) and (targetCard.suit == "elaris" or targetCard.suit == "clubs")
+    if targetCard.disableFactionPassives then
+        isAceOfDiamonds = false
+        isKingOfClubs = false
+    end
 
     if isAceOfDiamonds then
         if sacrificedCard.rank < 2 or sacrificedCard.rank > 10 then
@@ -345,6 +407,14 @@ end
 -- Safely add a card to player's persistent deck without duplicating
 function Deck.addCardToDeck(gameState, card)
     if not card then return nil end
+    if gameState and gameState.starterDeckId == "red_deck" then
+        card.disableFactionPassives = true
+        card.starterDeckId = "red_deck"
+        card.isWildSuit = false
+        card.isDualRankAce = false
+        card.suitName = Deck.STANDARD_SUIT_NAMES[card.suit] or card.suitName
+        card.unlockedSockets = 1
+    end
     card.baseRank = card.baseRank or card.rank
     card.rank = card.baseRank
     card.rankName = Deck.RANK_NAMES[card.rank] or tostring(card.rank)
@@ -401,19 +471,27 @@ function Deck.createRewardCard(excludeSuit)
             table.insert(availableSuits, s)
         end
     end
-    local suit = availableSuits[(love and love.math and love.math.random(#availableSuits)) or math.random(#availableSuits)]
+    local suit = availableSuits[Rng.random(#availableSuits)]
     -- Random high rank: 10, J, Q, K, A
     local ranks = { 10, 11, 12, 13, 14 }
-    local rank = ranks[(love and love.math and love.math.random(#ranks)) or math.random(#ranks)]
+    local rank = ranks[Rng.random(#ranks)]
 
     local card = Deck.newCard(rank, suit)
+    if excludeSuit == "red_deck" then
+        card.disableFactionPassives = true
+        card.starterDeckId = "red_deck"
+        card.isWildSuit = false
+        card.isDualRankAce = false
+        card.suitName = Deck.STANDARD_SUIT_NAMES[card.suit] or card.suitName
+        card.unlockedSockets = 1
+    end
     return card
 end
 
 function Deck.shuffle(deck)
     local n = #deck
     for i = n, 2, -1 do
-        local j = (love and love.math and love.math.random(i)) or math.random(i)
+        local j = Rng.random(i)
         deck[i], deck[j] = deck[j], deck[i]
     end
     return deck

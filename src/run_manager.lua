@@ -1,6 +1,7 @@
 local Monster = require("src.monster")
 local Deities = require("src.deities")
 local Deck = require("src.deck")
+local Rng = require("src.rng")
 
 local RunManager = {}
 
@@ -164,7 +165,6 @@ RunManager.BOSS_DEBUFFS = {
         color = { 0.95, 0.25, 0.25, 1 },
         applyModifier = function(gameState)
             gameState.handsRemaining = 1
-            gameState.maxHands = 1
         end,
     },
     the_water = {
@@ -222,7 +222,6 @@ RunManager.BOSS_DEBUFFS = {
 }
 
 local BOSS_KEYS = {
-    "lock_aurelia", "lock_elaris", "lock_vharos", "lock_valoria",
     "lock_royals", "the_needle", "the_water", "the_fish", "the_arm", "the_hook", "max_3_cards"
 }
 
@@ -246,7 +245,7 @@ end
 
 -- Generate a random tag for small / big blind skip
 local function getRandomTag()
-    local idx = (love and love.math and love.math.random(#RunManager.TAGS)) or math.random(#RunManager.TAGS)
+    local idx = Rng.random(#RunManager.TAGS)
     return RunManager.TAGS[idx]
 end
 

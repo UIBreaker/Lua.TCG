@@ -38,11 +38,11 @@ function Capture.update(gameRef, callbacks)
 
     elseif frame == 8 then
         if callbacks.closeCollection then callbacks.closeCollection() end
-        if callbacks.setMenuMode then callbacks.setMenuMode("faction_select") end
+        if callbacks.setMenuMode then callbacks.setMenuMode("deck_select") end
         saveImage("shot_menu.png")
 
     elseif frame == 12 then
-        callbacks.startNewGame("aurelia")
+        callbacks.startNewGame("red_deck")
         if callbacks.openPauseMenu then callbacks.openPauseMenu() end
         saveImage("shot_pause_menu.png")
 

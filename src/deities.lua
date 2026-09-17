@@ -1,3 +1,4 @@
+local Rng = require("src.rng")
 local Deities = {}
 
 Deities.CATALOG = {
@@ -79,13 +80,13 @@ Deities.CATALOG = {
         end,
     },
 
-    -- 2. Greedy/Lusty/Wrathful/Gluttonous Joker -> Tứ Đại Thần Tộc (+4 Mult mỗi lá thuộc Phe)
+    -- 2. Greedy/Lusty/Wrathful/Gluttonous Joker -> four suit-based deities.
     deity_aurelia = {
         id = "deity_aurelia",
         name = "Quang Huy Thánh Trọng",
         rarity = "common",
         cost = 5,
-        desc = "+4 Mult cho mỗi lá phe Aurelia (Ánh Sáng) ghi điểm",
+        desc = "+4 Mult cho mỗi lá chất Rô ghi điểm",
         lore = "Ánh sáng chói lòa thiêu rụi kẻ dị giáo dưới chân thiên tòa.",
         onCardScored = function(card, ctx, self)
             if card.suit == "aurelia" or card.suit == "diamonds" then
@@ -98,7 +99,7 @@ Deities.CATALOG = {
         name = "Mộc Linh Bất Tử",
         rarity = "common",
         cost = 5,
-        desc = "+4 Mult cho mỗi lá phe Elaris (Thiên Nhiên) ghi điểm",
+        desc = "+4 Mult cho mỗi lá chất Chuồn ghi điểm",
         lore = "Rễ cây cổ thụ cắm sâu vào linh hồn người đã khuất.",
         onCardScored = function(card, ctx, self)
             if card.suit == "elaris" or card.suit == "clubs" then
@@ -111,7 +112,7 @@ Deities.CATALOG = {
         name = "Huyết Ma Tận Diệt",
         rarity = "common",
         cost = 5,
-        desc = "+4 Mult cho mỗi lá phe Vharos (Hắc Ám) ghi điểm",
+        desc = "+4 Mult cho mỗi lá chất Bích ghi điểm",
         lore = "Bóng tối nuốt chửng tro tàn của những vương triều sụp đổ.",
         onCardScored = function(card, ctx, self)
             if card.suit == "vharos" or card.suit == "spades" then
@@ -124,7 +125,7 @@ Deities.CATALOG = {
         name = "Thiết Giáp Bất Bại",
         rarity = "common",
         cost = 5,
-        desc = "+4 Mult cho mỗi lá phe Valoria (Nhân Loại) ghi điểm",
+        desc = "+4 Mult cho mỗi lá chất Cơ ghi điểm",
         lore = "Ý chí bằng sắt thép không bao giờ cúi đầu trước số phận.",
         onCardScored = function(card, ctx, self)
             if card.suit == "valoria" or card.suit == "hearts" then
@@ -254,7 +255,7 @@ Deities.CATALOG = {
         onCardScored = function(card, ctx, self)
             local r = card.rank or 0
             if r == 11 or r == 12 or r == 13 then
-                local roll = (love and love.math and love.math.random(2)) or math.random(2)
+                local roll = Rng.random(2)
                 if roll == 1 then
                     return { addGold = 2, message = "+$2 Vàng (Danh Thiếp)!" }
                 end
@@ -274,7 +275,7 @@ Deities.CATALOG = {
             return { addMult = 15, message = "Cấm Quả +15 Mult!" }
         end,
         onRoundWin = function(game, self)
-            local roll = (love and love.math and love.math.random(6)) or math.random(6)
+            local roll = Rng.random(6)
             if roll == 1 then
                 if self then self.extinct = true end
                 if game then game.sacredFruitExtinct = true end
@@ -540,7 +541,7 @@ function Deities.getRandomShopPool(ownedDeities, count, gameState)
 
     -- Shuffle candidates
     for i = #candidates, 2, -1 do
-        local j = math.random(i)
+        local j = Rng.random(i)
         candidates[i], candidates[j] = candidates[j], candidates[i]
     end
 
@@ -573,7 +574,7 @@ function Deities.getBossDraftPool(ownedDeities, count)
     end
 
     for i = #candidates, 2, -1 do
-        local j = math.random(i)
+        local j = Rng.random(i)
         candidates[i], candidates[j] = candidates[j], candidates[i]
     end
 

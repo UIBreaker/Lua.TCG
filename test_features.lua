@@ -11,25 +11,26 @@ print("=== RUNNING ADVANCED FEATURES TEST ===")
 local monoDeck = Deck.createMonoSuitDeck("hearts")
 assert(#monoDeck == 52, "Expected 52 cards in mono-suit deck, got " .. #monoDeck)
 for _, c in ipairs(monoDeck) do
-    assert(c.suit == "hearts", "Expected card suit to be hearts, got " .. c.suit)
+    assert(c.suit == "valoria", "Hearts alias must canonicalize to valoria, got " .. c.suit)
 end
 print(" Test 1 Passed: Mono-Suit Deck (52 cards all Hearts)")
 
 -- Test 2: Monster and Boss stage logic
 local m1 = Monster.create(1)
 assert(m1.isBoss == false, "Round 1 should be normal monster")
-assert(m1.hp == 300, "Round 1 HP should be 300")
+assert(m1.hp == 76, "Encounter 1 HP should be 76")
 
 local m3 = Monster.create(3)
 assert(m3.isBoss == false, "Round 3 should be normal monster")
 
-local m4 = Monster.create(4)
+local m4 = Monster.create(4, true, false, 4)
 assert(m4.isBoss == true, "Round 4 should be BOSS")
-assert(m4.hp == 2500, "Round 4 Boss HP should be 2500")
+assert(m4.hp == 514, "Encounter 4 Boss HP should be 514")
 
-local m8 = Monster.create(8)
+local m8 = Monster.create(8, true, false, 8)
 assert(m8.isBoss == true, "Round 8 should be BOSS 2")
-print(" Test 2 Passed: 3 Normal Stages then 1 Boss Stage Loop")
+assert(m8.hp > m4.hp, "Later boss encounters must scale above earlier bosses")
+print(" Test 2 Passed: Explicit normal/boss encounters and HP scaling")
 
 -- Test 3: Card Equipment attachment (max 5 slots)
 local card = Deck.newCard(14, "hearts")
@@ -53,6 +54,11 @@ print(" Test 3 Passed: 5 Equipment Slots per Card Limit")
 -- Equipment mult = +10 (Blast Gem)
 -- Total Mult = 2 + 10 = 12
 -- Final Score = 65 * 12 = 780
+local baseC1 = Deck.newCard(10, "hearts")
+local baseC2 = Deck.newCard(10, "hearts")
+local basePair = Poker.evaluate({ baseC1, baseC2 })
+local baseCalc = Scoring.calculate(basePair, {}, {})
+
 local c1 = Deck.newCard(10, "hearts")
 Equipment.attach(c1, Equipment.ITEMS.gem_fire)
 
@@ -62,9 +68,9 @@ Equipment.attach(c2, Equipment.ITEMS.lucky_coin)
 
 local pairHand = Poker.evaluate({ c1, c2 })
 local calc = Scoring.calculate(pairHand, {}, {})
-assert(calc.totalChips == 65, "Expected 65 chips, got " .. calc.totalChips)
-assert(calc.totalMult == 12, "Expected 12 mult, got " .. calc.totalMult)
-assert(calc.finalScore == 780, "Expected 780 final score, got " .. calc.finalScore)
+assert(calc.totalChips == baseCalc.totalChips + 35, "Fire Gem must add exactly 35 chips")
+assert(calc.totalMult == baseCalc.totalMult + 10, "Blast Gem must add exactly 10 mult")
+assert(calc.finalScore > baseCalc.finalScore, "Equipment must increase final score")
 assert(calc.bonusGoldAwarded == 3, "Expected 3 gold awarded, got " .. calc.bonusGoldAwarded)
 print(" Test 4 Passed: Equipment Chips, Mult, and Gold Integration")
 
@@ -78,12 +84,12 @@ local cc = Deck.newCard(9, "hearts")
 
 local trips = Poker.evaluate({ ca, cb, cc })
 local calcTrips = Scoring.calculate(trips, {}, {})
--- Base trips: 30 chips, 3 mult.
--- Cards: 9 + 9 + 9 = 27 chips.
--- Mirror buffs: ca gets +25, cc gets +25 = +50 chips.
--- Total chips: 30 + 27 + 50 = 107 chips.
-assert(calcTrips.totalChips == 107, "Expected 107 chips with adjacent mirror, got " .. calcTrips.totalChips)
+local baseTrips = Poker.evaluate({ Deck.newCard(9, "hearts"), Deck.newCard(9, "hearts"), Deck.newCard(9, "hearts") })
+local baseTripsCalc = Scoring.calculate(baseTrips, {}, {})
+assert(calcTrips.totalChips == baseTripsCalc.totalChips + 50, "Adjacent mirror must add exactly 50 chips")
 print(" Test 5 Passed: Spillover Mirror Adjacent Buff")
 
 print("=== ALL 5 ADVANCED TESTS PASSED! ===")
 love.filesystem.write("adv_test_result.txt", "ALL_PASSED")
+if love and love.audio then love.audio.stop() end
+if love and love.event then love.event.quit(0) end

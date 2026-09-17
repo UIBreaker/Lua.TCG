@@ -125,8 +125,20 @@ function UI.drawSuitSymbol(suit, cx, cy, size, customColor)
 
     local s = suit or "aurelia"
 
+    -- Red Deck: a simple red-backed playing card emblem.
+    if s == "red_deck" then
+        love.graphics.rectangle("fill", cx - size * 0.34, cy - size * 0.46, size * 0.68, size * 0.92, size * 0.08)
+        love.graphics.setColor(1, 1, 1, 0.9)
+        love.graphics.rectangle("line", cx - size * 0.27, cy - size * 0.39, size * 0.54, size * 0.78, size * 0.06)
+        love.graphics.polygon("fill", {
+            cx, cy - size * 0.22,
+            cx + size * 0.18, cy,
+            cx, cy + size * 0.22,
+            cx - size * 0.18, cy,
+        })
+
     -- 1. ☀️ AURELIA (Phe Ánh Sáng / Hearts alias)
-    if s == "aurelia" or s == "hearts" then
+    elseif s == "aurelia" or s == "hearts" then
         -- Central radiant sun circle
         local r = size * 0.22
         love.graphics.circle("fill", cx, cy, r)

@@ -60,7 +60,6 @@ Monster.DISRUPTIVE_BOSSES = {
         color = { 0.95, 0.25, 0.25, 1 },
         applyModifier = function(gameState)
             gameState.handsRemaining = 1
-            gameState.maxHands = 1
         end,
     },
     the_water = {
@@ -72,19 +71,6 @@ Monster.DISRUPTIVE_BOSSES = {
         color = { 0.2, 0.6, 0.95, 1 },
         applyModifier = function(gameState)
             gameState.discardsRemaining = 0
-        end,
-    },
-    the_pillar = {
-        id = "the_pillar",
-        name = "KẺ KHÓA PHÁI",
-        title = "TRÙM: THE PILLAR",
-        desc = "Khóa Phái: Vô hiệu hóa bài của một Phe (0 Chips, 0 Mult)!",
-        debuffId = "the_pillar",
-        color = { 0.75, 0.4, 0.9, 1 },
-        applyModifier = function(gameState)
-            local suit = gameState.selectedSuit or gameState.selectedFaction or "aurelia"
-            gameState.monster.lockedFaction = suit
-            gameState.monster.desc = "Khóa Phái: Toàn bộ bài phe " .. suit:upper() .. " bị vô hiệu hóa (0c / 0m)!"
         end,
     },
     the_hook = {
@@ -118,7 +104,7 @@ Monster.DISRUPTIVE_BOSSES = {
     },
 }
 
-local DISRUPTIVE_KEYS = { "the_needle", "the_water", "the_pillar", "the_hook", "the_fish", "the_arm" }
+local DISRUPTIVE_KEYS = { "the_needle", "the_water", "the_hook", "the_fish", "the_arm" }
 
 -- Calculate Monster HP: Room 1 = 76 HP, each subsequent monster encounter increases HP by +50% indefinitely
 function Monster.getHpByEncounter(encounterCount, isBoss, isElite)

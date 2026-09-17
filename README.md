@@ -1,13 +1,13 @@
 # 🃏 LUA.TCG — GRIMDARK POKER ROGUELIKE DECKBUILDER
 
-> Một tựa game thẻ bài chiến thuật Poker Roguelike Deck-building phong cách Grimdark kỳ bí, kết hợp chiều sâu chiến thuật giữa cơ chế tính điểm của Balatro, hệ thống chiến đấu theo lượt quái vật của Slay the Spire, phân chia **4 Đại Phe Phái (Factions)**, **Thứ Bậc Quân Chủng (Card Hierarchy)**, **Khảm 5 Hốc Đá Quý (Gemstone Socketing)**, và kho tàng **25 Thần Hộ Mệnh (Deities)** cùng **Vật Phẩm Tiêu Hao (Consumables)**.
+> Một tựa game thẻ bài chiến thuật Poker Roguelike Deck-building phong cách Grimdark kỳ bí, kết hợp cơ chế tính điểm của Balatro, chiến đấu theo lượt kiểu Slay the Spire, **Bộ Bài Đỏ khởi đầu**, **Thứ Bậc Quân Chủng**, **Khảm 5 Hốc Đá Quý**, 25 **Thần Hộ Mệnh** và hệ thống vật phẩm tiêu hao.
 >
 > Toàn bộ trò chơi được kiến tạo 100% bằng **Lua thuần túy** và vận hành mượt mà trên nền tảng **LÖVE 2D (Love2D v11.5)**.
 
 [![GitHub Repository](https://img.shields.io/badge/GitHub-UIBreaker%2FLua.TCG-blue?logo=github)](https://github.com/UIBreaker/Lua.TCG.git)
 [![Engine](https://img.shields.io/badge/Engine-LÖVE%2011.5-pink?logo=lua)](https://love2d.org/)
 [![Lua](https://img.shields.io/badge/Language-Lua%205.1%20%2F%20LuaJIT-000080?logo=lua)](https://www.lua.org/)
-[![Tests](https://img.shields.io/badge/Tests-82%2F82%20Passing-brightgreen?logo=checkmarx)](test_system.lua)
+[![Tests](https://img.shields.io/badge/Tests-86%2F86%20Passing-brightgreen?logo=checkmarx)](test_system.lua)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
@@ -27,14 +27,14 @@
 | Soi Chi Tiết Quân Vụ & 5 Hốc Khảm Đá Quý | Toàn Bộ Bộ Bài (Deck Viewer [Tab]) |
 | :---: | :---: |
 | ![Soi Lá Bài](shot_card_inspector.png) | ![Xem Bộ Bài](shot_deck_viewer_fix.png) |
-| *Chuột phải soi chi tiết cấp bậc Quân chủng, nội tại Phe phái & 5 hốc khảm bảo ngọc* | *Bấm Tab xem tỷ lệ 4 phe phái, thẻ bài đã khảm ngọc và bí kíp đã mở khóa* |
+| *Chuột phải soi chi tiết cấp bậc Quân chủng, chất bài & 5 hốc khảm bảo ngọc* | *Bấm Tab xem tỷ lệ 4 chất, thẻ bài đã khảm ngọc và bí kíp đã mở khóa* |
 
 ---
 
 ## 📑 Mục Lục Tính Năng
 
 1. [Khởi Chạy Nhanh (Quickstart)](#-khởi-chạy-nhanh-quickstart)
-2. [4 Đại Phe Phái Khởi Đầu (The 4 Factions)](#-1-4-đại-phe-phái-khởi-đầu-the-4-factions)
+2. [Bộ Bài Đỏ Khởi Đầu](#-1-bộ-bài-đỏ-khởi-đầu)
 3. [Thứ Bậc Quân Chủng Thẻ Bài (Card Hierarchy & Roles)](#-2-thứ-bậc-quân-chủng-thẻ-bài-card-hierarchy--roles)
 4. [Tiến Trình 8-Ante & 3-Blind (Progression System)](#-3-tiến-trình-8-ante--3-blind-progression-system)
 5. [Cơ Chế Chiến Đấu Theo Lượt & Quái Vật (Combat & Intent)](#-4-cơ-chế-chiến-đấu-theo-lượt--quái-vật-combat--intent)
@@ -47,7 +47,7 @@
 12. [Đồ Họa Shaders, Hiệu Ứng Juice & Âm Thanh Procedural](#-11-đồ-họa-shaders-hiệu-ứng-juice--âm-thanh-procedural)
 13. [Bảng Phím Tắt Điều Khiển Toàn Tập](#-12-bảng-phím-tắt-điều-khiển-toàn-tập)
 14. [Cấu Trúc Thư Mục Dự Án](#-13-cấu-trúc-thư-mục-dự-án)
-15. [Bộ Kiểm Thử Tự Động Toàn Diện (82/82 Unit Tests)](#-14-bộ-kiểm-thử-tự-động-toàn-diện-8282-unit-tests)
+15. [Bộ Kiểm Thử Tự Động Toàn Diện (86/86 Unit Tests)](#-14-bộ-kiểm-thử-tự-động-toàn-diện-8686-unit-tests)
 
 ---
 
@@ -60,28 +60,26 @@
   # Chạy game trực tiếp qua Love2D v11.5:
   ..\love-11.5-win64\love.exe .
 
-  # Chạy bộ kiểm thử tự động (82 test cases):
+  # Chạy bộ kiểm thử tự động (86 test cases):
   ..\love-11.5-win64\lovec.exe . --test
   ```
 
 ### 2. Tùy biến Màn hình & Tương thích
 - **Toàn Màn Hình Tràn Viền (F11)**: Nhấn phím **F11** bất kỳ lúc nào để chuyển đổi tức thì giữa chế độ Cửa sổ và Toàn màn hình viền mỏng.
 - **Virtual Canvas 1280x720**: Trò chơi render trên Canvas ảo độ phân giải gốc 1280x720 sắc nét, tự động scale bảo toàn tỷ lệ khung hình (Aspect Ratio) và căn giữa hoàn hảo trên mọi độ phân giải màn hình từ Full HD, 2K đến 4K.
+- **Tự động lưu an toàn**: Run được lưu khi bắt đầu và sau khi rời Shop; nút Tiếp Tục tự khôi phục Ante, bộ bài, Thần, trang bị, consumable và trạng thái RNG. Settings âm lượng, tốc độ tính điểm, fullscreen và CRT cũng được lưu riêng.
 
 ---
 
-## 🏛️ 1. 4 Đại Phe Phái Khởi Đầu (The 4 Factions)
+## 🏛️ 1. Bộ Bài Đỏ Khởi Đầu
 
-Khi bước vào hành trình mới, người chơi chọn gia nhập **1 trong 4 Đại Phe Phái Cổ Xưa**, thay thế hoàn toàn 4 chất bài truyền thống:
+Game không còn hệ thống chọn 4 phe. Khi bắt đầu run, người chơi chọn **Bộ Bài Đỏ**:
 
-| Phe Phái | Biểu Tượng & Chất | Định Hướng Chiến Thuật | Kỹ Năng Nội Tại & Đặc Quyền Tối Thượng |
-| :--- | :---: | :--- | :--- |
-| **Thiết Quân Thứ**<br>*(The Iron Axiom)* | ♠️ **Bích** | Phòng Thủ Thép &<br>Đòn Đánh Kỷ Luật | • **Chỉ Số Thép**: Các lá bài sở hữu chỉ số phòng hộ vững chãi, miễn nhiễm hoàn toàn trước các hiệu ứng cấm đoán của Boss.<br>• **Đội Hình Phalanx**: Xếp đủ các quân bài đồng chất nhận thêm +100 Chips.<br>• **Chỉ Huy J♠ / Q♠ / K♠**: Tướng J♠ buff +40 Chips/chiến binh, Q♠ nhân x1.4 XMult, K♠ tăng +15 Chips cho mỗi lá bài chưa đánh. |
-| **Giáo Hội Huyết Ước**<br>*(The Sanguine Covenant)* | ♥️ **Cơ** | Bạo Kích Máu &<br>Tử Đạo Tột Cùng | • **Huyết Thệ Sát Chiêu**: Mỗi lá bài ghi điểm buff trực tiếp **+5 Mult**.<br>• **Dấu Ấn Tử Đạo**: Khi máu người chơi dưới 50%, kích hoạt bạo kích thần thánh (+24 Mult, nhân x1.45 XMult).<br>• **Trẫm Cung K♥**: Đánh ở lượt bài cuối cùng ban thêm +100 Chips & +25 Mult.<br>• **Hiến Tế Q♥**: Tự giảm 1 Rank để đổi lấy x1.35 XMult cuồng nộ. |
-| **Trật Tự Hoàng Kim**<br>*(The Gilded Conclave)* | ♦️ **Rô** | Đế Chế Tư Bản &<br>Tích Trữ Tiền Tệ | • **Kim Ngân Đầy Tay**: Thu về **+$1 Vàng** cho mỗi lá bài ghi điểm xuất trận.<br>• **Trần Lãi Siêu Việt**: Nâng trần tích trữ lãi suất từ $25 lên tới $100 ($25 tiền lãi mỗi round).<br>• **Khảm Nén Quặng**: Mọi trang bị khảm trên bài phe Hoàng Kim được tăng +50% hiệu số chỉ số.<br>• **Vương Quyền Q♦ & K♦**: Q♦ tăng xMult tỷ lệ thuận theo kho vàng; K♦ có khả năng đút lót tiền cứu người chơi khi sắp cạn máu. |
-| **Bầy Nguyên Sinh**<br>*(The Feral Swarm)* | ♣️ **Tép** | Bầy Đàn Số Đông &<br>Sinh Khối Tái Sinh | • **Sức Chứa Bầy Đàn**: Khởi đầu với **9 lá bài trên tay** (thay vì 8 lá).<br>• **Tuần Hoàn Sinh Mệnh**: Khi Discard các lá Chiến Binh (2–10), chúng hồi sinh ngay vào đáy bộ bài rút thay vì vào cọc bài bỏ.<br>• **Biến Hình Q♣**: Cho phép xếp Sảnh (Straight) & Thùng (Flush) chỉ với 4 lá bài!<br>• **Chúa Tể K♣**: Ban x1.9 XMult bộc phát đồng thời hồi phục 20 HP trực tiếp cho người chơi. |
-
-- **Bộ Bài Tối Giản Khởi Đầu**: Người chơi xuất trận với **chính xác 3 lá bài ngẫu nhiên** thuộc phe đã chọn, tạo thử thách xây dựng bộ bài (Deck-building) từ con số không!
+- Bộ bài chuẩn có **52 lá**, gồm 13 lá cho mỗi chất ♠ ♥ ♦ ♣.
+- Mỗi combat xáo bộ bài và chỉ rút **3 lá ngẫu nhiên** lên tay ban đầu.
+- Tay bài đầu tiên của mỗi combat nhận trực tiếp **+20 Mult**.
+- Chất bài chỉ phục vụ việc tạo Pair, Straight, Flush và các thế Poker; không còn kích hoạt passive phe phái.
+- Các Boss khóa riêng một phe đã bị loại khỏi pool Boss.
 
 ---
 
@@ -156,8 +154,8 @@ $$\text{Sát Thương} = \left( \text{Base Chips} + \sum \text{Card Chips} + \su
 Sau mỗi trận thắng, người chơi nhận vàng minh bạch từ 4 nguồn tài chính:
 1. **Tiền Thưởng Blind**: Cố định theo độ khó của Blind.
 2. **Lượt Đánh Còn Dư**: Nhận thêm +$1 Vàng cho mỗi lượt Hand chưa dùng.
-3. **Tiền Lãi Tích Trữ (Interest)**: +$1 cho mỗi $5 đang sở hữu trong túi (Mặc định tối đa +$5, nâng lên tới $10 - $25 với Voucher và Phe Hoàng Kim).
-4. **Kỹ Năng Thần Bài / Phe Phái**: Thưởng thêm từ Thần Kim Tài hoặc nội tại +25% Vàng của phe phái.
+3. **Tiền Lãi Tích Trữ (Interest)**: +$1 cho mỗi $5 đang sở hữu trong túi (mặc định tối đa +$5, có thể nâng bằng Voucher).
+4. **Kỹ Năng Thần Bài / Bộ Bài**: Thưởng thêm từ Thần Kim Tài và hiệu ứng Bộ Bài Đỏ.
 
 ---
 
@@ -174,7 +172,7 @@ Mỗi Thần Bài khi xuất hiện có thể ngẫu nhiên mang các phiên b�
 
 ### 💫 Bảng Các Thần Hộ Mệnh Tiêu Biểu Trong Số 25 Vị Thần
 - **Thần Khởi Nguyên** *(Joker)*: +4 Mult vô điều kiện cho mọi thế bài.
-- **Tứ Đại Thần Tộc** *(Greedy / Lusty / Wrathful / Gluttonous)*: +4 Mult cho mỗi lá bài thuộc phe tương ứng ghi điểm.
+- **Bộ bốn Thần Chất** *(Greedy / Lusty / Wrathful / Gluttonous)*: +4 Mult cho mỗi lá bài thuộc chất tương ứng ghi điểm.
 - **Thần Trận Pháp** *(Sly / Wily)*: +50 Chips khi đánh các thế bài Song Đao hoặc Tam Hoa.
 - **Thần Tinh Binh** *(Half Joker)*: +20 Mult cực mạnh nếu tay bài chỉ có ≤ 3 lá bài.
 - **Thần Chiến Kỷ** *(Banner)*: +30 Chips cho mỗi lượt Đổi Bài (Discard) còn lại trong trận.
@@ -245,11 +243,14 @@ Mỗi lá bài trong bộ bài sở hữu cấu trúc vật lý gồm **5 Hốc 
 | 💎 | **Đá Lửa** | Tặng trực tiếp **+35 Chips** cho lá bài này. |
 | 🔥 | **Đá Bùng Nổ** | Tăng thêm **+10 Mult** cho toàn bộ tay bài xuất kích. |
 | 🪞 | **Gương Lan Tỏa** | Lan tỏa sức mạnh, buff thêm **+25 Chips** cho 2 lá bài nằm kế bên. |
-| 🌪️ | **Mắt Bão** | Cung cấp **+3 Mult** cho tất cả các lá bài CÙNG CHẤT PHE trong tay bài. |
-| 💰 | **Đồng Tiền May Mắn** | Thưởng ngay **+$2 Vàng** vào túi tiền người chơi khi ghi điểm. |
+| 🌪️ | **Mắt Bão** | Cung cấp **+3 Mult** cho tất cả các lá bài CÙNG CHẤT trong tay bài. |
+| 💰 | **Đồng Tiền May Mắn** | Thưởng ngay **+$3 Vàng** vào túi tiền người chơi khi ghi điểm. |
 | 🪶 | **Lông Vũ Tự Do** | Khi Đổi bài (Discard) lá này, **KHÔNG bị trừ lượt đổi bài**. |
 | 🩸 | **Nhẫn Huyết Thần** | Gây thêm sát thương chuẩn tương đương **15% sát thương** trừ thẳng vào máu quái. |
 | 👑 | **Ngọc Bội Thánh Tích** | Nhân bộc phát **x1.3 XMult** vào tổng sát thương tay bài! |
+| 🛡️ | **Đá Hộ Mệnh** | Cộng **+5 Giáp** khi lá bài ghi điểm. |
+| 🛡️ | **Ngọc Hộ Thân** | Cộng **+8 Giáp** khi lá bài ghi điểm. |
+| 💚 | **Ngọc Hồi Máu** | Hồi **+2 HP** khi lá bài ghi điểm. |
 
 > 💡 **Chuyển Đồ Trong Cửa Hàng (Shop Transfer)**: Bạn có thể tự do tháo gỡ bảo ngọc từ lá bài cũ và khảm sang lá bài mới chỉ với vài thao tác kéo chọn trực quan trong Cửa Hàng!
 
@@ -285,14 +286,14 @@ graph TD
     Hub --> C5["Biến Đổi Spectral"]
     Hub --> C6["Tinh Cầu Hành Tinh"]
     Hub --> C7["9 Thế Bài Poker"]
-    Hub --> C8["4 Đại Phe Phái"]
+    Hub --> C8["Bộ Bài Đỏ"]
     Hub --> C9["8 Loại Đá Quý Khảm"]
     Hub --> C10["16 Phiếu Vouchers"]
     Hub --> C11["6 Dị Biến Boss Blinds"]
 ```
 
 - **Sổ Tay Bí Tịch (Phím H)**: Tra cứu nhanh cấp độ, hệ số Chips x Mult hiện tại của cả 9 thế bài Poker (từ Đơn Thủ đến Vạn Kiếm Quy Tông).
-- **Xem Toàn Bộ Bộ Bài (Phím Tab)**: Thống kê chi tiết số lượng thẻ theo phe phái, thẻ đã khảm ngọc và các bí tích đã mở khóa.
+- **Xem Toàn Bộ Bộ Bài (Phím Tab)**: Thống kê chi tiết số lượng thẻ theo chất, thẻ đã khảm ngọc và các bí tích đã mở khóa.
 
 ---
 
@@ -313,7 +314,7 @@ graph TD
 | **Space** / **Enter** | **Xuất Chiêu** (Đánh các lá bài đã chọn) / Tua nhanh hiệu ứng cộng điểm. |
 | **D** | **Đổi Bài** (Discard các lá bài đã chọn để rút bài mới). |
 | **R** | Sắp xếp các lá bài trên tay theo **Cấp Bậc Quân Chủng (Rank: K $\rightarrow$ 2)**. |
-| **S** | Sắp xếp các lá bài trên tay theo **Phe Phái (Suit: ♠ $\rightarrow$ ♥ $\rightarrow$ ♦ $\rightarrow$ ♣)**. |
+| **S** | Sắp xếp các lá bài trên tay theo **chất (Suit: ♠ $\rightarrow$ ♥ $\rightarrow$ ♦ $\rightarrow$ ♣)**. |
 | **Số 1 .. 9** | Chọn / Hủy chọn nhanh lá bài thứ 1 đến 9 trên tay. |
 | **Chuột Phải** | Nhấp vào lá bài để mở bảng **Soi Chi Tiết Quân Vụ & 5 Hốc Khảm**. |
 | **Kéo Thả Chuột** | Tự do sắp xếp thứ tự Thần Hộ Mệnh trên thanh linh vị hoặc sắp xếp lá bài trên tay. |
@@ -332,23 +333,23 @@ poker-roguelike/
 ├── conf.lua                 # Cấu hình cửa sổ Love2D (1280x720, VSync, Tiêu đề)
 ├── main.lua                 # Game State Machine, vòng lặp chính, Input & Renderer
 ├── run.bat                  # Script khởi chạy game nhanh 1-click cho Windows
-├── test_system.lua          # Toàn bộ bộ kiểm thử tự động 82 bài test
+├── test_system.lua          # Bộ kiểm thử hệ thống tự động 86 bài test
+├── .github/workflows/       # CI chạy test tự động trên Linux
+├── LICENSE                  # Giấy phép MIT
 ├── fonts/                   # Phông chữ Unicode hiển thị tiếng Việt hoàn mỹ
 └── src/
-    ├── anim.lua             # Hệ thống Tweening hoạt ảnh, hiệu ứng nảy và rung màn hình
-    ├── background.lua       # Shaders nền Psychedelic và hiệu ứng xoáy màu
-    ├── card_inspector.lua   # Bảng soi chi tiết cấp bậc quân chủng & 5 hốc khảm
-    ├── card_renderer.lua    # Vẽ hình ảnh lá bài, họa tiết Gothic, hốc đá quý & hiệu ứng 3D
-    ├── collection_ui.lua    # Giao diện Bộ Sưu Tập Toàn Thư 11 danh mục
-    ├── crt_shader.lua       # Bộ lọc quét tia điện tử màn hình CRT cong
-    ├── deck.lua             # Quản lý 4 Phe phái, Quân chủng, rút bài, xáo bài
-    ├── deck_viewer.lua      # Giao diện xem toàn bộ bộ bài và thống kê tỷ lệ
+    ├── deck.lua             # Quản lý Bộ Bài Đỏ, quân chủng, rút bài và xáo bài
+    ├── combat.lua           # Khởi tạo combat dùng chung và cô lập modifier tạm thời
     ├── deities.lua          # 25 Thần Hộ Mệnh, 4 Editions (Foil, Holo, Poly, Negative +1 Slot)
-    ├── equipment.lua        # 8 Loại đá quý khảm hốc và hiệu ứng kích hoạt
-    ├── handbook.lua         # Sổ tay tra cứu 9 thế bài poker và cấp độ
+    ├── equipment.lua        # 11 loại trang bị/ngọc khảm và hiệu ứng kích hoạt
+    ├── events.lua           # Nội dung và kết quả các sự kiện
+    ├── game_state.lua       # Schema và reset sạch trạng thái mỗi run
+    ├── map.lua              # Map 20 tầng cũ dùng cho công cụ phát triển
     ├── monster.lua          # Chỉ số quái vật, Intent tấn công, phòng thủ & 6 Dị biến Boss
+    ├── persistence.lua      # Save/load run và settings có version
     ├── poker.lua            # Đánh giá 9 thế bài poker & thuật toán hạ cấp thông minh
     ├── reward_system.lua    # Giao diện tổng kết chiến thắng và chọn thưởng
+    ├── rng.lua              # RNG gameplay độc lập, có seed và trạng thái tái lập
     ├── run_manager.lua      # Quản lý vòng lặp 8 Ante, 3 Blind/Ante, Skip Tags & Cash Out
     ├── scoring.lua          # Động cơ tính điểm bùng nổ theo bước (Chips x Mult x XMult)
     ├── shop.lua             # Cửa hàng Balatro, Reroll tăng dần, Vouchers, Mở gói & Ô Tiêu Hao
@@ -358,15 +359,15 @@ poker-roguelike/
 
 ---
 
-## 🧪 14. Bộ Kiểm Thử Tự Động Toàn Diện (82/82 Unit Tests)
+## 🧪 14. Bộ Kiểm Thử Tự Động Toàn Diện (86/86 Unit Tests)
 
-Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **82 Unit Tests độc lập**, kiểm soát chặt chẽ từ logic toán học, tính điểm, cơ chế bài đến khả năng chịu tải runtime:
+Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **86 Unit Tests độc lập**, kiểm soát chặt chẽ từ logic toán học, tính điểm, cơ chế bài đến khả năng chịu tải runtime:
 
 ```text
 === RUNNING ROGUELIKE POKER SYSTEM TESTS ===
-[PASS] 1. Encounter 1 Monster HP is 10 HP: Yêu Tinh Rừng Xanh (10 HP)
-[PASS] 2. Monster HP scaling (+50% each encounter) verified: 10 -> 15 -> 23 -> 34 -> 51 HP
-[PASS] 2b. Boss created with scaled HP: CHÚA QUỶ GAI GÓC (127 HP)
+[PASS] 1. Encounter 1 Monster HP is 76 HP: Yêu Tinh Rừng Xanh (76 HP)
+[PASS] 2. Monster HP scaling (+50% each encounter) verified: 76 -> 114 -> 171 -> 257 -> 385 HP
+[PASS] 2b. Boss created with scaled HP: CHÚA QUỶ GAI GÓC (770 HP)
 [PASS] 3. Starter 1-card evaluation is High Card: ĐƠN THỦ
 [PASS] 4. Locked hand attempt detected and gracefully downgraded to High Card
 [PASS] 5. Unlocking Song Đao allows Pair evaluation: SONG ĐAO
@@ -397,7 +398,7 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **82 Unit 
 [PASS] 28. Player HP & Monster Counter-Attack verified: monster counter-attacks for 12 HP
 [PASS] 29. Tiền Lãi (Interest) verified: +$1 per $5 stored, capped at +$5 per combat
 [PASS] 30. Skip Blind & Tag Rewards verified: node completed with tag reward: Túi Vàng Cực Lớn
-[PASS] 31. 6 Disruptive Boss Abilities verified: The Needle, The Water, The Pillar, The Hook, The Fish, The Arm
+[PASS] 31. 5 Disruptive Boss Abilities verified: The Needle, The Water, The Hook, The Fish, The Arm
 [PASS] 32. UI.formatNumber verified: 15 -> 15, 1250 -> 1,250, 1234567 -> 1,234,567, 1.234e12 -> 1.234e12
 [PASS] 33. Hand Drag Reordering verified: cards swap indices cleanly without data loss
 [PASS] 34. Text Sanitization (variation selector stripping) & Audio Volume Clamping verified
@@ -423,8 +424,8 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **82 Unit 
 [PASS] 54. ♦️ Trật Tự Hoàng Kim (The Gilded Conclave): Kim Ngân (+$1/card), Trần Lãi Siêu Việt ($100->$25 interest), Khảm Nén Quặng (+50% stats), J♦ (+$2 steal), Q♦ (wealth xmult), K♦ (bribe rescue), A♦ (devour +15c) verified
 [PASS] 55. ♣️ Bầy Nguyên Sinh (The Feral Swarm): Bầy Đàn (9-card hand), Tuần Hoàn Thể, Q♣ (4-card Straight & Flush), K♣ (x1.9 XMult & Heal 20 HP), A♣ Wild Suit, Chân Rết Nguyên Thủy (+50c/+5m) verified
 [PASS] 56. Tự do sắp xếp Thần Bài (Deities Drag & Drop & Left-to-Right Scoring Order): Đặt ô bất kỳ (1..5), Hoán đổi ô, Thứ tự Trái sang Phải (+Mult trước xMult: 180 vs 84 Sát thương), Thần Phản Chiếu sao chép qua ô trống verified
-[PASS] 57. Toàn bộ Vòng Lặp Màn Chơi (4 Phe Phái), Đấu Small Blind, Bỏ qua Big Blind nhận Tag, Đấu Boss Debuff, Tăng Ante 1->2, Cửa Hàng & Reroll ($5->$6->$5), An toàn UTF-8 tiếng Việt verified
-[PASS] 58. Bộ Sưu Tập Toàn Thư (Collection Compendium 11 Danh Mục, 25 Thần Hộ Mệnh, 8 Trang Bị Khảm, 4 Phe Phái, Phiếu & Dị Biến Boss) verified 100%
+[PASS] 57. Toàn bộ Vòng Lặp Màn Chơi, Đấu Small Blind, Bỏ qua Big Blind nhận Tag, Đấu Boss Debuff, Tăng Ante 1->2, Cửa Hàng & Reroll ($5->$6->$5), An toàn UTF-8 tiếng Việt verified
+[PASS] 58. Bộ Sưu Tập Toàn Thư hiển thị duy nhất Bộ Bài Đỏ và toàn bộ nội dung hỗ trợ
 [PASS] 59. Hệ Thống Nút Bấm Balatro 3D (Extrusion, Depress, 3D Tilt, In Hoa UTF-8 & Keycap Badges) verified 100%
 [PASS] 60. Đại Tu Grimdark & Cổ Điển (Hốc Khảm Đá Quý 3 Trạng Thái, Chân Dung Gothic K-Q-J-A, Hộ Linh Tarot & Sigil Cổ Vật) verified 100%
 [PASS] 61. 3-Turn Turn-Based Combat Benchmark (Armor absorption, HP healing & Zero Counter-attack on fatal hit) verified 100%
@@ -449,6 +450,10 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **82 Unit 
 [PASS] 80. Consumables Inventory (Slots capacity = 2) verified 100%
 [PASS] 81. Shop.keepPackCard (Keep Pack Cards into Consumables & Cap 2/2) verified 100%
 [PASS] 82. Dynamic Negative Deity Slots (Expansion to 6+ slots, Slot 6 Scoring & Rewards) verified 100%
+[PASS] 83. Boss combat modifiers are transient and The Needle no longer leaks maxHands
+[PASS] 84. Versioned save/load round-trip restores run, cards, equipment and deity behavior
+[PASS] 85. Fresh-run schema prevents state leaks and gameplay RNG is reproducible
+[PASS] 86. Red Deck has 52 cards, draws 3 random cards and grants +20 Mult only on the first hand
 === ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===
 ```
 

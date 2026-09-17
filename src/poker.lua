@@ -153,7 +153,7 @@ end
 -- Helper to check if hand contains Queen of Clubs (Tổ Mẫu Đồng Hóa)
 local function hasQueenOfClubs(cards)
     for _, c in ipairs(cards or {}) do
-        if c.rank == 12 and (c.suit == "elaris" or c.suit == "clubs") then
+        if not c.disableFactionPassives and c.rank == 12 and (c.suit == "elaris" or c.suit == "clubs") then
             return true
         end
     end
@@ -229,7 +229,7 @@ local function checkFlush(cards)
     local suitCounts = {}
     local wildCount = 0
     for _, c in ipairs(cards) do
-        local isWild = c.isWildSuit or ((c.rank == 1 or c.rank == 14) and (c.suit == "elaris" or c.suit == "clubs"))
+        local isWild = not c.disableFactionPassives and (c.isWildSuit or ((c.rank == 1 or c.rank == 14) and (c.suit == "elaris" or c.suit == "clubs")))
         if isWild then
             wildCount = wildCount + 1
         else

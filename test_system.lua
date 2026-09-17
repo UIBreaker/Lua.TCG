@@ -8,6 +8,10 @@ local Deck = require("src.deck")
 local UI = require("src.ui")
 local RunManager = require("src.run_manager")
 local RewardSystem = require("src.reward_system")
+local Persistence = require("src.persistence")
+local GameState = require("src.game_state")
+local Rng = require("src.rng")
+local Combat = require("src.combat")
 
 local logFile = io.open("test_results.txt", "w")
 local function log(str)
@@ -502,7 +506,7 @@ assert(simState.monsterEncounterCount == initialEncounter + 1, "Skipping increas
 assert(testCombatNode.visited == true, "Skipped node marked as visited/completed")
 log("[PASS] 30. Skip Blind & Tag Rewards verified: node completed with tag reward: " .. (tag.name or ""))
 
--- 26. Test 6 Disruptive Boss Abilities (The Needle, The Water, The Pillar, The Hook, The Fish, The Arm)
+-- 26. Test 5 Disruptive Boss Abilities (The Needle, The Water, The Hook, The Fish, The Arm)
 -- A. The Needle (1 Hand only)
 local needleBoss = Monster.create(20, true, false, 1, "the_needle")
 local gsNeedle = { handsRemaining = 4, maxHands = 4, discardsRemaining = 3 }
@@ -515,23 +519,7 @@ local gsWater = { discardsRemaining = 3 }
 waterBoss.bossData.applyModifier(gsWater)
 assert(gsWater.discardsRemaining == 0, "The Water sets discardsRemaining to 0")
 
--- C. The Pillar (Locks a faction completely)
-local pillarBoss = Monster.create(20, true, false, 1, "the_pillar")
-local gsPillar = { selectedSuit = "aurelia", monster = pillarBoss }
-pillarBoss.bossData.applyModifier(gsPillar)
-assert(pillarBoss.lockedFaction == "aurelia", "The Pillar locks Aurelia faction")
-local pEval = Poker.evaluate({ Deck.newCard(10, "aurelia") }, { high_card = true })
-local pScore = Scoring.calculate(pEval, {}, { monster = pillarBoss })
-local cardStep = nil
-for _, st in ipairs(pScore.steps) do
-    if st.type == "card_scored" then cardStep = st break end
-end
-assert(cardStep ~= nil, "Card scored step must be present")
-assert(cardStep.addedChips == 0, "Locked faction cards add 0 Chips under The Pillar")
-assert(cardStep.addedMult == 0, "Locked faction cards add 0 Mult under The Pillar")
-assert(pScore.xMultTotal == 1.0, "Faction passive x1.15 is negated under The Pillar")
-
--- D. The Hook (Boss discards 2 cards on hand play)
+-- C. The Hook (Boss discards 2 cards on hand play)
 local gsHookHand = { Deck.newCard(2, "aurelia"), Deck.newCard(3, "aurelia"), Deck.newCard(4, "aurelia") }
 local hookDiscard = {}
 for i = 1, math.min(2, #gsHookHand) do
@@ -540,17 +528,17 @@ end
 assert(#gsHookHand == 1, "The Hook removes 2 cards from player hand")
 assert(#hookDiscard == 2, "The Hook sends 2 discarded cards to discardPile")
 
--- E. The Fish (Cards drawn are faceDown)
+-- D. The Fish (Cards drawn are faceDown)
 local gsFishCard = Deck.newCard(10, "vharos")
 gsFishCard.faceDown = true
 assert(gsFishCard.faceDown == true, "The Fish renders drawn cards Face-Down")
 
--- F. The Arm (Cards lose 1 rank when played)
+-- E. The Arm (Cards lose 1 rank when played)
 local armCard = Deck.newCard(8, "elaris")
 Deck.degradeCard(armCard)
 assert(armCard.rank == 7, "The Arm degrades played card by -1 Rank")
 
-log("[PASS] 31. 6 Disruptive Boss Abilities verified: The Needle, The Water, The Pillar, The Hook, The Fish, The Arm")
+log("[PASS] 31. 5 Disruptive Boss Abilities verified: The Needle, The Water, The Hook, The Fish, The Arm")
 
 -- 32. Test UI.formatNumber (commas and e-notation)
 assert(UI.formatNumber(15) == "15", "Small number formatting")
@@ -1429,7 +1417,7 @@ do
         assert(len <= 28, "Truncated string must not exceed limit")
     end
 
-    log("[PASS] 57. Toàn bộ Vòng Lặp Màn Chơi (4 Phe Phái), Đấu Small Blind, Bỏ qua Big Blind nhận Tag, Đấu Boss Debuff, Tăng Ante 1->2, Cửa Hàng & Reroll ($5->$6->$5), An toàn UTF-8 tiếng Việt verified")
+    log("[PASS] 57. Toàn bộ Vòng Lặp Màn Chơi, Đấu Small Blind, Bỏ qua Big Blind nhận Tag, Đấu Boss Debuff, Tăng Ante 1->2, Cửa Hàng & Reroll ($5->$6->$5), An toàn UTF-8 tiếng Việt verified")
 end
 
 do
@@ -1461,9 +1449,9 @@ do
     assert(#consumables >= 8, "Must have at least 8 Consumables/Equipment in Collection, got: " .. #consumables)
 
     local decks = Collection.getItems("decks")
-    assert(#decks == 4, "Must have exactly 4 Faction Decks, got: " .. #decks)
+    assert(#decks == 1 and decks[1].id == "red_deck", "Collection must expose only the Red starter deck")
 
-    log("[PASS] 58. Bộ Sưu Tập Toàn Thư (Collection Compendium 11 Danh Mục, 25 Thần Hộ Mệnh, 8 Trang Bị Khảm, 4 Phe Phái, Phiếu & Dị Biến Boss) verified 100%")
+    log("[PASS] 58. Bộ Sưu Tập Toàn Thư hiển thị duy nhất Bộ Bài Đỏ và toàn bộ nội dung hỗ trợ")
 end
 
 -- 59. Balatro Tactile 3D Buttons (Extrusion, Tilt, Hotkeys, Depress & UTF-8 Uppercase)
@@ -2283,8 +2271,126 @@ do
     log("[PASS] 82. Dynamic Negative Deity Slots (Expansion to 6+ slots, Slot 6 Scoring & Rewards) verified 100%")
 end
 
+-- 83. Boss modifiers must be scoped to the current combat.
+do
+    local testGame = GameState.new("aurelia")
+    testGame.maxHands = 5
+    testGame.persistentDeck = Deck.createStarterDeck("aurelia")
+    testGame.discardBuffs = { chips = 999, mult = 999, xMult = 9 }
+    local needleMonster = RunManager.createBlindMonster({ type = "boss", ante = 1, index = 3, hp = 152, name = "Needle", title = "BOSS", debuff = RunManager.BOSS_DEBUFFS.the_needle }, testGame)
+    Combat.start(testGame, needleMonster, 1)
+    assert(testGame.handsRemaining == 1, "The Needle must limit the current combat to one hand")
+    assert(testGame.maxHands == 5, "The Needle must not permanently overwrite maxHands")
+    assert(testGame.discardBuffs.chips == 0 and testGame.discardBuffs.mult == 0, "Discard buffs must not leak into a later combat")
+
+    local legacyNeedle = Monster.DISRUPTIVE_BOSSES.the_needle
+    local legacyGame = { handsRemaining = 4, maxHands = 4 }
+    legacyNeedle.applyModifier(legacyGame)
+    assert(legacyGame.maxHands == 4, "Legacy map boss must not leak maxHands into later combats")
+    log("[PASS] 83. Boss combat modifiers are transient and The Needle no longer leaks maxHands")
+end
+
+-- 84. Save snapshots round-trip persistent state and rehydrate catalog behavior.
+do
+    local savedCard = Deck.newCard(12, "aurelia")
+    savedCard.baseRank = 12
+    savedCard.seal = "gold"
+    Equipment.attach(savedCard, Equipment.ITEMS.gem_fire)
+
+    local testGame = {
+        selectedFaction = "aurelia",
+        selectedSuit = "aurelia",
+        gold = 37,
+        playerHp = 73,
+        maxPlayerHp = 100,
+        maxHands = 4,
+        maxDiscards = 3,
+        maxHandSize = 4,
+        unlockedHands = { high_card = true, pair = true },
+        handLevels = { high_card = 2, pair = 3 },
+        persistentDeck = { savedCard },
+        deities = {},
+        consumables = { { id = "planet_mars", category = "celestial", handId = "four_of_a_kind" } },
+        run = RunManager.newRun("aurelia"),
+        monster = { hp = 1 },
+        hand = { savedCard },
+    }
+    Deities.addDeity(testGame, Deities.CATALOG.deity_genesis)
+    testGame.deities[1].edition = "negative"
+    testGame.run.ante = 3
+    testGame.run.currentBlindIndex = 2
+    testGame.run.blinds = RunManager.generateAnteBlinds(3, "aurelia")
+    testGame.run.blinds[1].status = "completed"
+    testGame.run.blinds[2].status = "current"
+
+    local encoded = Persistence.encode(Persistence.makeSnapshot(testGame, "BLIND_SELECT"))
+    local decoded, decodeError = Persistence.decode(encoded, "save_roundtrip_test")
+    assert(decoded, "Snapshot must decode: " .. tostring(decodeError))
+    local restored, restoredState = Persistence.restoreSnapshot(decoded)
+    assert(restored and restoredState == "BLIND_SELECT", "Snapshot must restore at a safe state")
+    assert(restored.gold == 37 and restored.playerHp == 73, "Run resources must survive save/load")
+    assert(restored.run.ante == 3 and restored.run.currentBlindIndex == 2, "Ante progress must survive save/load")
+    assert(#restored.persistentDeck == 1 and restored.persistentDeck[1].seal == "gold", "Cards and seals must survive save/load")
+    assert(restored.persistentDeck[1].equipments[1].onCardScore ~= nil, "Equipment behavior must be rehydrated")
+    assert(restored.deities[1].onHandScored ~= nil and restored.deities[1].edition == "negative", "Deity behavior and instance state must be rehydrated")
+    assert(restored.monster == nil and #restored.hand == 0, "Transient combat state must not be restored")
+    log("[PASS] 84. Versioned save/load round-trip restores run, cards, equipment and deity behavior")
+end
+
+-- 85. A fresh run must reset every persistent upgrade and gameplay RNG must replay.
+do
+    local reused = GameState.new("aurelia")
+    reused.gold = 999
+    reused.maxHands = 12
+    reused.vouchers.discount = true
+    reused.sacredFruitExtinct = true
+    reused.deities[1] = Deities.CATALOG.deity_genesis
+    reused.consumables[1] = { id = "old_item" }
+    GameState.resetRun(reused, "valoria")
+    assert(reused.gold == 6 and reused.maxHands == 3, "New run must reset economy and hand upgrades")
+    assert(next(reused.vouchers) == nil and #reused.deities == 0 and #reused.consumables == 0, "New run must clear inventory and vouchers")
+    assert(reused.sacredFruitExtinct == false and reused.maxDiscards == 4, "New run must reset unlock flags and apply faction defaults")
+
+    Rng.seed(123456)
+    local first = { Rng.random(1000), Rng.random(1000), Rng.random(1000) }
+    Rng.seed(123456)
+    assert(first[1] == Rng.random(1000) and first[2] == Rng.random(1000) and first[3] == Rng.random(1000), "Seeded gameplay RNG must be reproducible")
+    log("[PASS] 85. Fresh-run schema prevents state leaks and gameplay RNG is reproducible")
+end
+
+-- 86. Red Deck replaces faction selection and grants +20 Mult on first hand.
+do
+    Rng.seed(20260917)
+    local redDeck = Deck.createRedStarterDeck()
+    assert(#redDeck == 52, "Red Deck must contain the standard 52-card pool")
+    local suitCounts = { aurelia = 0, elaris = 0, vharos = 0, valoria = 0 }
+    for _, card in ipairs(redDeck) do
+        suitCounts[card.suit] = (suitCounts[card.suit] or 0) + 1
+        assert(card.disableFactionPassives == true, "Red Deck cards must not trigger legacy faction passives")
+        assert(not card.isWildSuit and not card.isDualRankAce, "Red Deck cards must use normal poker suit and rank rules")
+        assert(card.unlockedSockets == 1, "Every Red Deck card must start with exactly one equipment socket")
+    end
+    for _, count in pairs(suitCounts) do assert(count == 13, "Each standard suit must contain 13 cards") end
+
+    local redGame = GameState.new("red_deck")
+    redGame.persistentDeck = redDeck
+    local monster = Monster.create(1, false, false, 1)
+    Combat.start(redGame, monster, 1)
+    assert(#redGame.hand == 3 and #redGame.deck == 49, "Combat must draw exactly 3 random opening cards from Red Deck")
+    assert(redGame.handsPlayedThisCombat == 0, "First-hand counter must reset at combat start")
+
+    local testCard = Deck.newCard(5, "valoria")
+    testCard.disableFactionPassives = true
+    local evaluated = Poker.evaluate({ testCard }, { high_card = true })
+    local firstScore = Scoring.calculate(evaluated, {}, { starterDeckId = "red_deck", handsPlayedThisCombat = 0 })
+    local laterScore = Scoring.calculate(evaluated, {}, { starterDeckId = "red_deck", handsPlayedThisCombat = 1 })
+    assert(firstScore.totalMult == laterScore.totalMult + 20, "Red Deck first hand must receive exactly +20 Mult")
+    log("[PASS] 86. Red Deck has 52 cards, draws 3 random cards and grants +20 Mult only on the first hand")
+end
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
+if love and love.audio then love.audio.stop() end
 if love and love.event then
     love.event.quit(0)
 else
