@@ -3,6 +3,14 @@ local Deities = require("src.deities")
 
 local Combat = {}
 
+function Combat.getOutcome(game)
+    if not game or not game.monster then return "continue" end
+    if game.playerHp and game.playerHp <= 0 then return "defeat" end
+    if game.monster.hp and game.monster.hp <= 0 then return "victory" end
+    if game.handsRemaining and game.handsRemaining <= 0 then return "defeat" end
+    return "continue"
+end
+
 local function isFaction(game, id)
     return game.selectedFaction == id or game.selectedSuit == id
 end
@@ -58,13 +66,18 @@ function Combat.start(game, monster, round)
     Deck.shuffle(game.deck)
 
     local maxHandSize = isFaction(game, "elaris") and ((game.maxHandSize or 3) + 1) or (game.maxHandSize or 3)
+    local dealOrder = 0
     while #game.hand < maxHandSize and #game.deck > 0 do
         local card = table.remove(game.deck)
+        dealOrder = dealOrder + 1
         card.selected = false
         card.visualX = 1180
         card.visualY = 620
-        card.visualAngle = 0
-        card.visualScale = 0.7
+        card.visualAngle = -0.12 + dealOrder * 0.025
+        card.visualScale = 0.68
+        card.dealPending = true
+        card.dealDelay = (dealOrder - 1) * 0.075
+        card.dealTrail = 0
         local isAxiomCard = not card.disableFactionPassives and (card.suit == "spades" or card.suit == "vharos" or card.suit == "iron_axiom")
         local bossData = monster.bossData
         if not isAxiomCard and monster.isBoss and bossData and (bossData.id == "the_fish" or bossData.debuffId == "the_fish") then

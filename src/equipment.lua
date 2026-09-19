@@ -111,7 +111,7 @@ Equipment.ITEMS = {
         rarity = "legendary",
         slotsNeeded = 2,
         color = { 0.95, 0.8, 0.2, 1 },
-        desc = "[Huyền Thoại - 2 Ô] x1.2 XMult một lần mỗi tay, không cộng dồn bản sao",
+        desc = "[Huyền Thoại - Tốn 2 Hốc Khảm Bài] x1.2 XMult một lần mỗi tay, không cộng dồn bản sao",
         onCardScore = function(card, playedCards, cardIndex, context)
             if context and not context.holyRelicTriggeredThisHand then
                 context.holyRelicTriggeredThisHand = true
@@ -171,7 +171,7 @@ Equipment.ITEMS.void_catalyst = {
     rarity = "legendary",
     slotsNeeded = 2,
     color = { 0.85, 0.35, 0.95, 1 },
-    desc = "[Huyền Thoại - 2 Ô] +30 Chips và +10 Mult khi tính điểm",
+    desc = "[Huyền Thoại - Tốn 2 Hốc Khảm Bài] +30 Chips và +10 Mult khi tính điểm",
     onCardScore = function(card, playedCards, cardIndex, context)
         return { addChips = 30, addMult = 10, message = "+30 Chips, +10 Mult (Xúc Tác Hư Không)!" }
     end
@@ -219,7 +219,7 @@ function Equipment.getRandomEquipment()
     return Equipment.ITEMS[key]
 end
 
-function Equipment.attach(card, equipItem)
+function Equipment.canAttach(card, equipItem)
     if not card or not equipItem then return false, "Dữ liệu không hợp lệ" end
     card.equipments = card.equipments or {}
     for _, existing in ipairs(card.equipments) do
@@ -231,6 +231,12 @@ function Equipment.attach(card, equipItem)
     if Equipment.getUsedSlots(card) + needed > Equipment.MAX_SLOTS then
         return false, "Lá bài này không đủ ô trang bị (Tối đa " .. Equipment.MAX_SLOTS .. " ô)!"
     end
+    return true
+end
+
+function Equipment.attach(card, equipItem)
+    local canAttach, reason = Equipment.canAttach(card, equipItem)
+    if not canAttach then return false, reason end
     table.insert(card.equipments, equipItem)
     return true, "Đã gắn " .. equipItem.name .. " vào lá " .. (card.rankName or "") .. (card.suitSymbol or "")
 end

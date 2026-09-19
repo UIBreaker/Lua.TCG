@@ -1686,23 +1686,24 @@ end
 
 -- 62. Test Dual Loss Condition & 3-Card Straight
 do
-    -- Dual loss rule: Player loses IF AND ONLY IF playerHp <= 0 OR (handsRemaining <= 0 and monster.hp > 0)
+    -- Combat outcome must come from live state, never stale animation flags.
     -- Case A: Out of HP
     local aliveMonster = { hp = 50 }
     local stateHpLoss = { playerHp = 0, handsRemaining = 2, monster = aliveMonster }
-    local isLostA = (stateHpLoss.playerHp <= 0) or (stateHpLoss.handsRemaining <= 0 and stateHpLoss.monster.hp > 0)
-    assert(isLostA == true, "Player HP <= 0 must trigger Loss")
+    assert(Combat.getOutcome(stateHpLoss) == "defeat", "Player HP <= 0 must trigger Loss")
 
     -- Case B: Out of Hands while Monster alive
     local stateHandLoss = { playerHp = 90, handsRemaining = 0, monster = aliveMonster }
-    local isLostB = (stateHandLoss.playerHp <= 0) or (stateHandLoss.handsRemaining <= 0 and stateHandLoss.monster.hp > 0)
-    assert(isLostB == true, "Out of hands while monster alive must trigger Loss")
+    assert(Combat.getOutcome(stateHandLoss) == "defeat", "Out of hands while monster alive must trigger Loss")
 
     -- Case C: Hands == 0 but Monster dead -> Victory! Not a loss!
     local deadMonster = { hp = 0 }
     local stateWin = { playerHp = 91, handsRemaining = 0, monster = deadMonster }
-    local isLostC = (stateWin.playerHp <= 0) or (stateWin.handsRemaining <= 0 and stateWin.monster.hp > 0)
-    assert(isLostC == false, "Hands == 0 with Monster dead must NOT trigger Loss (it is VICTORY!)")
+    assert(Combat.getOutcome(stateWin) == "victory", "Hands == 0 with Monster dead must be VICTORY")
+
+    -- Regression: a stale animation flag from a previous run must be irrelevant.
+    stateWin.playerKilled = true
+    assert(Combat.getOutcome(stateWin) == "victory", "Stale playerKilled flag must not override live HP and dead monster")
 
     -- 3-Card Straight test
     local c7 = { rank = 7, rankName = "7", suit = "vharos" }
@@ -2384,6 +2385,13 @@ do
     Combat.start(redGame, monster, 1)
     assert(#redGame.hand == 3 and #redGame.deck == 49, "Combat must draw exactly 3 random opening cards from Red Deck")
     assert(redGame.handsPlayedThisCombat == 0, "First-hand counter must reset at combat start")
+    for i, card in ipairs(redGame.hand) do
+        assert(card.dealPending == true, "Opening cards must enter through the deal animation")
+        assert(card.dealDelay >= 0 and card.dealDelay <= 0.2, "Deal animation must be short and staggered")
+        if i > 1 then
+            assert(card.dealDelay ~= redGame.hand[i - 1].dealDelay, "Opening cards must not be dealt at the same instant")
+        end
+    end
 
     local testCard = Deck.newCard(5, "valoria")
     testCard.disableFactionPassives = true
@@ -2404,6 +2412,8 @@ do
     assert(Equipment.getUsedSlots(testCard) == 1, "Used slots must be 1")
 
     -- Duplicate check: attach iron_spikes again must fail
+    local canDup = Equipment.canAttach(testCard, Equipment.ITEMS.iron_spikes)
+    assert(canDup == false, "Socketing preview must mark duplicate equipment as invalid")
     local okDup = Equipment.attach(testCard, Equipment.ITEMS.iron_spikes)
     assert(okDup == false, "Duplicate equipment must be blocked")
 
@@ -2413,6 +2423,8 @@ do
     assert(Equipment.getUsedSlots(testCard) == 3, "Total used slots must now be 3 (1 + 2)")
 
     -- Try attaching 4th slot: must fail (MAX_SLOTS = 3)
+    local canOver = Equipment.canAttach(testCard, Equipment.ITEMS.shield_gem)
+    assert(canOver == false, "Socketing preview must mark cards without enough slots as invalid")
     local okOver = Equipment.attach(testCard, Equipment.ITEMS.shield_gem)
     assert(okOver == false, "Attaching beyond 3 slots must fail")
 

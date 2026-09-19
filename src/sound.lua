@@ -47,6 +47,32 @@ function Sound.init()
             return env * 0.35 * (noise * 0.5 + sine * 0.5)
         end)
 
+        -- Individual card draw (paper flick + soft table landing)
+        sounds.card_draw = generateSound(0.12, rate, function(t, d)
+            local progress = t / d
+            local paper = (love.math.random() * 2 - 1) * math.sin(progress * math.pi) * 0.22
+            local flick = math.sin(2 * math.pi * (760 - progress * 420) * t) * math.exp(-t * 28)
+            local landing = (t > 0.065) and math.sin(2 * math.pi * 190 * (t - 0.065)) * math.exp(-(t - 0.065) * 45) or 0
+            return paper + flick * 0.32 + landing * 0.34
+        end)
+
+        -- Cards committed to the play area (fast swoosh + firm snap)
+        sounds.card_play = generateSound(0.18, rate, function(t, d)
+            local progress = t / d
+            local swoosh = (love.math.random() * 2 - 1) * math.sin(progress * math.pi) * 0.28
+            local snap = (t > 0.105) and math.sin(2 * math.pi * 260 * (t - 0.105)) * math.exp(-(t - 0.105) * 38) or 0
+            return swoosh + snap * 0.58
+        end)
+
+        -- Final score impact (short bass hit, separate from XMult sparkle)
+        sounds.score_impact = generateSound(0.22, rate, function(t, d)
+            local env = math.exp(-t * 16)
+            local freq = 105 - 45 * (t / d)
+            local bass = math.sin(2 * math.pi * freq * t)
+            local crack = (love.math.random() * 2 - 1) * math.exp(-t * 70)
+            return env * 0.72 * bass + crack * 0.22
+        end)
+
         -- 4. Chip Tick (Clear crystal bell ping)
         sounds.chip_tick = generateSound(0.07, rate, function(t, d)
             local env = math.exp(-t * 35)
@@ -203,13 +229,16 @@ function Sound.play(name, pitch)
     local s = sounds[name]
     if s then
         pcall(function()
-            s:stop()
-            if pitch and s.setPitch then
-                s:setPitch(math.max(0.2, math.min(3.0, pitch)))
-            elseif s.setPitch then
-                s:setPitch(1.0)
+            -- Clone static sources when possible so rapid draw/score sounds layer
+            -- naturally instead of cutting the previous sound off.
+            local voice = s.clone and s:clone() or s
+            if voice == s then voice:stop() end
+            if pitch and voice.setPitch then
+                voice:setPitch(math.max(0.2, math.min(3.0, pitch)))
+            elseif voice.setPitch then
+                voice:setPitch(1.0)
             end
-            s:play()
+            voice:play()
         end)
     end
 end
