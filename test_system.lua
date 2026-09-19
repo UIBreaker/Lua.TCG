@@ -2516,6 +2516,30 @@ do
     log("[PASS] 91. Phase 6: 5 New Bosses, Intent System & Phase 2 Transition verified 100%")
 end
 
+-- 92. Test RunManager.advanceBlind & Blind Progression Contract
+do
+    assert(type(RunManager.advanceBlind) == "function", "RunManager.advanceBlind must be a defined function")
+    assert(RunManager.advanceBlind == RunManager.advanceAfterShop, "advanceBlind and advanceAfterShop must be aliased")
+
+    local testRun = RunManager.newRun("aurelia")
+    assert(testRun.currentBlindIndex == 1, "Run starts at Small Blind (index 1)")
+    local b1 = RunManager.getCurrentBlind(testRun)
+    assert(b1.type == "small", "First blind must be small")
+
+    -- Simulate Small Blind completion and direct advanceBlind
+    RunManager.completeCurrentBlind(testRun)
+    local continues, reason = RunManager.advanceBlind(testRun, { selectedFaction = "aurelia" })
+    assert(continues == true, "Run continues to next blind")
+    assert(reason == "next_blind", "Reason is next_blind")
+    assert(testRun.currentBlindIndex == 2, "Current blind progresses to Big Blind (index 2)")
+
+    local b2 = RunManager.getCurrentBlind(testRun)
+    assert(b2.type == "big", "Second blind must be big")
+    assert(b2.status == "current", "Big blind status is current")
+
+    log("[PASS] 92. RunManager.advanceBlind & Blind Progression Contract verified 100%")
+end
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.audio then love.audio.stop() end

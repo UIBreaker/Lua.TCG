@@ -478,9 +478,9 @@ function RunManager.completeCurrentBlind(run)
     end
 end
 
--- Advance to the next Blind after leaving the Shop
+-- Advance to the next Blind directly or after leaving the Shop
 -- Returns: true if game continues, false + "victory" if Ante 8 Boss defeated!
-function RunManager.advanceAfterShop(run, gameState)
+function RunManager.advanceBlind(run, gameState)
     if not run then return false end
     run.shopsVisitedInAnte = (run.shopsVisitedInAnte or 0) + 1
 
@@ -502,5 +502,8 @@ function RunManager.advanceAfterShop(run, gameState)
         end
     end
 end
+
+-- Alias for backwards compatibility
+RunManager.advanceAfterShop = RunManager.advanceBlind
 
 return RunManager

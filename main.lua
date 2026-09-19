@@ -568,6 +568,7 @@ end
 
 local function startBlindCombat(blind)
     if not blind then return end
+    game.currentBlind = blind
     initializeCombat(RunManager.createBlindMonster(blind, game), blind.ante or 1)
     lastActiveState = "playing"
 end
@@ -7879,12 +7880,13 @@ local function handleShopMousepressed(mx, my, button)
                 return true
             elseif btn.id == "leave_shop" or btn.id == "next_round" then
                 if game.run then
-                    local continues, reason = RunManager.advanceAfterShop(game.run, game)
+                    local continues, reason = RunManager.advanceBlind(game.run, game)
                     if not continues and reason == "victory" then
                         state = "victory"
                         lastActiveState = "victory"
                         Sound.play("round_win")
                     else
+                        game.currentBlind = RunManager.getCurrentBlind(game.run)
                         state = "BLIND_SELECT"
                         lastActiveState = "BLIND_SELECT"
                         Sound.play("card_deal")
@@ -8536,9 +8538,17 @@ function love.mousepressed(x, y, button)
                             local isSmall = curBlind and (curBlind.type == "small" or curBlind.index == 1)
                             if isSmall and game.run then
                                 -- Small Blind skips Shop, proceeds to Blind Select
-                                RunManager.advanceBlind(game.run, game)
-                                state = "BLIND_SELECT"
-                                lastActiveState = "BLIND_SELECT"
+                                local continues, reason = RunManager.advanceBlind(game.run, game)
+                                if not continues and reason == "victory" then
+                                    state = "victory"
+                                    lastActiveState = "victory"
+                                    Sound.play("round_win")
+                                else
+                                    game.currentBlind = RunManager.getCurrentBlind(game.run)
+                                    state = "BLIND_SELECT"
+                                    lastActiveState = "BLIND_SELECT"
+                                end
+                                saveRunAtSafePoint()
                             else
                                 if not shopData then shopData = Shop.new() end
                                 Shop.resetReroll(shopData)
@@ -8943,11 +8953,28 @@ function love.keypressed(key)
                 RewardSystem.finishImmediately(cashOutAnim)
                 Sound.play("shop_buy")
             elseif cashOutAnim and cashOutAnim.finished then
-                if not shopData then shopData = Shop.new() end
-                Shop.resetReroll(shopData)
-                Shop.refresh(shopData, game)
-                state = "shop"
-                lastActiveState = "shop"
+                local curBlind = game.currentBlind or (game.run and game.run.blinds and game.run.blinds[game.run.currentBlindIndex])
+                local isSmall = curBlind and (curBlind.type == "small" or curBlind.index == 1)
+                if isSmall and game.run then
+                    -- Small Blind skips Shop, proceeds to Blind Select
+                    local continues, reason = RunManager.advanceBlind(game.run, game)
+                    if not continues and reason == "victory" then
+                        state = "victory"
+                        lastActiveState = "victory"
+                        Sound.play("round_win")
+                    else
+                        game.currentBlind = RunManager.getCurrentBlind(game.run)
+                        state = "BLIND_SELECT"
+                        lastActiveState = "BLIND_SELECT"
+                    end
+                    saveRunAtSafePoint()
+                else
+                    if not shopData then shopData = Shop.new() end
+                    Shop.resetReroll(shopData)
+                    Shop.refresh(shopData, game)
+                    state = "shop"
+                    lastActiveState = "shop"
+                end
                 Sound.play("card_deal")
             end
         end

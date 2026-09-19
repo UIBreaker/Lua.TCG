@@ -60,7 +60,7 @@
   # Chạy game trực tiếp qua Love2D v11.5:
   ..\love-11.5-win64\love.exe .
 
-  # Chạy bộ kiểm thử tự động (91 test cases):
+  # Chạy bộ kiểm thử tự động (92 test cases):
   ..\love-11.5-win64\lovec.exe . --test
   ```
 
@@ -389,9 +389,9 @@ poker-roguelike/
 
 ---
 
-## 🧪 14. Bộ Kiểm Thử Tự Động Toàn Diện (86/86 Unit Tests)
+## 🧪 14. Bộ Kiểm Thử Tự Động Toàn Diện (92/92 Unit Tests)
 
-Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **91 Unit Tests độc lập**, kiểm soát chặt chẽ từ logic toán học, tính điểm, cơ chế bài đến khả năng chịu tải runtime:
+Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **92 Unit Tests độc lập**, kiểm soát chặt chẽ từ logic toán học, tính điểm, cơ chế bài đến khả năng chịu tải runtime:
 
 ```text
 === RUNNING ROGUELIKE POKER SYSTEM TESTS ===
@@ -491,6 +491,7 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **91 Unit 
 [PASS] 89. Phase 3 & 4: 8 Card Enhancements with Tactical Tradeoffs verified 100%
 [PASS] 90. Phase 5: 6 Pacts & Wanted Level mechanics verified 100%
 [PASS] 91. Phase 6: 5 New Bosses, Intent System & Phase 2 Transition verified 100%
+[PASS] 92. RunManager.advanceBlind & Blind Progression Contract verified 100%
 === ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===
 ```
 
