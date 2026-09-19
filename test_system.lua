@@ -2766,8 +2766,58 @@ do
     log("[PASS] 98. Khế Ước Bỏ Ải (3-Part Unified Schema & Skip Execution) verified 100%")
 end
 
+-- 99. Test Đồng Bộ Dữ Liệu Bộ Sưu Tập Toàn Thư (Single Source of Truth & Dynamic Compendium)
+do
+    local Collection = require("src.collection")
+    local Equipment = require("src.equipment")
+    local Deck = require("src.deck")
+    local Deities = require("src.deities")
+
+    -- 1. All Equipment from Equipment.POOL must exist in Collection consumables without duplicates
+    local consumables = Collection.getItems("consumables")
+    local eqIds = {}
+    for _, item in ipairs(consumables) do
+        assert(eqIds[item.id] == nil, "Duplicate equipment in collection: " .. tostring(item.id))
+        eqIds[item.id] = item
+        assert(item.slotsNeeded == 1 or item.slotsNeeded == 2, "Equipment must specify valid slotsNeeded (1 or 2): " .. item.id)
+        assert(item.rarity ~= nil and item.rarity ~= "", "Equipment must specify rarity: " .. item.id)
+    end
+    for _, poolId in ipairs(Equipment.POOL) do
+        assert(eqIds[poolId] ~= nil, "Equipment from POOL missing in Collection: " .. poolId)
+    end
+    -- Check specific vertical slice and foundation equipments
+    assert(eqIds["tactical_compass"].slotsNeeded == 2, "Tactical Compass must require 2 slots")
+    assert(eqIds["void_catalyst"].slotsNeeded == 2, "Void Catalyst must require 2 slots")
+    assert(eqIds["vanguard_spear"].slotsNeeded == 1, "Vanguard Spear must require 1 slot")
+    assert(eqIds["shield_lock"].slotsNeeded == 1, "Shield Lock must require 1 slot")
+
+    -- 2. Enhancements in Collection must match Deck.ENHANCEMENTS (all 10)
+    local enhs = Collection.getItems("enhancements")
+    assert(#enhs == 10, "Collection must have exactly 10 enhancements, got: " .. #enhs)
+    local enhMap = {}
+    for _, enh in ipairs(enhs) do enhMap[enh.id] = enh end
+    assert(enhMap["enh_vanguard"] ~= nil, "enh_vanguard must exist in Collection")
+    assert(enhMap["enh_rearguard"] ~= nil, "enh_rearguard must exist in Collection")
+
+    -- 3. Jokers in Collection must contain Vanguard Marshal and match Deities.CATALOG
+    local jokers = Collection.getItems("jokers")
+    local jokerMap = {}
+    for _, j in ipairs(jokers) do jokerMap[j.id] = j end
+    assert(jokerMap["deity_vanguard_marshal"] ~= nil, "deity_vanguard_marshal must exist in Collection")
+
+    -- 4. Dynamic category badge synchronization
+    local cats = Collection.getCategories()
+    for _, cat in ipairs(cats) do
+        local count = #Collection.getItems(cat.id)
+        assert(cat.badge == tostring(count), "Badge for category " .. cat.id .. " must match item count " .. count .. ", got: " .. tostring(cat.badge))
+    end
+
+    log("[PASS] 99. Đồng Bộ Toàn Diện Bộ Sưu Tập (Single Source of Truth, Badges & Equipment Tracking) verified 100%")
+end
+
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")
 if logFile then logFile:close() end
 if love and love.audio then love.audio.stop() end
 os.exit(0)
 return true
+

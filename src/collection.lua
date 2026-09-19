@@ -110,26 +110,6 @@ Collection.CATEGORIES = {
 }
 
 -- Static items for categories that don't have dedicated Lua modules
-local ENHANCEMENTS = {
-    { id = "enh_armor", name = "Giáp Hóa", rarity = "Chiến Thuật", desc = "+8 Giáp khi ghi điểm, nhưng lá này bị -10 Chips vĩnh viễn.", icon = "🛡️", color = { 0.40, 0.70, 0.90, 1 } },
-    { id = "enh_blood", name = "Huyết Hóa", rarity = "Chiến Thuật", desc = "Tiêu hao 4 HP người chơi, đổi lại +15 Mult cho tay bài này.", icon = "🩸", color = { 0.85, 0.15, 0.20, 1 } },
-    { id = "enh_overcharged", name = "Tích Điện", rarity = "Chiến Thuật", desc = "Mỗi lượt nằm trên tay không đánh: tích +5 Chips (tối đa +25). Khi đánh: xả toàn bộ.", icon = "⚡", color = { 0.20, 0.90, 0.80, 1 } },
-    { id = "enh_cursed", name = "Nguyền Rủa", rarity = "Chiến Thuật", desc = "+20 Mult, nhưng sau khi đánh tăng Cuồng Nộ của Quái thêm +1 tầng (+8% ATK).", icon = "💀", color = { 0.65, 0.20, 0.85, 1 } },
-    { id = "enh_brittle", name = "Nứt Vỡ", rarity = "Cực Hiếm", desc = "x1.4 XMult cực mạnh, nhưng 25% tỉ lệ vỡ vụn biến mất vĩnh viễn sau khi ghi điểm.", icon = "💥", color = { 0.90, 0.60, 0.30, 1 } },
-    { id = "enh_escort", name = "Hộ Tống", rarity = "Chiến Thuật", desc = "Không cần đánh ra — khi nằm trên tay lúc kết thúc lượt: +5 Giáp cho người chơi.", icon = "🤝", color = { 0.30, 0.80, 0.40, 1 } },
-    { id = "enh_harmonic", name = "Cộng Hưởng", rarity = "Chiến Thuật", desc = "+3 Mult cho mỗi lá bài khác trên tay có cùng chất với lá này.", icon = "🎶", color = { 0.95, 0.45, 0.75, 1 } },
-    { id = "enh_boss_hunter", name = "Săn Boss", rarity = "Chiến Thuật", desc = "+25 Chips & +8 Mult khi đối đầu Boss; vô hiệu hóa trước quái thường.", icon = "🏹", color = { 0.95, 0.75, 0.20, 1 } },
-}
-
-local SEALS = {
-    { id = "seal_blood", name = "Ấn Huyết", rarity = "Ấn Chiến", desc = "+50% Sát thương khi máu người chơi < 50%.", icon = "🩸", color = { 0.90, 0.15, 0.15, 1 } },
-    { id = "seal_prophecy", name = "Ấn Tiên Tri", rarity = "Ấn Chiến", desc = "Khi ghi điểm, nhìn thấy Intent tiếp theo của Boss.", icon = "🔮", color = { 0.30, 0.60, 0.95, 1 } },
-    { id = "seal_ashen", name = "Ấn Tro Tàn", rarity = "Ấn Chiến", desc = "Tự thiêu hủy lá này sau khi đánh, gây 40 Sát thương Chuẩn vào Quái.", icon = "🔥", color = { 0.60, 0.55, 0.50, 1 } },
-    { id = "seal_bounty", name = "Ấn Truy Nã", rarity = "Ấn Chiến", desc = "Nếu lá này kết liễu Quái, thưởng ngay +$2 Vàng.", icon = "💰", color = { 0.95, 0.80, 0.25, 1 } },
-    { id = "seal_anchor", name = "Ấn Neo", rarity = "Ấn Chiến", desc = "Lá này luôn nằm trên tay khi bắt đầu lượt (không bị xáo vào cọc).", icon = "⚓", color = { 0.20, 0.70, 0.60, 1 } },
-    { id = "seal_purifying", name = "Ấn Thanh Tẩy", rarity = "Ấn Chiến", desc = "Xóa bỏ 1 trạng thái bất lợi (debuff) trên bản thân khi kích hoạt.", icon = "✨", color = { 0.85, 0.85, 0.95, 1 } },
-}
-
 local EDITIONS = {
     { id = "ed_base", name = "Ấn Bản Chuẩn (Standard)", rarity = "Cơ Bản", desc = "Lá bài gốc nguyên bản không mang lớp phủ quang học ma thuật.", icon = "🃏", color = { 0.70, 0.70, 0.70, 1 } },
     { id = "ed_foil", name = "Mạ Bạc (Foil)", rarity = "Đặc Biệt", desc = "Phủ một lớp kim loại bạc lấp lánh: Tặng thêm +50 Chips cố định mỗi khi kích hoạt!", icon = "✨", color = { 0.35, 0.75, 0.95, 1 } },
@@ -158,12 +138,19 @@ local VOUCHERS = {
 }
 
 function Collection.getCategories()
+    for _, cat in ipairs(Collection.CATEGORIES) do
+        local count = #Collection.getItems(cat.id)
+        cat.badge = tostring(count)
+    end
     return Collection.CATEGORIES
 end
 
 function Collection.getCategoryById(catId)
     for _, cat in ipairs(Collection.CATEGORIES) do
-        if cat.id == catId then return cat end
+        if cat.id == catId then
+            cat.badge = tostring(#Collection.getItems(cat.id))
+            return cat
+        end
     end
     return nil
 end
@@ -172,15 +159,18 @@ function Collection.getItems(category)
     local items = {}
 
     if category == "jokers" then
-        -- Harvest all deities from Deities.CATALOG
+        -- Harvest all deities dynamically from Deities.CATALOG
         for id, d in pairs(Deities.CATALOG) do
+            local rarityName = (d.rarity == "legendary" and "Huyền Thoại") or
+                               (d.rarity == "rare" and "Sử Thi") or
+                               (d.rarity == "uncommon" and "Hiếm") or "Thường"
             table.insert(items, {
                 id = d.id or id,
                 name = d.name or "Thần Vô Danh",
-                subtitle = (d.suit and string.upper(d.suit) or "THẦN BÀI") .. " • " .. string.upper(d.rarity or "UNCOMMON"),
-                rarity = d.rarity or "uncommon",
+                subtitle = (d.suit and string.upper(d.suit) or "THẦN BÀI") .. " • " .. string.upper(rarityName),
+                rarity = rarityName,
                 cost = d.cost or 5,
-                desc = d.desc or "Hiệu ứng thần bài hộ mệnh",
+                desc = (d.desc or "Hiệu ứng thần bài hộ mệnh") .. (d.lore and ("\n\n\"" .. d.lore .. "\"") or ""),
                 icon = "🃏",
                 color = (d.rarity == "legendary" and { 0.95, 0.82, 0.22, 1 }) or
                         (d.rarity == "rare" and { 0.88, 0.35, 0.88, 1 }) or
@@ -192,18 +182,53 @@ function Collection.getItems(category)
         table.sort(items, function(a, b) return a.name < b.name end)
 
     elseif category == "consumables" then
-        -- Harvest all equipment from Equipment.ITEMS
-        for id, eq in pairs(Equipment.ITEMS) do
-            table.insert(items, {
-                id = eq.id or id,
-                name = eq.name or "Trang Bị",
-                subtitle = "NGỌC KHẢM MA PHÁP",
-                rarity = "Bảo Vật",
-                cost = eq.cost or 4,
-                desc = eq.desc or "Ngọc ma thuật dùng khảm vào ô trống của lá bài",
-                icon = eq.icon or "💎",
-                color = eq.color or { 0.95, 0.54, 0.08, 1 },
-            })
+        -- Harvest all equipment dynamically from Equipment.POOL and canonical Equipment.ITEMS
+        local seen = {}
+        for _, id in ipairs(Equipment.POOL or {}) do
+            local eq = Equipment.ITEMS[id]
+            if eq and not seen[eq.id or id] then
+                seen[eq.id or id] = true
+                local slotsNeeded = eq.slotsNeeded or 1
+                local rarity = eq.rarity or "common"
+                local rarityName = (rarity == "legendary" and "Huyền Thoại") or
+                                   (rarity == "rare" and "Sử Thi") or
+                                   (rarity == "uncommon" and "Hiếm") or "Thường"
+                local subtitle = (slotsNeeded > 1 and (slotsNeeded .. " HỐC KHẢM") or "1 HỐC KHẢM") .. " • " .. string.upper(rarityName)
+                table.insert(items, {
+                    id = eq.id or id,
+                    name = eq.name or "Trang Bị",
+                    subtitle = subtitle,
+                    rarity = rarityName,
+                    slotsNeeded = slotsNeeded,
+                    cost = eq.cost or (slotsNeeded > 1 and 8 or 4),
+                    desc = eq.desc or "Ngọc ma thuật dùng khảm vào ô trống của lá bài",
+                    icon = eq.icon or "💎",
+                    color = eq.color or (rarity == "legendary" and { 0.95, 0.82, 0.22, 1 } or { 0.95, 0.54, 0.08, 1 }),
+                })
+            end
+        end
+        for id, eq in pairs(Equipment.ITEMS or {}) do
+            local itemId = eq.id or id
+            if type(eq) == "table" and not seen[itemId] and id == itemId then
+                seen[itemId] = true
+                local slotsNeeded = eq.slotsNeeded or 1
+                local rarity = eq.rarity or "common"
+                local rarityName = (rarity == "legendary" and "Huyền Thoại") or
+                                   (rarity == "rare" and "Sử Thi") or
+                                   (rarity == "uncommon" and "Hiếm") or "Thường"
+                local subtitle = (slotsNeeded > 1 and (slotsNeeded .. " HỐC KHẢM") or "1 HỐC KHẢM") .. " • " .. string.upper(rarityName)
+                table.insert(items, {
+                    id = itemId,
+                    name = eq.name or "Trang Bị",
+                    subtitle = subtitle,
+                    rarity = rarityName,
+                    slotsNeeded = slotsNeeded,
+                    cost = eq.cost or (slotsNeeded > 1 and 8 or 4),
+                    desc = eq.desc or "Ngọc ma thuật dùng khảm vào ô trống của lá bài",
+                    icon = eq.icon or "💎",
+                    color = eq.color or { 0.95, 0.54, 0.08, 1 },
+                })
+            end
         end
         table.sort(items, function(a, b) return a.name < b.name end)
 
@@ -226,14 +251,39 @@ function Collection.getItems(category)
         end
 
     elseif category == "enhancements" then
-        for _, enh in ipairs(ENHANCEMENTS) do
-            table.insert(items, enh)
+        -- Harvest directly from Deck.ENHANCEMENTS
+        for id, enh in pairs(Deck.ENHANCEMENTS or {}) do
+            table.insert(items, {
+                id = enh.id or id,
+                name = enh.name or "Cường Hóa",
+                subtitle = "THUẬT RÈN BÀI • CƯỜNG HÓA",
+                rarity = "Chiến Thuật",
+                desc = enh.desc or "Hiệu ứng cường hóa thẻ bài",
+                icon = enh.icon or "🛡️",
+                color = enh.color or { 0.40, 0.70, 0.90, 1 },
+            })
         end
+        table.sort(items, function(a, b) return a.name < b.name end)
 
     elseif category == "seals" then
-        for _, s in ipairs(SEALS) do
-            table.insert(items, s)
+        -- Harvest directly from Deck.SEALS (canonical items only)
+        local seen = {}
+        for id, s in pairs(Deck.SEALS or {}) do
+            local sId = s.id or id
+            if type(s) == "table" and not seen[sId] and id == sId then
+                seen[sId] = true
+                table.insert(items, {
+                    id = sId,
+                    name = s.name or "Ấn Chiến",
+                    subtitle = "ẤN CHIẾN MA PHÁP",
+                    rarity = "Ấn Chiến",
+                    desc = s.desc or "Dấu ấn ma pháp ban phước cho quân bài",
+                    icon = s.icon or "🩸",
+                    color = s.color or { 0.90, 0.15, 0.15, 1 },
+                })
+            end
         end
+        table.sort(items, function(a, b) return a.name < b.name end)
 
     elseif category == "editions" then
         for _, ed in ipairs(EDITIONS) do
@@ -246,6 +296,21 @@ function Collection.getItems(category)
         end
 
     elseif category == "tags" then
+        -- Include Unified Skip Pacts
+        if RunManager.SKIP_PACTS then
+            for _, pact in ipairs(RunManager.SKIP_PACTS) do
+                table.insert(items, {
+                    id = pact.id,
+                    name = pact.name,
+                    subtitle = "KHẾ ƯỚC BỎ ẢI",
+                    rarity = "Khế Ước",
+                    desc = "🎁 Nhận ngay: " .. (pact.instantDesc or "") .. "\n⚠️ Món nợ: " .. (pact.debtDesc or "") .. "\n⏳ Thời hạn: " .. (pact.durationDesc or "Toàn bộ ván chơi"),
+                    icon = pact.icon or "📜",
+                    color = pact.color or { 0.95, 0.82, 0.22, 1 },
+                })
+            end
+        end
+        -- Include Legacy Skip Tags
         for _, t in ipairs(RunManager.TAGS or {}) do
             table.insert(items, {
                 id = t.id,

@@ -6,38 +6,44 @@ Deck.SEALS = {
     seal_blood = {
         id = "seal_blood",
         name = "Ấn Huyết",
+        icon = "🩸",
         color = { 0.90, 0.15, 0.15, 1 },
-        desc = "+50% Sát thương khi máu người chơi < 50%",
+        desc = "+15 Mult, Tái kích hoạt toàn bộ chỉ số cơ bản của lá bài 1 lần duy nhất trong trận (tiêu hao 3 HP)",
     },
     seal_prophecy = {
         id = "seal_prophecy",
         name = "Ấn Tiên Tri",
+        icon = "🔮",
         color = { 0.30, 0.60, 0.95, 1 },
-        desc = "Khi ghi điểm, nhìn thấy Intent tiếp theo của Boss",
+        desc = "Khi ghi điểm, nhìn thấu 2 ý định (Intent) kế tiếp của Quái vật / Boss",
     },
     seal_ashen = {
         id = "seal_ashen",
         name = "Ấn Tro Tàn",
+        icon = "🔥",
         color = { 0.60, 0.55, 0.50, 1 },
-        desc = "Tự thiêu hủy lá này sau khi đánh, gây 40 Sát thương Chuẩn vào Quái",
+        desc = "Tự thiêu hủy vĩnh viễn khỏi bộ bài khi đánh, gây 40 Sát thương Chuẩn và nhận +$2 Vàng",
     },
     seal_bounty = {
         id = "seal_bounty",
         name = "Ấn Truy Nã",
+        icon = "💰",
         color = { 0.95, 0.80, 0.25, 1 },
-        desc = "Nếu lá này kết liễu Quái, thưởng ngay +$2 Vàng",
+        desc = "Nếu lá này kết liễu Quái vật, thưởng ngay +$4 Vàng tiền truy nã",
     },
     seal_anchor = {
         id = "seal_anchor",
         name = "Ấn Neo",
+        icon = "⚓",
         color = { 0.20, 0.70, 0.60, 1 },
-        desc = "Lá này luôn nằm trên tay khi bắt đầu lượt (không bị xáo vào cọc)",
+        desc = "Ưu tiên chia vào tay khởi đầu, không thể bị bỏ bài; nhận +8 Giáp khi giữ trên tay cuối lượt",
     },
     seal_purifying = {
         id = "seal_purifying",
         name = "Ấn Thanh Tẩy",
+        icon = "✨",
         color = { 0.85, 0.85, 0.95, 1 },
-        desc = "Xóa bỏ 1 trạng thái bất lợi (debuff) trên bản thân khi kích hoạt",
+        desc = "Tẩy sạch 1 hiệu ứng suy yếu (boss debuff) khi kết thúc lượt quái nếu lá bài được giữ trên tay",
     },
 }
 -- Backward compatibility aliases
@@ -46,65 +52,75 @@ Deck.SEALS.red = Deck.SEALS.seal_blood
 Deck.SEALS.blue = Deck.SEALS.seal_prophecy
 Deck.SEALS.purple = Deck.SEALS.seal_ashen
 
--- 8 Card Enhancements (Thuật Rèn Bài)
+-- 10 Card Enhancements (Thuật Rèn Bài)
 Deck.ENHANCEMENTS = {
     enh_armor = {
         id = "enh_armor",
         name = "Giáp Hóa",
+        icon = "🛡️",
         color = { 0.40, 0.70, 0.90, 1 },
         desc = "+8 Giáp khi ghi điểm, nhưng lá này bị -10 Chips vĩnh viễn",
     },
     enh_blood = {
         id = "enh_blood",
         name = "Huyết Hóa",
+        icon = "🩸",
         color = { 0.85, 0.15, 0.20, 1 },
         desc = "Tiêu hao 4 HP người chơi, đổi lại +15 Mult cho tay bài này",
     },
     enh_overcharged = {
         id = "enh_overcharged",
         name = "Tích Điện",
+        icon = "⚡",
         color = { 0.20, 0.90, 0.80, 1 },
         desc = "Mỗi lượt nằm trên tay không đánh: tích +5 Chips (tối đa +25). Khi đánh: xả toàn bộ",
     },
     enh_cursed = {
         id = "enh_cursed",
         name = "Nguyền Rủa",
+        icon = "💀",
         color = { 0.65, 0.20, 0.85, 1 },
         desc = "+20 Mult, nhưng sau khi đánh tăng Cuồng Nộ của Quái thêm +1 tầng (+8% ATK)",
     },
     enh_brittle = {
         id = "enh_brittle",
         name = "Nứt Vỡ",
+        icon = "💥",
         color = { 0.90, 0.60, 0.30, 1 },
         desc = "x1.4 XMult cực mạnh, nhưng 25% tỉ lệ vỡ vụn biến mất vĩnh viễn sau khi ghi điểm",
     },
     enh_escort = {
         id = "enh_escort",
         name = "Hộ Tống",
+        icon = "🤝",
         color = { 0.30, 0.80, 0.40, 1 },
         desc = "Không cần đánh ra — khi nằm trên tay lúc kết thúc lượt: +5 Giáp cho người chơi",
     },
     enh_harmonic = {
         id = "enh_harmonic",
         name = "Cộng Hưởng",
+        icon = "🎶",
         color = { 0.95, 0.45, 0.75, 1 },
         desc = "+3 Mult cho mỗi lá bài khác trên tay có cùng chất với lá này",
     },
     enh_boss_hunter = {
         id = "enh_boss_hunter",
         name = "Săn Boss",
+        icon = "🏹",
         color = { 0.95, 0.75, 0.20, 1 },
         desc = "+25 Chips & +8 Mult khi đối đầu Boss; vô hiệu hóa trước quái thường",
     },
     enh_vanguard = {
         id = "enh_vanguard",
         name = "Tiên Phong",
+        icon = "🔱",
         color = { 0.95, 0.50, 0.20, 1 },
         desc = "Mạnh nhất khi đi đầu — nếu đánh ở vị trí đầu tiên (lá 1): +15 Chips & +4 Mult",
     },
     enh_rearguard = {
         id = "enh_rearguard",
         name = "Hậu Vệ",
+        icon = "🛡️",
         color = { 0.35, 0.70, 0.90, 1 },
         desc = "Vững chắc chốt chặn — nếu là lá cuối cùng trong tay bài ghi điểm: +8 Giáp & +3 Mult",
     },

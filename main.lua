@@ -120,6 +120,7 @@ local hasRunStarted = false
 local isCollectionOpen = false
 local collectionCategory = nil -- nil: Category Hub, string: Category id for Detail view
 local selectedCollectionItem = nil
+local collectionScrollY = 0
 
 -- Settings Data
 local settings = {
@@ -2974,11 +2975,12 @@ local function drawCollectionModal()
 
     -- LEFT COLUMN
     -- 1. Joker (Thần Hộ Mệnh)
+    local jokersCount = #Collection.getItems("jokers")
     local btnJoker = {
         id = "coll_cat_jokers",
         catId = "jokers",
         text = "Joker",
-        sub = "25 / 25",
+        sub = jokersCount .. " / " .. jokersCount,
         x = colLX,
         y = modalY + 24,
         w = colW,
@@ -2989,11 +2991,12 @@ local function drawCollectionModal()
     table.insert(buttons, btnJoker)
 
     -- 2. Bộ Bài (Factions)
+    local decksCount = #Collection.getItems("decks")
     local btnDecks = {
         id = "coll_cat_decks",
         catId = "decks",
         text = "Bộ Bài",
-        sub = "4 / 4",
+        sub = decksCount .. " / " .. decksCount,
         x = colLX,
         y = modalY + 112,
         w = colW,
@@ -3004,11 +3007,12 @@ local function drawCollectionModal()
     table.insert(buttons, btnDecks)
 
     -- 3. Phiếu (Vouchers)
+    local vouchersCount = #Collection.getItems("vouchers")
     local btnVouchers = {
         id = "coll_cat_vouchers",
         catId = "vouchers",
         text = "Phiếu",
-        sub = "9 / 9",
+        sub = vouchersCount .. " / " .. vouchersCount,
         x = colLX,
         y = modalY + 172,
         w = colW,
@@ -3037,11 +3041,12 @@ local function drawCollectionModal()
     love.graphics.pop()
 
     -- Large orange card button inside
+    local eqCount = #Collection.getItems("consumables")
     local btnConsumables = {
         id = "coll_cat_consumables",
         catId = "consumables",
         text = "Lá Tiêu Thụ",
-        sub = "Trang Bị Khảm\n8 / 8",
+        sub = "Trang Bị Khảm\n" .. eqCount .. " / " .. eqCount,
         x = colLX + 44,
         y = boxY + 12,
         w = colW - 56,
@@ -3054,12 +3059,12 @@ local function drawCollectionModal()
 
     -- RIGHT COLUMN
     local rButtons = {
-        { id = "coll_cat_enhancements", catId = "enhancements", text = "Lá Cường Hoá", sub = "6 / 6", y = modalY + 24, h = 46 },
-        { id = "coll_cat_seals", catId = "seals", text = "Con Dấu", sub = "4 / 4", y = modalY + 76, h = 46 },
-        { id = "coll_cat_editions", catId = "editions", text = "Ấn Bản", sub = "4 / 4", y = modalY + 128, h = 46, alert = true },
-        { id = "coll_cat_packs", catId = "packs", text = "Gói Bài", sub = "5 / 5", y = modalY + 180, h = 46 },
-        { id = "coll_cat_tags", catId = "tags", text = "Nhãn Bỏ Qua", sub = "8 / 8", y = modalY + 232, h = 46, alert = true },
-        { id = "coll_cat_blinds", catId = "blinds", text = "Blind", sub = "9 / 9", y = modalY + 284, h = 86, alert = true },
+        { id = "coll_cat_enhancements", catId = "enhancements", text = "Lá Cường Hoá", y = modalY + 24, h = 46 },
+        { id = "coll_cat_seals", catId = "seals", text = "Con Dấu", y = modalY + 76, h = 46 },
+        { id = "coll_cat_editions", catId = "editions", text = "Ấn Bản", y = modalY + 128, h = 46, alert = true },
+        { id = "coll_cat_packs", catId = "packs", text = "Gói Bài", y = modalY + 180, h = 46 },
+        { id = "coll_cat_tags", catId = "tags", text = "Khế Ước Bỏ Ải", y = modalY + 232, h = 46, alert = true },
+        { id = "coll_cat_blinds", catId = "blinds", text = "Blind", y = modalY + 284, h = 86, alert = true },
         { id = "coll_cat_other", catId = "other", text = "Khác", sub = "Tổ Hợp & Điểm Số", y = modalY + 376, h = 46 },
     }
     for _, rb in ipairs(rButtons) do
@@ -3067,6 +3072,10 @@ local function drawCollectionModal()
         rb.w = colW
         rb.color = { 0.92, 0.28, 0.22, 1 }
         rb.font = UI.fonts.regular
+        if not rb.sub then
+            local count = #Collection.getItems(rb.catId)
+            rb.sub = count .. " / " .. count
+        end
         table.insert(buttons, rb)
     end
 
@@ -3150,15 +3159,21 @@ local function drawCollectionDetailView()
     local cols = 6
     local padX = 14
     local padY = 16
+    local rows = math.ceil(#items / cols)
+    local totalContentH = rows * (cardH + padY)
+    local maxScroll = math.max(0, totalContentH - (gridH - 10))
+    collectionScrollY = math.max(0, math.min(maxScroll, collectionScrollY or 0))
+
+    love.graphics.intersectScissor(gridX, gridY, gridW, gridH)
 
     for i, item in ipairs(items) do
         local col = (i - 1) % cols
         local row = math.floor((i - 1) / cols)
         local cx = gridX + col * (cardW + padX)
-        local cy = gridY + row * (cardH + padY)
+        local cy = gridY + row * (cardH + padY) - collectionScrollY
 
-        if cy + cardH <= gridY + gridH + 10 then
-            local isH = (mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH)
+        if cy + cardH >= gridY - 20 and cy <= gridY + gridH + 20 then
+            local isH = (mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH and my >= gridY and my <= gridY + gridH)
             if isH then hoveredItem = item end
 
             -- 3D Tilt calculation
@@ -3218,6 +3233,21 @@ local function drawCollectionDetailView()
             love.graphics.pop()
         end
     end
+
+    -- Scrollbar track & thumb if scrollable
+    if maxScroll > 0 then
+        local trackX = gridX + gridW - 6
+        local trackY = gridY + 4
+        local trackH = gridH - 8
+        love.graphics.setColor(0.12, 0.15, 0.18, 0.6)
+        UI.drawRoundedRect("fill", trackX, trackY, 4, trackH, 2)
+        local thumbH = math.max(24, trackH * (gridH / totalContentH))
+        local thumbY = trackY + (collectionScrollY / maxScroll) * (trackH - thumbH)
+        love.graphics.setColor(0.45, 0.55, 0.65, 0.8)
+        UI.drawRoundedRect("fill", trackX, thumbY, 4, thumbH, 2)
+    end
+
+    love.graphics.setScissor()
 
     -- Right Area: Item Inspector / Detail Preview
     local inspItem = hoveredItem or selectedCollectionItem or items[1]
@@ -8237,6 +8267,7 @@ local function handleModalsMousepressed(mx, my, button)
                     if btn.id == "coll_back_to_hub" and mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
                         collectionCategory = nil
                         selectedCollectionItem = nil
+                        collectionScrollY = 0
                         Sound.play("card_deal")
                         return true
                     end
@@ -8249,6 +8280,7 @@ local function handleModalsMousepressed(mx, my, button)
                 local modalY = (V_HEIGHT - modalH) / 2
                 local gridX = modalX + 24
                 local gridY = modalY + 75
+                local gridH = modalH - 95
                 local cardW = 112
                 local cardH = 158
                 local cols = 6
@@ -8258,8 +8290,8 @@ local function handleModalsMousepressed(mx, my, button)
                     local col = (i - 1) % cols
                     local row = math.floor((i - 1) / cols)
                     local cx = gridX + col * (cardW + padX)
-                    local cy = gridY + row * (cardH + padY)
-                    if mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH then
+                    local cy = gridY + row * (cardH + padY) - (collectionScrollY or 0)
+                    if mx >= cx and mx <= cx + cardW and my >= cy and my <= cy + cardH and my >= gridY and my <= gridY + gridH then
                         selectedCollectionItem = it
                         Sound.play("ui_click")
                         return true
@@ -8271,11 +8303,13 @@ local function handleModalsMousepressed(mx, my, button)
                     if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
                         if btn.id == "coll_close" then
                             isCollectionOpen = false
+                            collectionScrollY = 0
                             Sound.play("card_deal")
                             return true
                         elseif btn.catId then
                             collectionCategory = btn.catId
                             selectedCollectionItem = nil
+                            collectionScrollY = 0
                             Sound.play("ui_click")
                             return true
                         end
@@ -9206,7 +9240,14 @@ function love.keypressed(key)
 end
 
 function love.wheelmoved(x, y)
-    if state == "map" and game.map then
+    if isCollectionOpen and collectionCategory then
+        collectionScrollY = (collectionScrollY or 0) - y * 45
+        local items = Collection.getItems(collectionCategory)
+        local cols = 6
+        local rows = math.ceil(#items / cols)
+        local maxScroll = math.max(0, rows * (158 + 16) - (640 - 95 - 20))
+        collectionScrollY = math.max(0, math.min(maxScroll, collectionScrollY))
+    elseif state == "map" and game.map then
         Map.scroll(game.map, -y * 120)
     end
 end

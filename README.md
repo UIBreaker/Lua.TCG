@@ -7,7 +7,7 @@
 [![GitHub Repository](https://img.shields.io/badge/GitHub-UIBreaker%2FLua.TCG-blue?logo=github)](https://github.com/UIBreaker/Lua.TCG.git)
 [![Engine](https://img.shields.io/badge/Engine-LÖVE%2011.5-pink?logo=lua)](https://love2d.org/)
 [![Lua](https://img.shields.io/badge/Language-Lua%205.1%20%2F%20LuaJIT-000080?logo=lua)](https://www.lua.org/)
-[![Tests](https://img.shields.io/badge/Tests-98%2F98%20Passing-brightgreen?logo=checkmarx)](test_system.lua)
+[![Tests](https://img.shields.io/badge/Tests-99%2F99%20Passing-brightgreen?logo=checkmarx)](test_system.lua)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
@@ -47,7 +47,7 @@
 12. [Đồ Họa Shaders, Hiệu Ứng Juice & Âm Thanh Procedural](#-11-đồ-họa-shaders-hiệu-ứng-juice--âm-thanh-procedural)
 13. [Bảng Phím Tắt Điều Khiển Toàn Tập](#-12-bảng-phím-tắt-điều-khiển-toàn-tập)
 14. [Cấu Trúc Thư Mục Dự Án](#-13-cấu-trúc-thư-mục-dự-án)
-15. [Bộ Kiểm Thử Tự Động Toàn Diện (98/98 Unit Tests)](#-14-bộ-kiểm-thử-tự-động-toàn-diện-9898-unit-tests)
+15. [Bộ Kiểm Thử Tự Động Toàn Diện (99/99 Unit Tests)](#-14-bộ-kiểm-thử-tự-động-toàn-diện-9898-unit-tests)
 
 ---
 
@@ -499,6 +499,7 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **98 Unit 
 [PASS] 96. Battle Seals Combat Lifecycle (Blood, Anchor, Prophecy, Purification) verified 100%
 [PASS] 97. Formation Archetype (Đội Hình): Equipment, Enhancements & Vanguard Marshal verified 100%
 [PASS] 98. Khế Ước Bỏ Ải (3-Part Unified Schema & Skip Execution) verified 100%
+[PASS] 99. Đồng Bộ Toàn Diện Bộ Sưu Tập (Single Source of Truth, Badges & Equipment Tracking) verified 100%
 === ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===
 ```
 
