@@ -16,12 +16,12 @@ function RewardSystem.calculate(blind, gameState, wasSkipped)
     local handsLeft = (not wasSkip and (gameState.handsRemaining or 0)) or 0
     local unusedHandsBonus = handsLeft * 1
 
-    -- 2. Interest (+1$ per 5$ stored, max 5$ default or maxInterest)
+    -- 2. Interest (+1$ per 5$ stored, max 3$ default or 5$ with Seed Money voucher)
     -- Trần Lãi Siêu Việt: Gilded Conclave gets +1$ per 4$ stored with NO CAP!
     local isGilded = (gameState.selectedFaction == "diamonds" or gameState.selectedFaction == "gilded_conclave" or gameState.isGildedConclave == true)
-    local maxInt = gameState.maxInterest or 5
+    local maxInt = gameState.maxInterest or 3
     if gameState.vouchers and (gameState.vouchers["v_interest"] or gameState.vouchers["seed_money"]) then
-        maxInt = math.max(maxInt, 10)
+        maxInt = math.max(maxInt, 5)
     end
     local currentGold = gameState.gold or 0
     local interestBonus
@@ -31,25 +31,30 @@ function RewardSystem.calculate(blind, gameState, wasSkipped)
         interestBonus = math.min(maxInt, math.floor(currentGold / 5))
     end
 
-    -- 3. Deities onRoundWin Bonuses
+    -- 3. Deities onRoundWin Bonuses (Use cached from main.lua if available to prevent double execution)
     local deityBonus = 0
     local deityDetails = {}
-    if not wasSkip and gameState.deities then
-        local maxDeiSlots = Deities.getMaxSlots and Deities.getMaxSlots(gameState) or 10
-        for di = 1, maxDeiSlots do
-            local d = gameState.deities[di]
-            if d then
-                local effectiveDeity = Deities.resolveDeity and Deities.resolveDeity(gameState.deities, di) or d
-                if effectiveDeity and effectiveDeity.onRoundWin then
-                    local r = effectiveDeity.onRoundWin(gameState, effectiveDeity)
-                    if r and r.addGold and r.addGold > 0 then
-                        deityBonus = deityBonus + r.addGold
-                        table.insert(deityDetails, {
-                            slotIndex = di,
-                            name = d.name,
-                            amount = r.addGold,
-                            message = r.message or ("+$" .. r.addGold .. " từ " .. d.name),
-                        })
+    if not wasSkip then
+        if gameState.lastRoundDeityRewards then
+            deityBonus = gameState.lastRoundDeityRewards.bonusGold or 0
+            deityDetails = gameState.lastRoundDeityRewards.details or {}
+        elseif gameState.deities then
+            local maxDeiSlots = Deities.getMaxSlots and Deities.getMaxSlots(gameState) or 10
+            for di = 1, maxDeiSlots do
+                local d = gameState.deities[di]
+                if d then
+                    local effectiveDeity = Deities.resolveDeity and Deities.resolveDeity(gameState.deities, di) or d
+                    if effectiveDeity and effectiveDeity.onRoundWin then
+                        local r = effectiveDeity.onRoundWin(gameState, effectiveDeity)
+                        if r and r.addGold and r.addGold > 0 then
+                            deityBonus = deityBonus + r.addGold
+                            table.insert(deityDetails, {
+                                slotIndex = di,
+                                name = d.name,
+                                amount = r.addGold,
+                                message = r.message or ("+$" .. r.addGold .. " từ " .. d.name),
+                            })
+                        end
                     end
                 end
             end
@@ -342,9 +347,10 @@ function RewardSystem.draw(anim, V_WIDTH, V_HEIGHT, mx, my, buttonsTable)
     local btnX = (V_WIDTH - btnW) / 2
     local btnY = modalY + modalH - 58
 
+    local isSmallBlind = anim.blind and (anim.blind.type == "small" or anim.blind.index == 1)
     local btnContinue = {
         id = "cashout_continue",
-        text = "TIẾP TỤC ĐẾN CỬA HÀNG ➔",
+        text = isSmallBlind and "TIẾP TỤC ĐẾN BLIND TIẾP THEO ➔" or "TIẾP TỤC ĐẾN CỬA HÀNG ➔",
         x = btnX,
         y = btnY,
         w = btnW,

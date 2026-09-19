@@ -50,18 +50,18 @@ Collection.CATEGORIES = {
     {
         id = "enhancements",
         title = "Lá Cường Hoá",
-        sub = "Tôi Luyện Bài",
+        sub = "Thuật Rèn Bài",
         col = "right",
         btnColor = { 0.92, 0.28, 0.22, 1 },
-        badge = "6",
+        badge = "8",
     },
     {
         id = "seals",
         title = "Con Dấu",
-        sub = "Dấu Ấn Ma Pháp",
+        sub = "Ấn Chiến Ma Pháp",
         col = "right",
         btnColor = { 0.92, 0.28, 0.22, 1 },
-        badge = "4",
+        badge = "6",
     },
     {
         id = "editions",
@@ -82,11 +82,11 @@ Collection.CATEGORIES = {
     },
     {
         id = "tags",
-        title = "Nhãn Bỏ Qua",
-        sub = "Phần Thưởng Skip Blind",
+        title = "Khế Ước",
+        sub = "Đánh Đổi & Truy Nã",
         col = "right",
         btnColor = { 0.92, 0.28, 0.22, 1 },
-        badge = "8",
+        badge = "6",
         alert = true,
     },
     {
@@ -111,19 +111,23 @@ Collection.CATEGORIES = {
 
 -- Static items for categories that don't have dedicated Lua modules
 local ENHANCEMENTS = {
-    { id = "enh_stone", name = "Lá Đá (Stone Card)", rarity = "Thường", desc = "+50 Chips cố định. Không có Rank và không có Chất. Luôn luôn ghi điểm!", icon = "🪨", color = { 0.65, 0.65, 0.70, 1 } },
-    { id = "enh_steel", name = "Lá Thép (Steel Card)", rarity = "Hiếm", desc = "Nhân x1.5 XMult khi lá bài này nằm lại trên tay (không đánh ra) lúc kết thúc tính điểm.", icon = "🛡️", color = { 0.45, 0.55, 0.65, 1 } },
-    { id = "enh_gold", name = "Lá Vàng (Gold Card)", rarity = "Hiếm", desc = "Thưởng ngay +$3 Vàng vào kho khi lá bài này nằm lại trên tay lúc chiến thắng vòng đấu.", icon = "💰", color = { 0.95, 0.82, 0.22, 1 } },
-    { id = "enh_wild", name = "Lá Vạn Năng (Wild Card)", rarity = "Hiếm", desc = "Có thể đại diện cho bất kỳ Chất nào (Cơ, Rô, Chuồn, Bích) để tạo nên bộ Thùng và Sảnh!", icon = "🌈", color = { 0.85, 0.35, 0.85, 1 } },
-    { id = "enh_lucky", name = "Lá May Mắn (Lucky Card)", rarity = "Huyền Thoại", desc = "1/5 cơ hội kích hoạt +20 Mult, và 1/15 cơ hội trúng giải độc đắc +$20 Vàng khi ghi điểm!", icon = "🍀", color = { 0.30, 0.85, 0.45, 1 } },
-    { id = "enh_glass", name = "Lá Pha Lê (Glass Card)", rarity = "Huyền Thoại", desc = "Nhân x2.0 XMult khổng lồ khi ghi điểm! Có 1/4 khả năng vỡ vụn biến mất sau khi kích hoạt.", icon = "💎", color = { 0.60, 0.85, 0.95, 1 } },
+    { id = "enh_armor", name = "Giáp Hóa", rarity = "Chiến Thuật", desc = "+8 Giáp khi ghi điểm, nhưng lá này bị -10 Chips vĩnh viễn.", icon = "🛡️", color = { 0.40, 0.70, 0.90, 1 } },
+    { id = "enh_blood", name = "Huyết Hóa", rarity = "Chiến Thuật", desc = "Tiêu hao 4 HP người chơi, đổi lại +15 Mult cho tay bài này.", icon = "🩸", color = { 0.85, 0.15, 0.20, 1 } },
+    { id = "enh_overcharged", name = "Tích Điện", rarity = "Chiến Thuật", desc = "Mỗi lượt nằm trên tay không đánh: tích +5 Chips (tối đa +25). Khi đánh: xả toàn bộ.", icon = "⚡", color = { 0.20, 0.90, 0.80, 1 } },
+    { id = "enh_cursed", name = "Nguyền Rủa", rarity = "Chiến Thuật", desc = "+20 Mult, nhưng sau khi đánh tăng Cuồng Nộ của Quái thêm +1 tầng (+8% ATK).", icon = "💀", color = { 0.65, 0.20, 0.85, 1 } },
+    { id = "enh_brittle", name = "Nứt Vỡ", rarity = "Cực Hiếm", desc = "x1.4 XMult cực mạnh, nhưng 25% tỉ lệ vỡ vụn biến mất vĩnh viễn sau khi ghi điểm.", icon = "💥", color = { 0.90, 0.60, 0.30, 1 } },
+    { id = "enh_escort", name = "Hộ Tống", rarity = "Chiến Thuật", desc = "Không cần đánh ra — khi nằm trên tay lúc kết thúc lượt: +5 Giáp cho người chơi.", icon = "🤝", color = { 0.30, 0.80, 0.40, 1 } },
+    { id = "enh_harmonic", name = "Cộng Hưởng", rarity = "Chiến Thuật", desc = "+3 Mult cho mỗi lá bài khác trên tay có cùng chất với lá này.", icon = "🎶", color = { 0.95, 0.45, 0.75, 1 } },
+    { id = "enh_boss_hunter", name = "Săn Boss", rarity = "Chiến Thuật", desc = "+25 Chips & +8 Mult khi đối đầu Boss; vô hiệu hóa trước quái thường.", icon = "🏹", color = { 0.95, 0.75, 0.20, 1 } },
 }
 
 local SEALS = {
-    { id = "seal_red", name = "Dấu Ấn Đỏ (Red Seal)", rarity = "Hiếm", desc = "Tái kích hoạt (Retrigger) toàn bộ hiệu ứng của lá bài này thêm 1 lần nữa khi tính điểm!", icon = "🔴", color = { 0.90, 0.22, 0.25, 1 } },
-    { id = "seal_blue", name = "Dấu Ấn Xanh (Blue Seal)", rarity = "Hiếm", desc = "Tạo ra 1 Thẻ Thiên Thể nâng cấp tay bài cuối cùng đánh ra nếu lá này còn trên tay khi thắng.", icon = "🔵", color = { 0.20, 0.55, 0.95, 1 } },
-    { id = "seal_gold", name = "Dấu Ấn Vàng (Gold Seal)", rarity = "Hiếm", desc = "Thưởng trực tiếp +$3 Vàng mỗi lần lá bài này được chọn và ghi điểm trong vòng đấu!", icon = "🟡", color = { 0.95, 0.85, 0.20, 1 } },
-    { id = "seal_purple", name = "Dấu Ấn Tím (Purple Seal)", rarity = "Hiếm", desc = "Tạo ngay 1 Thẻ Phù Chú (Tarot) ngẫu nhiên khi người chơi chọn Discard (Bỏ) lá bài này!", icon = "🟣", color = { 0.65, 0.30, 0.85, 1 } },
+    { id = "seal_blood", name = "Ấn Huyết", rarity = "Ấn Chiến", desc = "+50% Sát thương khi máu người chơi < 50%.", icon = "🩸", color = { 0.90, 0.15, 0.15, 1 } },
+    { id = "seal_prophecy", name = "Ấn Tiên Tri", rarity = "Ấn Chiến", desc = "Khi ghi điểm, nhìn thấy Intent tiếp theo của Boss.", icon = "🔮", color = { 0.30, 0.60, 0.95, 1 } },
+    { id = "seal_ashen", name = "Ấn Tro Tàn", rarity = "Ấn Chiến", desc = "Tự thiêu hủy lá này sau khi đánh, gây 40 Sát thương Chuẩn vào Quái.", icon = "🔥", color = { 0.60, 0.55, 0.50, 1 } },
+    { id = "seal_bounty", name = "Ấn Truy Nã", rarity = "Ấn Chiến", desc = "Nếu lá này kết liễu Quái, thưởng ngay +$2 Vàng.", icon = "💰", color = { 0.95, 0.80, 0.25, 1 } },
+    { id = "seal_anchor", name = "Ấn Neo", rarity = "Ấn Chiến", desc = "Lá này luôn nằm trên tay khi bắt đầu lượt (không bị xáo vào cọc).", icon = "⚓", color = { 0.20, 0.70, 0.60, 1 } },
+    { id = "seal_purifying", name = "Ấn Thanh Tẩy", rarity = "Ấn Chiến", desc = "Xóa bỏ 1 trạng thái bất lợi (debuff) trên bản thân khi kích hoạt.", icon = "✨", color = { 0.85, 0.85, 0.95, 1 } },
 }
 
 local EDITIONS = {

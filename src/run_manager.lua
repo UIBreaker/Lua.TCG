@@ -8,7 +8,84 @@ local RunManager = {}
 -- 8 Ante per run, 3 Blinds per Ante
 RunManager.MAX_ANTE = 8
 
--- Tag reward pool for skipping Small / Big Blinds
+-- 6 Pacts (Khế Ước) with harsh tradeoffs & Wanted level tracking
+RunManager.PACTS = {
+    {
+        id = "pact_blood_loan",
+        name = "Khoản Vay Máu",
+        desc = "Nhận ngay +$15 Vàng, nhưng -15 Max HP vĩnh viễn!",
+        icon = "🩸",
+        color = { 0.90, 0.20, 0.20, 1 },
+        apply = function(gameState)
+            gameState.gold = (gameState.gold or 0) + 15
+            gameState.maxPlayerHp = math.max(10, (gameState.maxPlayerHp or 100) - 15)
+            gameState.playerHp = math.min(gameState.maxPlayerHp, gameState.playerHp or 100)
+            return "+$15 Vàng, -15 Max HP từ Khoản Vay Máu!"
+        end,
+    },
+    {
+        id = "pact_great_hunt",
+        name = "Cuộc Săn Lớn",
+        desc = "Quái trận sau x1.5 HP & +30% ATK, nhưng thắng thưởng +$10 & 1 Hòm Đồ!",
+        icon = "🏹",
+        color = { 0.95, 0.60, 0.20, 1 },
+        apply = function(gameState)
+            gameState.pendingGreatHunt = true
+            return "Khế Ước: Quái trận sau trâu hơn, nhưng chiến lợi phẩm hậu hĩnh!"
+        end,
+    },
+    {
+        id = "pact_forbidden_forge",
+        name = "Lò Rèn Cấm",
+        desc = "Khảm ngay 1 Trang Bị Huyền Thoại, nhưng tăng +2 Wanted Level (+16% stats Quái)!",
+        icon = "⚒️",
+        color = { 0.85, 0.35, 0.95, 1 },
+        apply = function(gameState)
+            local Equipment = require("src.equipment")
+            local targetCard = (gameState.persistentDeck and gameState.persistentDeck[1])
+            if targetCard then
+                Equipment.attach(targetCard, Equipment.ITEMS.void_catalyst)
+            end
+            gameState.wantedLevel = (gameState.wantedLevel or 0) + 2
+            return "Đã khảm Xúc Tác Hư Không, Wanted Level tăng lên " .. gameState.wantedLevel .. "!"
+        end,
+    },
+    {
+        id = "pact_fog_shortcut",
+        name = "Đường Tắt Mù Sương",
+        desc = "Bỏ qua trận đánh; trận kế tiếp bắt đầu với 0 Giáp và Quái có sẵn 2 tầng Cuồng Nộ!",
+        icon = "🌫️",
+        color = { 0.50, 0.70, 0.80, 1 },
+        apply = function(gameState)
+            gameState.fogShortcutActive = true
+            return "Đã đi Đường Tắt Mù Sương! Trận kế tiếp sẽ vô cùng cam go."
+        end,
+    },
+    {
+        id = "pact_resurrection",
+        name = "Thỏa Ước Phục Sinh",
+        desc = "Nhận 1 lần hồi sinh khi chết (30% HP), nhưng Quái Ante này tăng +20% HP!",
+        icon = "☥",
+        color = { 0.30, 0.85, 0.50, 1 },
+        apply = function(gameState)
+            gameState.hasResurrectionPact = true
+            gameState.anteMonsterHpMod = (gameState.anteMonsterHpMod or 1.0) * 1.2
+            return "Đã lập Thỏa Ước Phục Sinh: Hồi sinh 1 lần, nhưng quái Ante tăng +20% HP!"
+        end,
+    },
+    {
+        id = "pact_ambush",
+        name = "Phục Kích",
+        desc = "Bắt đầu trận với 5 lá trên tay thay vì 3, nhưng mất quyền Đổi Bài (0 Discard) trận đó!",
+        icon = "🗡️",
+        color = { 0.95, 0.85, 0.25, 1 },
+        apply = function(gameState)
+            gameState.ambushActive = true
+            return "Kích hoạt Phục Kích: Khởi đầu với 5 lá trên tay, nhưng không thể đổi bài!"
+        end,
+    },
+}
+-- Legacy Tag reward pool for skipping Blinds (kept for backwards compatibility)
 RunManager.TAGS = {
     {
         id = "tag_gold_bag",
@@ -226,12 +303,15 @@ local BOSS_KEYS = {
 }
 
 -- HP formula:
--- Small Blind: round(76 * (1.6 ^ (Ante - 1)))
+-- Small Blind: round(76 * (1.71 ^ (Ante - 1)))
 -- Big Blind: round(1.5 * Small HP)
 -- Boss Blind: round(2.0 * Small HP)
 function RunManager.calculateBlindHp(ante, blindType)
     local a = math.max(1, ante or 1)
-    local smallHp = math.floor(76 * (1.6 ^ (a - 1)) + 0.5)
+    local smallHp = 76
+    for _ = 2, a do
+        smallHp = math.floor(smallHp * 1.71 + 0.5)
+    end
 
     if blindType == "small" then
         return smallHp
@@ -243,10 +323,11 @@ function RunManager.calculateBlindHp(ante, blindType)
     return smallHp
 end
 
--- Generate a random tag for small / big blind skip
+-- Generate a random pact for small / big blind skip
 local function getRandomTag()
-    local idx = Rng.random(#RunManager.TAGS)
-    return RunManager.TAGS[idx]
+    local pool = RunManager.PACTS or RunManager.TAGS
+    local idx = Rng.random(#pool)
+    return pool[idx]
 end
 
 -- Generate 3 blinds for a given Ante

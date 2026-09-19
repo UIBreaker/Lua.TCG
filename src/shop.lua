@@ -86,17 +86,21 @@ function Shop.refresh(shop, gameState)
         color = rewardCard.color,
     })
 
-    -- D. Thẻ Mở Rộng Tay Bài (Hand Size Expansion)
-    table.insert(shop.items, {
-        section = "upper",
-        category = "hand_expansion",
-        name = "Mở Rộng Tay Bài",
-        subtitle = "TAY BÀI +1",
-        desc = "Tăng vĩnh viễn +1 Kích thước tay bài tối đa (Cầm thêm 1 lá trên tay: 3 -> 4 -> 5...)!",
-        cost = 8,
-        icon = "🎴",
-        color = { 0.85, 0.45, 0.95, 1 },
-    })
+    -- D. Thẻ Mở Rộng Tay Bài (Hand Size Expansion max 5)
+    local curHandSize = (gameState and gameState.maxHandSize) or 3
+    if curHandSize < 5 then
+        local expandCost = (curHandSize == 3) and 12 or 18
+        table.insert(shop.items, {
+            section = "upper",
+            category = "hand_expansion",
+            name = "Mở Rộng Tay Bài",
+            subtitle = "TAY BÀI +1 (MAX 5)",
+            desc = "Tăng vĩnh viễn +1 Kích thước tay bài tối đa (3 -> 4 -> 5 lá, tối đa 5 lá)!",
+            cost = expandCost,
+            icon = "🎴",
+            color = { 0.85, 0.45, 0.95, 1 },
+        })
+    end
 
     ----------------------------------------------------------------------------
     -- 2. LOWER SECTION CARDS (Phiếu Ante / Voucher & Gói Bài Booster Packs)
@@ -284,8 +288,13 @@ function Shop.buyItem(shop, itemIndex, gameState)
         return true, "Đã chiêu mộ: " .. item.deity.name .. "!"
 
     elseif item.category == "hand_expansion" then
+        local curH = gameState.maxHandSize or 3
+        if curH >= 5 then
+            Sound.play("cant_afford")
+            return false, "Kích thước tay bài đã đạt tối đa (5 lá)!"
+        end
         gameState.gold = gameState.gold - item.cost
-        gameState.maxHandSize = (gameState.maxHandSize or 3) + 1
+        gameState.maxHandSize = curH + 1
         table.remove(shop.items, itemIndex)
         Sound.play("shop_buy")
         return true, "Đã mở rộng kích thước tay bài lên tối đa " .. gameState.maxHandSize .. " lá!"
@@ -367,8 +376,13 @@ function Shop.openPack(packItem, gameState)
         candidates = Deities.getRandomShopPool(gameState.deities, 3)
 
     elseif packItem.packType == "standard" then
+        local enhList = { "enh_armor", "enh_blood", "enh_overcharged", "enh_cursed", "enh_brittle", "enh_escort", "enh_harmonic", "enh_boss_hunter" }
         for i = 1, 3 do
-            table.insert(candidates, Deck.createRewardCard(userFaction))
+            local c = Deck.createRewardCard(userFaction)
+            if Rng.random(100) <= 70 then
+                c.enhancement = enhList[Rng.random(#enhList)]
+            end
+            table.insert(candidates, c)
         end
 
     elseif packItem.packType == "arcana" then
@@ -420,44 +434,64 @@ function Shop.openPack(packItem, gameState)
     elseif packItem.packType == "seal" then
         local seals = {
             {
-                id = "seal_talisman",
-                sealType = "gold",
-                sealName = "Dấu Vàng",
-                name = "Talisman (Bùa May)",
-                subtitle = "DẤU VÀNG",
-                desc = "Đóng Dấu Vàng lên 1 lá bài đã chọn (Nhận +$3 khi lá bài ghi điểm)!",
-                icon = "🪙",
+                id = "seal_blood",
+                sealType = "seal_blood",
+                sealName = "Ấn Huyết",
+                name = "Ấn Huyết (Blood)",
+                subtitle = "ẤN HUYẾT",
+                desc = "+50% Sát thương khi máu người chơi < 50%!",
+                icon = "🩸",
+                color = { 0.90, 0.15, 0.15, 1 },
+            },
+            {
+                id = "seal_prophecy",
+                sealType = "seal_prophecy",
+                sealName = "Ấn Tiên Tri",
+                name = "Ấn Tiên Tri (Prophecy)",
+                subtitle = "ẤN TIÊN TRI",
+                desc = "Khi ghi điểm, nhìn thấy Intent tiếp theo của Boss!",
+                icon = "🔮",
+                color = { 0.30, 0.60, 0.95, 1 },
+            },
+            {
+                id = "seal_ashen",
+                sealType = "seal_ashen",
+                sealName = "Ấn Tro Tàn",
+                name = "Ấn Tro Tàn (Ashen)",
+                subtitle = "ẤN TRO TÀN",
+                desc = "Tự thiêu hủy lá này sau khi đánh, gây 40 Sát thương Chuẩn vào Quái!",
+                icon = "🔥",
+                color = { 0.60, 0.55, 0.50, 1 },
+            },
+            {
+                id = "seal_bounty",
+                sealType = "seal_bounty",
+                sealName = "Ấn Truy Nã",
+                name = "Ấn Truy Nã (Bounty)",
+                subtitle = "ẤN TRUY NÃ",
+                desc = "Nếu lá này kết liễu Quái, thưởng ngay +$2 Vàng!",
+                icon = "💰",
                 color = { 0.95, 0.80, 0.25, 1 },
             },
             {
-                id = "seal_deja_vu",
-                sealType = "red",
-                sealName = "Dấu Đỏ",
-                name = "Deja Vu (Ảo Giác)",
-                subtitle = "DẤU ĐỎ",
-                desc = "Đóng Dấu Đỏ lên 1 lá bài đã chọn (Kích hoạt lại lần tính điểm thêm 1 lần nữa)!",
-                icon = "🔴",
-                color = { 0.95, 0.35, 0.35, 1 },
+                id = "seal_anchor",
+                sealType = "seal_anchor",
+                sealName = "Ấn Neo",
+                name = "Ấn Neo (Anchor)",
+                subtitle = "ẤN NEO",
+                desc = "Lá này luôn nằm trên tay khi bắt đầu lượt (không bị xáo vào cọc)!",
+                icon = "⚓",
+                color = { 0.20, 0.70, 0.60, 1 },
             },
             {
-                id = "seal_trance",
-                sealType = "blue",
-                sealName = "Dấu Lam",
-                name = "Trance (Mê Hồn)",
-                subtitle = "DẤU LAM",
-                desc = "Đóng Dấu Lam lên 1 lá bài đã chọn (Tạo 1 lá Hành Tinh của thế bài cuối nếu còn giữ trên tay)!",
-                icon = "🔵",
-                color = { 0.35, 0.65, 0.95, 1 },
-            },
-            {
-                id = "seal_medium",
-                sealType = "purple",
-                sealName = "Dấu Tím",
-                name = "Medium (Giao Cảm)",
-                subtitle = "DẤU TÍM",
-                desc = "Đóng Dấu Tím lên 1 lá bài đã chọn (Tạo 1 lá Phép Thuật ngẫu nhiên khi bị Bỏ bài)!",
-                icon = "🟣",
-                color = { 0.75, 0.35, 0.95, 1 },
+                id = "seal_purifying",
+                sealType = "seal_purifying",
+                sealName = "Ấn Thanh Tẩy",
+                name = "Ấn Thanh Tẩy (Purifying)",
+                subtitle = "ẤN THANH TẨY",
+                desc = "Xóa bỏ 1 trạng thái bất lợi (debuff) trên bản thân khi kích hoạt!",
+                icon = "✨",
+                color = { 0.85, 0.85, 0.95, 1 },
             },
         }
         for i = #seals, 2, -1 do
@@ -834,7 +868,8 @@ function Shop.reroll(shop, gameState)
         return false, "Không đủ tiền làm mới!"
     end
     gameState.gold = gameState.gold - cost
-    shop.rerollCost = cost + 1
+    shop.rerollCount = (shop.rerollCount or 0) + 1
+    shop.rerollCost = cost + 1 + shop.rerollCount
     Shop.refresh(shop, gameState)
     Sound.play("shop_reroll")
     return true
@@ -856,15 +891,23 @@ function Shop.transferEquipment(sourceCard, eqIndex, targetCard)
     if not sourceCard.equipments or not sourceCard.equipments[eqIndex] then
         return false, "Trang bị không tồn tại!"
     end
-    if not targetCard.equipments then targetCard.equipments = {} end
-    if #targetCard.equipments >= 5 then
-        return false, "Lá bài đích đã đầy 5 ô trang bị!"
+    local eq = sourceCard.equipments[eqIndex]
+    -- Check duplicate on targetCard
+    for _, existing in ipairs(targetCard.equipments or {}) do
+        if existing.id == eq.id then
+            return false, "Lá bài đích đã có trang bị loại này rồi!"
+        end
+    end
+    local needed = eq.slotsNeeded or 1
+    if Equipment.getUsedSlots(targetCard) + needed > Equipment.MAX_SLOTS then
+        return false, "Lá bài đích không đủ ô trang bị (Tối đa " .. Equipment.MAX_SLOTS .. " ô)!"
     end
 
-    local eq = table.remove(sourceCard.equipments, eqIndex)
+    table.remove(sourceCard.equipments, eqIndex)
+    targetCard.equipments = targetCard.equipments or {}
     table.insert(targetCard.equipments, eq)
     Sound.play("round_win")
-    return true, "Đã chuyển [" .. eq.name .. "] sang Lá " .. targetCard.rankName .. targetCard.suitSymbol .. "!"
+    return true, "Đã chuyển [" .. eq.name .. "] sang Lá " .. (targetCard.rankName or "") .. (targetCard.suitSymbol or "") .. "!"
 end
 
 return Shop

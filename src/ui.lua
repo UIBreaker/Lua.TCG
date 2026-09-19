@@ -701,11 +701,10 @@ function UI.drawCard(card, x, y, w, h)
     local rkW = UI.fonts.regular:getWidth(rk)
     love.graphics.print(rk, w - rkW - 8, h - 23)
 
-    -- 5 Chiseled Diamond Sockets across the top edge (3 states: Locked, Open, Socketed)
-    local socketCount = 5
+    local socketCount = (Equipment and Equipment.MAX_SLOTS) or 3
     local dw = 5.2
     local dh = 5.2
-    local socketGap = 13
+    local socketGap = 15
     local socketStartX = (w - (socketCount * socketGap - 3)) / 2 + 3
     local socketY = 9
 

@@ -51,6 +51,49 @@ local BOSSES = {
 }
 
 Monster.DISRUPTIVE_BOSSES = {
+    echo_knight = {
+        id = "echo_knight",
+        name = "HIỆP SĨ VỌNG ÂM",
+        title = "TRÙM: ECHO KNIGHT",
+        desc = "Vọng Âm Nghịch Đảo: Nếu đánh cùng kiểu bài với lượt trước, Mult của thế bài đó = 0!",
+        debuffId = "echo_knight",
+        color = { 0.40, 0.60, 0.95, 1 },
+    },
+    taxman = {
+        id = "taxman",
+        name = "KẺ THU THUẾ",
+        title = "TRÙM: THE TAXMAN",
+        desc = "Sưu Thuế Tàn Bạo: Mỗi lá bài ghi điểm tốn $1 Vàng; không đủ tiền sẽ trừ 3 HP cho mỗi $1 thiếu!",
+        debuffId = "taxman",
+        color = { 0.95, 0.80, 0.20, 1 },
+    },
+    gem_devourer = {
+        id = "gem_devourer",
+        name = "KẺ ĂN NGỌC",
+        title = "TRÙM: GEM DEVOURER",
+        desc = "Nuốt Chửng Bảo Ngọc: Mỗi lượt nuốt 1 Trang Bị ngẫu nhiên từ bài trên tay và hồi 40 HP!",
+        debuffId = "gem_devourer",
+        color = { 0.85, 0.25, 0.75, 1 },
+    },
+    executioner = {
+        id = "executioner",
+        name = "ĐAO PHỦ HẮC ÁM",
+        title = "TRÙM: THE EXECUTIONER",
+        desc = "Chém Đầu Quyết Tử: Khi người chơi dưới 40% HP, mọi đòn tấn công gây Sát Thương Gấp Đôi bỏ qua Giáp!",
+        debuffId = "executioner",
+        color = { 0.85, 0.15, 0.15, 1 },
+    },
+    faceless = {
+        id = "faceless",
+        name = "NGƯỜI KHÔNG MẶT",
+        title = "TRÙM: THE FACELESS",
+        desc = "Vô Diện Bí Mật: Toàn bộ bài trên tay đều bị Úp Mặt (Face-down) suốt trận chiến!",
+        debuffId = "faceless",
+        color = { 0.50, 0.50, 0.60, 1 },
+        applyModifier = function(gameState)
+            for _, c in ipairs(gameState.hand or {}) do c.faceDown = true end
+        end,
+    },
     the_needle = {
         id = "the_needle",
         name = "CHÚA TỂ KIM NHỌN",
@@ -152,6 +195,9 @@ function Monster.create(round, isBossOverride, isEliteOverride, encounterCountOv
         maxHp = hp,
         damageLagHp = hp,
         attack = attack,
+        phase = 1,
+        enrageStacks = 0,
+        armor = 0,
         intent = {
             type = "attack",
             value = attack,
@@ -207,8 +253,58 @@ function Monster.takeDamage(monster, rawDamage)
     end
 
     monster.hp = math.max(0, monster.hp - actualDamage)
+
+    -- Boss Phase 2 Transition at <= 50% HP
+    if monster.isBoss and monster.phase == 1 and monster.hp > 0 and monster.hp <= math.floor(monster.maxHp * 0.5) then
+        monster.phase = 2
+        monster.enraged = true
+        monster.attack = math.floor(monster.attack * 1.25)
+        monster.enrageStacks = (monster.enrageStacks or 0) + 2
+        monster.phase2Triggered = true
+    end
+
     local defeated = (monster.hp <= 0)
     return actualDamage, defeated
+end
+
+-- Intent Types: "attack", "defend", "debuff", "drain_gold", "enrage"
+function Monster.nextIntent(monster, turnCount, gameState)
+    local turn = turnCount or 1
+    local intents = { "attack", "defend", "debuff", "drain_gold", "enrage" }
+    local chosenType = "attack"
+    if monster.isBoss then
+        local cycle = ((turn - 1) % 5) + 1
+        chosenType = intents[cycle]
+    else
+        local cycle = ((turn - 1) % 3) + 1
+        if cycle == 1 then chosenType = "attack"
+        elseif cycle == 2 then chosenType = "defend"
+        else chosenType = "attack"
+        end
+    end
+
+    local intentVal = monster.attack or 12
+    local label = "Tấn Công " .. intentVal .. " DMG"
+    if chosenType == "defend" then
+        intentVal = math.floor((monster.attack or 12) * 1.2)
+        label = "Phòng Thủ +" .. intentVal .. " Giáp"
+    elseif chosenType == "debuff" then
+        intentVal = 1
+        label = "Nguyền Rủa (-1 Hand)"
+    elseif chosenType == "drain_gold" then
+        intentVal = 2
+        label = "Đoạt Vàng (-$2)"
+    elseif chosenType == "enrage" then
+        intentVal = 1
+        label = "Cuồng Nộ (+8% ATK, +5% Giáp)"
+    end
+
+    monster.intent = {
+        type = chosenType,
+        value = intentVal,
+        label = label,
+    }
+    return monster.intent
 end
 
 return Monster

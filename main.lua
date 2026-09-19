@@ -1,3 +1,27 @@
+for _, a in ipairs(arg or {}) do
+    if a == "--test" then
+        local ok, err = pcall(require, "test_system")
+        if not ok then
+            print("TEST ERROR: " .. tostring(err))
+            os.exit(1)
+        end
+        os.exit(0)
+    elseif a == "--test-poker" then
+        local ok, err = pcall(require, "test_poker")
+        if not ok then
+            print("TEST POKER ERROR: " .. tostring(err))
+            os.exit(1)
+        end
+        os.exit(0)
+    elseif a == "--test-features" then
+        local ok, err = pcall(require, "test_features")
+        if not ok then
+            print("TEST FEATURES ERROR: " .. tostring(err))
+            os.exit(1)
+        end
+        os.exit(0)
+    end
+end
 local Deck = require("src.deck")
 local Poker = require("src.poker")
 local Deities = require("src.deities")
@@ -20,16 +44,7 @@ local Combat = require("src.combat")
 io.stdout:setvbuf("no")
 local isCaptureMode = false
 for _, a in ipairs(arg or {}) do
-    if a == "--test" then
-        require("test_system")
-        return
-    elseif a == "--test-poker" then
-        require("test_poker")
-        return
-    elseif a == "--test-features" then
-        require("test_features")
-        return
-    elseif a == "--capture" then
+    if a == "--capture" then
         isCaptureMode = true
     end
 end
@@ -1214,12 +1229,22 @@ local function playSelectedHand()
 
     -- Pha Người Chơi: Kích hoạt Hiệu ứng Trang Bị/Ngọc Khảm sinh tồn trước (+Giáp, +Hồi Máu)
     if scoreResult.addArmor and scoreResult.addArmor > 0 then
-        game.playerArmor = (game.playerArmor or 0) + scoreResult.addArmor
+        game.playerArmor = math.min(30, (game.playerArmor or 0) + scoreResult.addArmor)
         game.playerShield = game.playerArmor
     end
     if scoreResult.healHp and scoreResult.healHp > 0 then
         local maxHp = game.maxPlayerHp or 100
         game.playerHp = math.min(maxHp, (game.playerHp or 100) + scoreResult.healHp)
+    end
+    if scoreResult.hpCost and scoreResult.hpCost > 0 then
+        game.playerHp = math.max(0, (game.playerHp or 100) - scoreResult.hpCost)
+    end
+
+    -- Overcharged enhancement: unplayed cards in hand gain +5 Chips (max +25)
+    for _, c in ipairs(game.hand or {}) do
+        if c.enhancement == "enh_overcharged" or c.enhancement == "overcharged" then
+            c.overchargeStacks = math.min(25, (c.overchargeStacks or 0) + 5)
+        end
     end
 
     -- Reset consumed martyr stacks
@@ -2199,10 +2224,10 @@ function love.update(dt)
                             end
                         end
 
-                        -- Tiền Lãi (Interest): Cứ mỗi $5 vàng tích trữ trong túi, sau trận được nhận thêm $1 tiền lãi (tối đa Trần Lãi)
-                        local maxInt = game.maxInterest or 5
+                        -- Tiền Lãi (Interest): Cứ mỗi $5 vàng tích trữ trong túi, sau trận được nhận thêm $1 tiền lãi (mặc định tối đa $3, voucher nâng lên $5)
+                        local maxInt = game.maxInterest or 3
                         if game.vouchers and (game.vouchers["v_interest"] or game.vouchers["seed_money"]) then
-                            maxInt = math.max(maxInt, 10)
+                            maxInt = math.max(maxInt, 5)
                         end
                         local interestBonus = math.min(maxInt, math.floor(game.gold / 5))
                         if interestBonus > 0 then
@@ -2215,6 +2240,18 @@ function love.update(dt)
                             })
                         end
 
+                        game.lastRoundDeityRewards = { bonusGold = deityBonus, details = deityDetails or {} }
+                        if scoreResult and scoreResult.hasBountySeal and not game.bountySealClaimedThisCombat then
+                            game.bountySealClaimedThisCombat = true
+                            deityBonus = deityBonus + 2
+                            table.insert(anim.floatingTexts, {
+                                text = "💰 [ẤN TRUY NÃ] Kết liễu quái: +$2 Vàng!",
+                                color = UI.COLORS.goldYellow,
+                                x = 640,
+                                y = 140,
+                                alpha = 2.8,
+                            })
+                        end
                         anim.earnedGold = baseReward + unusedHandsBonus + deityBonus + interestBonus
 
                         -- Valoria Passive: +25% Gold on monster defeat
@@ -2319,22 +2356,33 @@ function love.update(dt)
                         local curArmor = (game.playerArmor or game.playerShield or 0)
                         local absorbed = math.min(curArmor, mAtk)
                         curArmor = curArmor - absorbed
+                        -- Giáp còn lại sau đòn đánh của quái bị mất 50%
+                        curArmor = math.floor(curArmor * 0.5)
                         game.playerArmor = curArmor
                         game.playerShield = curArmor
                         local dmgToPlayer = mAtk - absorbed
 
-                        -- Anti-OneShot Protection:
-                        -- 1) Hard cap single-hit damage to at most 45 HP (no single attack can deal > 45% of max 100 HP)
-                        -- 2) If player has healthy HP (> 50 HP), a single blow cannot drop player HP to 0 (death defiance gate at 1 HP)
-                        local maxDmgCap = math.floor((game.maxPlayerHp or 100) * 0.45)
+                        -- Anti-OneShot Protection: Hard cap single-hit damage to at most 60% of max HP
+                        local maxDmgCap = math.floor((game.maxPlayerHp or 100) * 0.60)
                         if dmgToPlayer > maxDmgCap then
                             dmgToPlayer = maxDmgCap
                         end
-                        if (game.playerHp or 100) > 50 and ((game.playerHp or 100) - dmgToPlayer) <= 0 then
-                            dmgToPlayer = (game.playerHp or 100) - 1
-                        end
 
                         game.playerHp = math.max(0, (game.playerHp or 100) - dmgToPlayer)
+
+                        -- Monster Cuồng Nộ (Enrage) scaling: +8% Attack & +5% Armor each turn
+                        if game.monster then
+                            game.monster.attack = math.floor(game.monster.attack * 1.08 + 0.5)
+                            game.monster.armor = math.floor((game.monster.armor or 0) * 1.05 + 2)
+                        end
+
+                        -- Escort Enhancement (Hộ Tống): unplayed cards in hand grant +5 Armor
+                        for _, c in ipairs(game.hand or {}) do
+                            if c.enhancement == "enh_escort" or c.enhancement == "escort" then
+                                game.playerArmor = math.min(30, (game.playerArmor or 0) + 5)
+                                game.playerShield = game.playerArmor
+                            end
+                        end
 
                         screenShake = 16
                         Sound.play("xmult_boom")
@@ -3344,7 +3392,7 @@ local function drawStarterDeckSelect()
     UI.drawRoundedRect("fill", cardX + 34, cardY + 220, cardW - 68, 105, 10)
     love.graphics.setFont(UI.fonts.medium)
     love.graphics.setColor(1, 0.86, 0.48, 1)
-    love.graphics.printf("TAY ĐẦU TIÊN: +20 MULT", cardX + 40, cardY + 238, cardW - 80, "center")
+    love.graphics.printf("TAY ĐẦU TIÊN: +10 MULT", cardX + 40, cardY + 238, cardW - 80, "center")
     love.graphics.setFont(UI.fonts.small)
     love.graphics.setColor(UI.COLORS.textLight)
     love.graphics.printf("Mỗi combat xáo bộ bài và chỉ rút 3 lá ngẫu nhiên lên tay.", cardX + 50, cardY + 278, cardW - 100, "center")
@@ -8484,11 +8532,20 @@ function love.mousepressed(x, y, button)
                 for _, btn in ipairs(buttons) do
                     if mx >= btn.x and mx <= btn.x + btn.w and my >= btn.y and my <= btn.y + btn.h then
                         if btn.id == "cashout_continue" then
-                            if not shopData then shopData = Shop.new() end
-                            Shop.resetReroll(shopData)
-                            Shop.refresh(shopData, game)
-                            state = "shop"
-                            lastActiveState = "shop"
+                            local curBlind = game.currentBlind or (game.run and game.run.blinds and game.run.blinds[game.run.currentBlindIndex])
+                            local isSmall = curBlind and (curBlind.type == "small" or curBlind.index == 1)
+                            if isSmall and game.run then
+                                -- Small Blind skips Shop, proceeds to Blind Select
+                                RunManager.advanceBlind(game.run, game)
+                                state = "BLIND_SELECT"
+                                lastActiveState = "BLIND_SELECT"
+                            else
+                                if not shopData then shopData = Shop.new() end
+                                Shop.resetReroll(shopData)
+                                Shop.refresh(shopData, game)
+                                state = "shop"
+                                lastActiveState = "shop"
+                            end
                             Sound.play("card_deal")
                             return
                         end

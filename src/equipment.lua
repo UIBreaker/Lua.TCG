@@ -1,7 +1,7 @@
 local Rng = require("src.rng")
 local Equipment = {}
 
-Equipment.MAX_SLOTS = 5
+Equipment.MAX_SLOTS = 3
 
 Equipment.ITEMS = {
     gem_fire = {
@@ -9,9 +9,11 @@ Equipment.ITEMS = {
         name = "Đá Lửa",
         icon = "💎",
         color = { 0.95, 0.35, 0.2, 1 },
-        desc = "+35 Chips trực tiếp cho lá bài này khi ghi điểm",
+        desc = "+18 Chips; tăng thành +30 Chips nếu nằm ở vị trí ngoài cùng",
         onCardScore = function(card, playedCards, cardIndex)
-            return { addChips = 35, message = "+35 Chips (Đá Lửa)" }
+            local isOuter = (cardIndex == 1 or cardIndex == #playedCards)
+            local c = isOuter and 30 or 18
+            return { addChips = c, message = "+" .. c .. " Chips (Đá Lửa" .. (isOuter and " Ngoài Cùng" or "") .. ")" }
         end
     },
     gem_blast = {
@@ -19,9 +21,11 @@ Equipment.ITEMS = {
         name = "Đá Bùng Nổ",
         icon = "🔥",
         color = { 1.0, 0.5, 0.1, 1 },
-        desc = "+10 Mult cho tay bài khi lá này ghi điểm",
+        desc = "+4 Mult; tăng thành +8 Mult nếu đánh đúng 3 lá",
         onCardScore = function(card, playedCards, cardIndex)
-            return { addMult = 10, message = "+10 Mult (Đá Bùng Nổ)" }
+            local isThree = (#playedCards == 3)
+            local m = isThree and 8 or 4
+            return { addMult = m, message = "+" .. m .. " Mult (Đá Bùng Nổ" .. (isThree and " 3 Lá" or "") .. ")" }
         end
     },
     mirror_adjacent = {
@@ -29,14 +33,14 @@ Equipment.ITEMS = {
         name = "Gương Lan Tỏa",
         icon = "💠",
         color = { 0.3, 0.8, 0.9, 1 },
-        desc = "Buff +25 Chips cho 2 lá bài nằm cạnh lá này khi đánh ra",
+        desc = "Buff +12 Chips cho 2 lá cạnh nếu khác chất",
         onHandEvaluate = function(card, playedCards, cardIndex)
             local buffs = {}
-            if cardIndex > 1 then
-                buffs[cardIndex - 1] = { addChips = 25, message = "+25 Chips (Lan tỏa)" }
+            if cardIndex > 1 and playedCards[cardIndex - 1].suit ~= card.suit then
+                buffs[cardIndex - 1] = { addChips = 12, message = "+12 Chips (Lan tỏa khác chất)" }
             end
-            if cardIndex < #playedCards then
-                buffs[cardIndex + 1] = { addChips = 25, message = "+25 Chips (Lan tỏa)" }
+            if cardIndex < #playedCards and playedCards[cardIndex + 1].suit ~= card.suit then
+                buffs[cardIndex + 1] = { addChips = 12, message = "+12 Chips (Lan tỏa khác chất)" }
             end
             return buffs
         end
@@ -46,13 +50,18 @@ Equipment.ITEMS = {
         name = "Mắt Bão",
         icon = "⚡",
         color = { 0.2, 0.9, 0.6, 1 },
-        desc = "+3 Mult cho TẤT CẢ các lá bài CÙNG CHẤT với lá này trong tay bài",
+        desc = "+2 Mult mỗi lá cùng chất, tối đa +8 Mult",
         onHandEvaluate = function(card, playedCards, cardIndex)
-            local buffs = {}
-            for i, other in ipairs(playedCards) do
+            local sameSuitCount = 0
+            for _, other in ipairs(playedCards) do
                 if other.suit == card.suit then
-                    buffs[i] = { addMult = 3, message = "+3 Mult (Mắt Bão)" }
+                    sameSuitCount = sameSuitCount + 1
                 end
+            end
+            local multGain = math.min(8, sameSuitCount * 2)
+            local buffs = {}
+            if multGain > 0 then
+                buffs[cardIndex] = { addMult = multGain, message = "+" .. multGain .. " Mult (Mắt Bão)" }
             end
             return buffs
         end
@@ -62,9 +71,13 @@ Equipment.ITEMS = {
         name = "Đồng Tiền May Mắn",
         icon = "💰",
         color = { 1.0, 0.85, 0.2, 1 },
-        desc = "Thưởng ngay +$3 Vàng khi lá bài này được đánh ra ghi điểm",
-        onCardScore = function(card, playedCards, cardIndex)
-            return { addGold = 3, message = "+$3 Vàng (May Mắn)" }
+        desc = "Thưởng ngay +$2 Vàng (1 lần mỗi trận)",
+        onCardScore = function(card, playedCards, cardIndex, context)
+            if context and not context.luckyCoinTriggered then
+                context.luckyCoinTriggered = true
+                return { addGold = 2, message = "+$2 Vàng (May Mắn)" }
+            end
+            return nil
         end
     },
     free_feather = {
@@ -72,9 +85,13 @@ Equipment.ITEMS = {
         name = "Lông Vũ Tự Do",
         icon = "✨",
         color = { 0.8, 0.7, 1.0, 1 },
-        desc = "Khi Đổi bài (Discard) lá này, KHÔNG bị trừ lượt đổi bài",
-        onDiscard = function(card)
-            return { freeDiscard = true }
+        desc = "Đổi bài miễn phí 1 lần mỗi trận",
+        onDiscard = function(card, context)
+            if context and not context.freeFeatherUsed then
+                context.freeFeatherUsed = true
+                return { freeDiscard = true }
+            end
+            return nil
         end
     },
     blood_ring = {
@@ -82,19 +99,25 @@ Equipment.ITEMS = {
         name = "Nhẫn Huyết Thần",
         icon = "⚔️",
         color = { 0.85, 0.1, 0.25, 1 },
-        desc = "Khi lá này ghi điểm, gây thêm 15% sát thương chuẩn vào máu quái",
+        desc = "+10% sát thương chuẩn, mất 2 HP khi kích hoạt",
         onCardScore = function(card, playedCards, cardIndex)
-            return { extraDamagePct = 0.15, message = "+15% Sát thương Huyết Thần!" }
+            return { extraDamagePct = 0.10, hpCost = 2, message = "+10% Sát thương Huyết Thần (-2 HP)!" }
         end
     },
     holy_relic = {
         id = "holy_relic",
         name = "Ngọc Bội Thánh Tích",
         icon = "👑",
+        rarity = "legendary",
+        slotsNeeded = 2,
         color = { 0.95, 0.8, 0.2, 1 },
-        desc = "Nhân trực tiếp x1.3 XMult vào tổng điểm khi lá này ghi điểm",
-        onCardScore = function(card, playedCards, cardIndex)
-            return { xMult = 1.3, message = "x1.3 XMult (Thánh Tích)" }
+        desc = "[Huyền Thoại - 2 Ô] x1.2 XMult một lần mỗi tay, không cộng dồn bản sao",
+        onCardScore = function(card, playedCards, cardIndex, context)
+            if context and not context.holyRelicTriggeredThisHand then
+                context.holyRelicTriggeredThisHand = true
+                return { xMultBonus = 0.2, message = "+0.2 XMult (Thánh Tích)" }
+            end
+            return nil
         end
     },
     ward_stone = {
@@ -102,9 +125,11 @@ Equipment.ITEMS = {
         name = "Đá Hộ Mệnh",
         icon = "🛡️",
         color = { 0.35, 0.65, 0.95, 1 },
-        desc = "+5 Giáp (Armor) bảo vệ bản thân khi lá bài này được đánh ra",
+        desc = "+6 Giáp; tăng thành +12 Giáp nếu chỉ đánh 1-2 lá",
         onCardScore = function(card, playedCards, cardIndex)
-            return { addArmor = 5, message = "+5 Giáp (Đá Hộ Mệnh)" }
+            local isSmall = (#playedCards <= 2)
+            local arm = isSmall and 12 or 6
+            return { addArmor = arm, message = "+" .. arm .. " Giáp (Đá Hộ Mệnh" .. (isSmall and " Đơn/Đôi" or "") .. ")" }
         end
     },
     shield_gem = {
@@ -112,9 +137,10 @@ Equipment.ITEMS = {
         name = "Ngọc Hộ Thân",
         icon = "🛡️",
         color = { 0.45, 0.75, 1.0, 1 },
-        desc = "+8 Giáp (Armor) phòng ngự kiên cố khi lá bài này được đánh ra",
+        desc = "+15 Giáp nhưng lá bài bị Kiệt Sức một lượt",
         onCardScore = function(card, playedCards, cardIndex)
-            return { addArmor = 8, message = "+8 Giáp (Ngọc Hộ Thân)" }
+            card.exhausted = true
+            return { addArmor = 15, message = "+15 Giáp (Ngọc Hộ Thân - Kiệt Sức)!" }
         end
     },
     vitality_gem = {
@@ -122,15 +148,47 @@ Equipment.ITEMS = {
         name = "Ngọc Hồi Máu",
         icon = "💚",
         color = { 0.25, 0.90, 0.45, 1 },
-        desc = "Hồi phục ngay +2 HP sinh lực khi lá bài này được đánh ra",
-        onCardScore = function(card, playedCards, cardIndex)
-            return { healHp = 2, message = "+2 HP (Ngọc Hồi Máu)" }
+        desc = "+5 HP một lần mỗi trận, chỉ kích hoạt khi dưới 50% HP",
+        onCardScore = function(card, playedCards, cardIndex, context)
+            local curHp = context and (context.playerHp or (context.gameState and context.gameState.playerHp)) or 100
+            local maxHp = context and (context.maxPlayerHp or (context.gameState and context.gameState.maxPlayerHp)) or 100
+            if curHp < (maxHp * 0.5) and context and not context.vitalityGemUsed then
+                context.vitalityGemUsed = true
+                return { healHp = 5, message = "+5 HP (Ngọc Hồi Máu Nguy Cấp)!" }
+            end
+            return nil
         end
     },
 }
 
 Equipment.ITEMS.stone_armor = Equipment.ITEMS.ward_stone
 Equipment.ITEMS.gem_armor = Equipment.ITEMS.ward_stone
+
+Equipment.ITEMS.void_catalyst = {
+    id = "void_catalyst",
+    name = "Xúc Tác Hư Không",
+    icon = "🌌",
+    rarity = "legendary",
+    slotsNeeded = 2,
+    color = { 0.85, 0.35, 0.95, 1 },
+    desc = "[Huyền Thoại - 2 Ô] +30 Chips và +10 Mult khi tính điểm",
+    onCardScore = function(card, playedCards, cardIndex, context)
+        return { addChips = 30, addMult = 10, message = "+30 Chips, +10 Mult (Xúc Tác Hư Không)!" }
+    end
+}
+
+Equipment.ITEMS.iron_spikes = {
+    id = "iron_spikes",
+    name = "Gai Sắt",
+    icon = "🪓",
+    rarity = "common",
+    slotsNeeded = 1,
+    color = { 0.65, 0.65, 0.70, 1 },
+    desc = "+15 Chips khi lá bài ghi điểm",
+    onCardScore = function(card, playedCards, cardIndex, context)
+        return { addChips = 15, message = "+15 Chips (Gai Sắt)!" }
+    end
+}
 
 Equipment.POOL = {
     "gem_fire",
@@ -146,6 +204,15 @@ Equipment.POOL = {
     "vitality_gem",
 }
 
+function Equipment.getUsedSlots(card)
+    if not card or not card.equipments then return 0 end
+    local total = 0
+    for _, eq in ipairs(card.equipments) do
+        total = total + (eq.slotsNeeded or 1)
+    end
+    return total
+end
+
 function Equipment.getRandomEquipment()
     local idx = Rng.random(#Equipment.POOL)
     local key = Equipment.POOL[idx]
@@ -155,11 +222,17 @@ end
 function Equipment.attach(card, equipItem)
     if not card or not equipItem then return false, "Dữ liệu không hợp lệ" end
     card.equipments = card.equipments or {}
-    if #card.equipments >= Equipment.MAX_SLOTS then
-        return false, "Lá bài này đã đầy 5 ô trang bị!"
+    for _, existing in ipairs(card.equipments) do
+        if existing.id == equipItem.id then
+            return false, "Không thể gắn hai trang bị cùng loại lên một lá bài!"
+        end
+    end
+    local needed = equipItem.slotsNeeded or 1
+    if Equipment.getUsedSlots(card) + needed > Equipment.MAX_SLOTS then
+        return false, "Lá bài này không đủ ô trang bị (Tối đa " .. Equipment.MAX_SLOTS .. " ô)!"
     end
     table.insert(card.equipments, equipItem)
-    return true, "Đã gắn " .. equipItem.name .. " vào lá " .. card.rankName .. card.suitSymbol
+    return true, "Đã gắn " .. equipItem.name .. " vào lá " .. (card.rankName or "") .. (card.suitSymbol or "")
 end
 
 return Equipment

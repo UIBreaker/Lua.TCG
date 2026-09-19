@@ -41,6 +41,8 @@ function Scoring.calculate(handInfo, deities, context)
     local bonusChips = 0
     local bonusMult = 0
     local xMultTotal = 1.0
+    local xMultBonus = 0.0
+    local totalHpCost = 0
     local totalExtraDamagePct = 0
     local bonusGoldAwarded = 0
     local totalArmorGain = 0
@@ -48,6 +50,7 @@ function Scoring.calculate(handInfo, deities, context)
     local hasAceOfSpades = false
     local hasAceOfHearts = false
     local hasKingOfDiamonds = false
+    local hasBountySeal = false
 
     local steps = {}
 
@@ -73,7 +76,9 @@ function Scoring.calculate(handInfo, deities, context)
 
         bonusChips = bonusChips + addedC
         bonusMult = bonusMult + addedM
-        xMultTotal = xMultTotal * addedX
+        if addedX > 1.0 then
+            xMultBonus = xMultBonus + (addedX - 1.0)
+        end
         totalExtraDamagePct = totalExtraDamagePct + addedDmgPct
 
         if addedC > 0 or addedM > 0 or addedX > 1.0 or addedDmgPct > 0 then
@@ -186,15 +191,23 @@ function Scoring.calculate(handInfo, deities, context)
                 message = "🚫 " .. debuffReason
             })
         else
-            local cardTriggers = (card.seal == "red") and 2 or 1
+            -- Battle Seal: Blood Seal (Ấn Huyết) retriggers card base stats once, costs 3 HP, max 1/combat
+            local cardTriggers = 1
+            local isBloodSeal = (card.seal == "seal_blood" or card.seal == "blood" or card.seal == "red")
+            if isBloodSeal and not (context and context.bloodSealUsedThisCombat) then
+                cardTriggers = 2
+                if context then context.bloodSealUsedThisCombat = true end
+            end
+
             for cTrig = 1, cardTriggers do
                 if cTrig == 2 then
+                    totalHpCost = totalHpCost + 3
                     table.insert(steps, {
                         type = "seal_trigger",
                         card = card,
                         cardIndex = idx,
-                        seal = "red",
-                        message = "🔴 DẤU ĐỎ (Red Seal): Kích hoạt lại " .. (card.rankName or "") .. (card.suitSymbol or "") .. " thêm 1 lần nữa!"
+                        seal = "blood",
+                        message = "🩸 ẤN HUYẾT (Blood Seal): Tái kích hoạt " .. (card.rankName or "") .. (card.suitSymbol or "") .. " (-3 HP)!"
                     })
                 end
                 local cardChips = (card.baseChips or 0) + (card.bonusBaseChips or 0)
@@ -231,7 +244,7 @@ function Scoring.calculate(handInfo, deities, context)
             if not card.disableFactionPassives and (card.suit == "aurelia" or (context and context.selectedSuit == "aurelia")) then
                 hasAureliaCard = true
             end
-            if isGildedDiamond then
+            if isGildedDiamond and cTrig == 1 then
                 hasAureliaCard = true
                 bonusGoldAwarded = bonusGoldAwarded + 1
                 cardEvent.message = cardEvent.message .. " | 💰 Kim Ngân (+$1)"
@@ -285,21 +298,21 @@ function Scoring.calculate(handInfo, deities, context)
                     end
                 end
                 -- J♦ (Thương Nhân Vong Mạng): Steals $2 into purse
-                if isDiamond(card) then
+                if isDiamond(card) and cTrig == 1 then
                     bonusGoldAwarded = bonusGoldAwarded + 2
                     cardEvent.message = cardEvent.message .. " | 💸 Thương Nhân Vong Mạng (+$2)"
                 end
                 -- J♣ (Ấu Trùng Ký Sinh): Draws 2 cards from deck to hand
-                if isClub(card) then
+                if isClub(card) and cTrig == 1 then
                     if context and context.drawCards then
                         context.drawCards(2)
                     end
                     cardEvent.message = cardEvent.message .. " | 🐛 Ấu Trùng Ký Sinh (Bốc 2 lá)"
                 end
 
-            -- Q (Hoàng Hậu): x1.1 XMult & +15 Chips, +2 Mult per equipped socket
+            -- Q (Hoàng Hậu): +0.1 XMult & +15 Chips, +2 Mult per equipped socket
             elseif card.rank == 12 then
-                xMultTotal = xMultTotal * 1.1
+                xMultBonus = xMultBonus + 0.1
                 local eqCount = #(card.equipments or {})
                 if eqCount > 0 then
                     local qChips = 15 * eqCount
@@ -308,26 +321,26 @@ function Scoring.calculate(handInfo, deities, context)
                     bonusMult = bonusMult + qMult
                     cardEvent.addedChips = cardEvent.addedChips + qChips
                     cardEvent.addedMult = cardEvent.addedMult + qMult
-                    cardEvent.message = cardEvent.message .. " | 👑 Hoàng Hậu (x1.1 XMult, +" .. qChips .. " Chips, +" .. qMult .. " Mult)"
+                    cardEvent.message = cardEvent.message .. " | 👑 Hoàng Hậu (+0.1 XMult, +" .. qChips .. " Chips, +" .. qMult .. " Mult)"
                 else
-                    cardEvent.message = cardEvent.message .. " | 👑 Hoàng Hậu (x1.1 XMult)"
+                    cardEvent.message = cardEvent.message .. " | 👑 Hoàng Hậu (+0.1 XMult)"
                 end
 
-                -- Q♠ (Mệnh Lệnh Thiết Kỷ): x1.4 XMult if hand has 5 Spades
+                -- Q♠ (Mệnh Lệnh Thiết Kỷ): +0.4 XMult if hand has 5 Spades
                 if isSpade(card) then
                     local spadeCount = 0
                     for _, sc in ipairs(handInfo.scoringCards) do
                         if isSpade(sc) then spadeCount = spadeCount + 1 end
                     end
                     if spadeCount >= 5 then
-                        xMultTotal = xMultTotal * 1.4
-                        cardEvent.message = cardEvent.message .. " | ⚔️ Mệnh Lệnh Thiết Kỷ (x1.4 XMult)"
+                        xMultBonus = xMultBonus + 0.4
+                        cardEvent.message = cardEvent.message .. " | ⚔️ Mệnh Lệnh Thiết Kỷ (+0.4 XMult)"
                     end
                 end
 
-                -- Q♥ (Mẫu Nghi Tế Đàn): Other Hearts lose 1 rank, x1.35 XMult
+                -- Q♥ (Mẫu Nghi Tế Đàn): Other Hearts lose 1 rank, +0.35 XMult
                 if isHeart(card) then
-                    xMultTotal = xMultTotal * 1.35
+                    xMultBonus = xMultBonus + 0.35
                     for _, sc in ipairs(handInfo.scoringCards) do
                         if sc ~= card and isHeart(sc) then
                             sc.rank = math.max(2, sc.rank - 1)
@@ -335,16 +348,16 @@ function Scoring.calculate(handInfo, deities, context)
                             sc.baseChips = Deck.getChipValue(sc.rank)
                         end
                     end
-                    cardEvent.message = cardEvent.message .. " | 🩸 Mẫu Nghi Tế Đàn (-1 Rank Cơ, x1.35 XMult)"
+                    cardEvent.message = cardEvent.message .. " | 🩸 Mẫu Nghi Tế Đàn (-1 Rank Cơ, +0.35 XMult)"
                 end
 
-                -- Q♦ (Nữ Hoàng Tài Phiệt): x(1.0 + Gold * 0.02) capped at x2.0
+                -- Q♦ (Nữ Hoàng Tài Phiệt): +Gold * 0.02 capped at +1.0
                 if isDiamond(card) then
                     local goldHold = (context and context.gold) or (context and context.gameState and context.gameState.gold) or 0
-                    local qWealthXMult = math.min(2.0, 1.0 + (goldHold * 0.02))
-                    if qWealthXMult > 1.0 then
-                        xMultTotal = xMultTotal * qWealthXMult
-                        cardEvent.message = cardEvent.message .. " | 💎 Nữ Hoàng Tài Phiệt (x" .. string.format("%.2f", qWealthXMult) .. " XMult)"
+                    local qWealthBonus = math.min(1.0, goldHold * 0.02)
+                    if qWealthBonus > 0 then
+                        xMultBonus = xMultBonus + qWealthBonus
+                        cardEvent.message = cardEvent.message .. " | 💎 Nữ Hoàng Tài Phiệt (+" .. string.format("%.2f", qWealthBonus) .. " XMult)"
                     end
                 end
 
@@ -390,16 +403,16 @@ function Scoring.calculate(handInfo, deities, context)
                     hasKingOfDiamonds = true
                 end
 
-                -- K♣ (Chúa Tể Bầy Đàn): Each scored Club adds x0.3 XMult: x(1.0 + clubs * 0.3)
+                -- K♣ (Chúa Tể Bầy Đàn): Each scored Club adds +0.3 XMult
                 if isClub(card) then
                     local clubScoredCount = 0
                     for _, sc in ipairs(handInfo.scoringCards) do
                         if isClub(sc) then clubScoredCount = clubScoredCount + 1 end
                     end
                     if clubScoredCount > 0 then
-                        local kClubXMult = 1.0 + (clubScoredCount * 0.3)
-                        xMultTotal = xMultTotal * kClubXMult
-                        cardEvent.message = cardEvent.message .. " | 🐜 Chúa Tể Bầy Đàn (x" .. string.format("%.2f", kClubXMult) .. " XMult)"
+                        local kClubBonus = clubScoredCount * 0.3
+                        xMultBonus = xMultBonus + kClubBonus
+                        cardEvent.message = cardEvent.message .. " | 🐜 Chúa Tể Bầy Đàn (+" .. string.format("%.2f", kClubBonus) .. " XMult)"
                     end
                 end
 
@@ -423,61 +436,160 @@ function Scoring.calculate(handInfo, deities, context)
                 end
             end
 
-            -- Check Card Equipments (onCardScore) with Khảm Nén Quặng (+50% stats on Diamonds)
-            for _, eq in ipairs(card.equipments or {}) do
-                if eq.onCardScore then
-                    local res = eq.onCardScore(card, handInfo.scoringCards, idx)
-                    if res then
-                        local eqMult = isDiamond(card) and 1.5 or 1.0
-                        if res.addChips then
-                            local c = math.floor(res.addChips * eqMult)
-                            bonusChips = bonusChips + c
-                            cardEvent.addedChips = cardEvent.addedChips + c
-                        end
-                        if res.addMult then
-                            local m = math.floor(res.addMult * eqMult)
-                            bonusMult = bonusMult + m
-                            cardEvent.addedMult = cardEvent.addedMult + m
-                        end
-                        if res.xMult then
-                            local xm = res.xMult
-                            if isDiamond(card) then
-                                xm = 1.0 + (xm - 1.0) * 1.5
+            -- Check Card Equipments ONLY on primary trigger (cTrig == 1):
+            -- "Ấn không được kích hoạt lại hiệu ứng trang bị, vàng, hồi máu hoặc tạo giáp"
+            if cTrig == 1 then
+                for _, eq in ipairs(card.equipments or {}) do
+                    if eq.onCardScore then
+                        local res = eq.onCardScore(card, handInfo.scoringCards, idx, context)
+                        if res then
+                            local eqMult = isDiamond(card) and 1.5 or 1.0
+                            if res.addChips then
+                                local c = math.floor(res.addChips * eqMult)
+                                bonusChips = bonusChips + c
+                                cardEvent.addedChips = cardEvent.addedChips + c
                             end
-                            xMultTotal = xMultTotal * xm
-                        end
-                        if res.extraDamagePct then
-                            totalExtraDamagePct = totalExtraDamagePct + (res.extraDamagePct * eqMult)
-                        end
-                        if res.addGold then
-                            local g = math.floor(res.addGold * eqMult)
-                            bonusGoldAwarded = bonusGoldAwarded + g
-                        end
-                        if res.addArmor then
-                            local arm = math.floor(res.addArmor * eqMult)
-                            totalArmorGain = totalArmorGain + arm
-                            cardEvent.message = cardEvent.message .. " | 🛡️ +" .. arm .. " Giáp"
-                            table.insert(steps, {
-                                type = "armor_gain",
-                                card = card,
-                                equipment = eq,
-                                amount = arm,
-                                message = (card.rankName or "") .. (card.suitSymbol or "") .. " kích hoạt " .. eq.name .. ": +" .. arm .. " Giáp!"
-                            })
-                        end
-                        if res.healHp then
-                            local heal = math.floor(res.healHp * eqMult)
-                            totalHealHp = totalHealHp + heal
-                            cardEvent.message = cardEvent.message .. " | 💚 +" .. heal .. " Máu"
-                            table.insert(steps, {
-                                type = "heal_hp",
-                                card = card,
-                                equipment = eq,
-                                amount = heal,
-                                message = (card.rankName or "") .. (card.suitSymbol or "") .. " kích hoạt " .. eq.name .. ": +" .. heal .. " HP!"
-                            })
+                            if res.addMult then
+                                local m = math.floor(res.addMult * eqMult)
+                                bonusMult = bonusMult + m
+                                cardEvent.addedMult = cardEvent.addedMult + m
+                            end
+                            if res.xMultBonus or res.xMult then
+                                local xm = res.xMultBonus or (res.xMult - 1.0)
+                                if isDiamond(card) then
+                                    xm = xm * 1.5
+                                end
+                                xMultBonus = xMultBonus + xm
+                            end
+                            if res.extraDamagePct then
+                                totalExtraDamagePct = totalExtraDamagePct + (res.extraDamagePct * eqMult)
+                            end
+                            if res.hpCost then
+                                totalHpCost = totalHpCost + res.hpCost
+                                cardEvent.message = cardEvent.message .. " | 🩸 -" .. res.hpCost .. " HP"
+                            end
+                            if res.addGold then
+                                local g = math.floor(res.addGold * eqMult)
+                                bonusGoldAwarded = bonusGoldAwarded + g
+                            end
+                            if res.addArmor then
+                                local arm = math.floor(res.addArmor * eqMult)
+                                totalArmorGain = math.min(30, totalArmorGain + arm)
+                                cardEvent.message = cardEvent.message .. " | 🛡️ +" .. arm .. " Giáp"
+                                table.insert(steps, {
+                                    type = "armor_gain",
+                                    card = card,
+                                    equipment = eq,
+                                    amount = arm,
+                                    message = (card.rankName or "") .. (card.suitSymbol or "") .. " kích hoạt " .. eq.name .. ": +" .. arm .. " Giáp!"
+                                })
+                            end
+                            if res.healHp then
+                                local heal = math.floor(res.healHp * eqMult)
+                                totalHealHp = totalHealHp + heal
+                                cardEvent.message = cardEvent.message .. " | 💚 +" .. heal .. " Máu"
+                                table.insert(steps, {
+                                    type = "heal_hp",
+                                    card = card,
+                                    equipment = eq,
+                                    amount = heal,
+                                    message = (card.rankName or "") .. (card.suitSymbol or "") .. " kích hoạt " .. eq.name .. ": +" .. heal .. " HP!"
+                                })
+                            end
                         end
                     end
+                end
+
+                -- Card Enhancements (Thuật Rèn Bài)
+                if card.enhancement then
+                    local enh = card.enhancement
+                    if enh == "enh_armor" or enh == "armor" then
+                        bonusChips = bonusChips - 10
+                        totalArmorGain = math.min(30, totalArmorGain + 8)
+                        cardEvent.addedChips = cardEvent.addedChips - 10
+                        cardEvent.message = cardEvent.message .. " | 🛡️ Giáp Hóa (-10c, +8 Giáp)"
+                    elseif enh == "enh_blood" or enh == "blood" then
+                        bonusMult = bonusMult + 15
+                        totalHpCost = totalHpCost + 4
+                        cardEvent.addedMult = cardEvent.addedMult + 15
+                        cardEvent.message = cardEvent.message .. " | 🩸 Huyết Hóa (+15 Mult, -4 HP)"
+                    elseif enh == "enh_overcharged" or enh == "overcharged" then
+                        local stacks = card.overchargeStacks or 0
+                        if stacks > 0 then
+                            bonusChips = bonusChips + stacks
+                            cardEvent.addedChips = cardEvent.addedChips + stacks
+                            cardEvent.message = cardEvent.message .. " | ⚡ Tích Điện (+" .. stacks .. " Chips)"
+                            card.overchargeStacks = 0
+                        end
+                    elseif enh == "enh_cursed" or enh == "cursed" then
+                        bonusMult = bonusMult + 20
+                        cardEvent.addedMult = cardEvent.addedMult + 20
+                        if context and context.monster then
+                            context.monster.enrageStacks = (context.monster.enrageStacks or 0) + 1
+                        end
+                        cardEvent.message = cardEvent.message .. " | 💀 Nguyền Rủa (+20 Mult, +1 Cuồng Nộ Quái)"
+                    elseif enh == "enh_brittle" or enh == "brittle" then
+                        xMultBonus = xMultBonus + 0.4
+                        cardEvent.message = cardEvent.message .. " | 💥 Nứt Vỡ (+0.4 XMult)"
+                        if Rng.random(100) <= 25 then
+                            card.destroyed = true
+                            cardEvent.message = cardEvent.message .. " [VỠ VỤN VĨNH VIỄN]"
+                        end
+                    elseif enh == "enh_harmonic" or enh == "harmonic" then
+                        local handCards = (context and context.hand) or {}
+                        local sameCount = 0
+                        for _, hc in ipairs(handCards) do
+                            if hc ~= card and hc.suit == card.suit then
+                                sameCount = sameCount + 1
+                            end
+                        end
+                        if sameCount > 0 then
+                            local hMult = sameCount * 3
+                            bonusMult = bonusMult + hMult
+                            cardEvent.addedMult = cardEvent.addedMult + hMult
+                            cardEvent.message = cardEvent.message .. " | 🎶 Cộng Hưởng (+" .. hMult .. " Mult)"
+                        end
+                    elseif enh == "enh_boss_hunter" or enh == "boss_hunter" then
+                        if context and context.monster and context.monster.isBoss then
+                            bonusChips = bonusChips + 25
+                            bonusMult = bonusMult + 8
+                            cardEvent.addedChips = cardEvent.addedChips + 25
+                            cardEvent.addedMult = cardEvent.addedMult + 8
+                            cardEvent.message = cardEvent.message .. " | 🏹 Săn Boss (+25 Chips, +8 Mult)"
+                        end
+                    end
+                end
+
+                -- 6 Battle Seals (Ấn Chiến)
+                if card.seal == "seal_blood" or card.seal == "blood" or card.seal == "red" then
+                    local curHp = (context and context.playerHp) or 100
+                    local maxHp = (context and context.maxPlayerHp) or 100
+                    if curHp < maxHp * 0.5 then
+                        totalExtraDamagePct = totalExtraDamagePct + 0.50
+                        cardEvent.message = cardEvent.message .. " | 🩸 Ấn Huyết (+50% Sát thương)"
+                    end
+                elseif card.seal == "seal_prophecy" or card.seal == "prophecy" or card.seal == "blue" then
+                    if context and context.monster then
+                        context.monster.showNextIntent = true
+                        cardEvent.message = cardEvent.message .. " | 🔮 Ấn Tiên Tri (Thấu Thị Intent)"
+                    end
+                elseif card.seal == "seal_ashen" or card.seal == "ashen" or card.seal == "purple" then
+                    card.destroyed = true
+                    if context and context.monster then
+                        context.monster.hp = math.max(0, context.monster.hp - 40)
+                        cardEvent.message = cardEvent.message .. " | 🔥 Ấn Tro Tàn (40 ST Chuẩn & Thiêu Hủy)"
+                    end
+                elseif card.seal == "seal_bounty" or card.seal == "bounty" or card.seal == "gold" then
+                    hasBountySeal = true
+                    cardEvent.message = cardEvent.message .. " | 💰 Ấn Truy Nã (+$2 khi kết liễu)"
+                elseif card.seal == "seal_anchor" or card.seal == "anchor" then
+                    card.isAnchor = true
+                    cardEvent.message = cardEvent.message .. " | ⚓ Ấn Neo"
+                elseif card.seal == "seal_purifying" or card.seal == "purifying" then
+                    if context and context.removeOneDebuff then
+                        context.removeOneDebuff()
+                    end
+                    cardEvent.message = cardEvent.message .. " | ✨ Ấn Thanh Tẩy (Giải Trừ 1 Debuff)"
                 end
             end
 
@@ -520,12 +632,7 @@ function Scoring.calculate(handInfo, deities, context)
                 end
             end
 
-            -- Gold Seal: +$3 when card scores
-            if card.seal == "gold" then
-                bonusGoldAwarded = bonusGoldAwarded + 3
-                cardEvent.addedGold = (cardEvent.addedGold or 0) + 3
-                cardEvent.message = cardEvent.message .. " | 🪙 Dấu Vàng (+$3)"
-            end
+            -- (Gold / Bounty Seal handled on primary trigger)
 
             cardEvent.deityTriggers = deityTriggers
             table.insert(steps, cardEvent)
@@ -602,9 +709,10 @@ end
     local martyrStacks = (context and context.martyrStacks) or (context and context.gameState and context.gameState.martyrStacks) or 0
     if martyrStacks > 0 then
         local mMult = martyrStacks * 8
-        local mXMult = 1.0 + (martyrStacks * 0.15)
+        local mBonus = martyrStacks * 0.15
+        local mXMult = 1.0 + mBonus
         bonusMult = bonusMult + mMult
-        xMultTotal = xMultTotal * mXMult
+        xMultBonus = xMultBonus + mBonus
         table.insert(steps, {
             type = "martyr_stacks",
             stacks = martyrStacks,
@@ -666,12 +774,12 @@ end
         end
     end
 
-    -- Aurelia Faction Passive: Hào Quang Thánh Thiện (x1.15 XMult if hand contains Aurelia card)
+    -- Aurelia Faction Passive: Hào Quang Thánh Thiện (+0.15 XMult if hand contains Aurelia card)
     if hasAureliaCard then
-        xMultTotal = xMultTotal * 1.15
+        xMultBonus = xMultBonus + 0.15
         table.insert(steps, {
             type = "faction_bonus",
-            message = "☀️ Hào Quang Thánh Thiện (Aurelia): ×1.15 XMult!",
+            message = "☀️ Hào Quang Thánh Thiện (Aurelia): +0.15 XMult!",
             xMult = 1.15,
         })
     end
@@ -679,8 +787,7 @@ end
     -- Step 3: Deities hand-level triggers (+Chips, +Mult, XMult) - Sequentially evaluated Left-to-Right (Slot 1 -> maxSlots)
     local currentChips = baseChips + bonusChips
     local currentMult = baseMult + bonusMult
-    local cardXMultTotal = xMultTotal
-    local deityXMultProduct = 1.0
+    local cardXMultTotal = math.min(5.0, 1.0 + xMultBonus)
 
     local maxDeitySlots = 5
     if deities then
@@ -707,7 +814,7 @@ end
                     currentMult = currentMult + addedMult
                     if cardXMult > 1.0 then
                         currentMult = currentMult * cardXMult
-                        deityXMultProduct = deityXMultProduct * cardXMult
+                        xMultBonus = xMultBonus + (cardXMult - 1.0)
                     end
 
                     bonusChips = bonusChips + addedChips
@@ -758,7 +865,7 @@ end
                     })
                 elseif deity.edition == "polychrome" then
                     currentMult = math.floor(currentMult * 1.5)
-                    deityXMultProduct = deityXMultProduct * 1.5
+                    xMultBonus = xMultBonus + 0.5
                     table.insert(steps, {
                         type = "deity_edition",
                         slotIndex = di,
@@ -774,23 +881,23 @@ end
         end
     end
 
-    -- Total calculation
+    -- Total calculation: card/equipment XMult is additive & capped at x5.0
     local totalChips = currentChips
     local totalMult = currentMult
-    local combinedXMultTotal = cardXMultTotal * deityXMultProduct
     local rawScore = math.floor(totalChips * totalMult * cardXMultTotal)
     local finalScore = math.floor(rawScore * (1 + totalExtraDamagePct))
+    local finalCombinedXMult = math.min(5.0, 1.0 + xMultBonus)
 
     table.insert(steps, {
         type = "final_score",
         totalChips = totalChips,
         totalMult = totalMult,
-        xMult = combinedXMultTotal,
+        xMult = finalCombinedXMult,
         rawScore = rawScore,
         extraDamagePct = totalExtraDamagePct,
         finalScore = finalScore,
         bonusGold = bonusGoldAwarded,
-        message = totalChips .. " Chips × " .. totalMult .. " Mult" .. (combinedXMultTotal > 1.0 and (" × " .. combinedXMultTotal .. " XMult") or "") .. " = " .. finalScore .. " Sát thương!"
+        message = totalChips .. " Chips × " .. totalMult .. " Mult" .. (finalCombinedXMult > 1.0 and (" × " .. string.format("%.2f", finalCombinedXMult) .. " XMult") or "") .. " = " .. finalScore .. " Sát thương!"
     })
 
     return {
@@ -800,15 +907,17 @@ end
         bonusMult = bonusMult,
         totalChips = totalChips,
         totalMult = totalMult,
-        xMultTotal = combinedXMultTotal,
+        xMultTotal = finalCombinedXMult,
         rawScore = rawScore,
         finalScore = finalScore,
         totalExtraDamagePct = totalExtraDamagePct,
         bonusGoldAwarded = bonusGoldAwarded,
-        addArmor = totalArmorGain,
+        addArmor = math.min(30, totalArmorGain),
         healHp = totalHealHp,
+        hpCost = totalHpCost,
         hasAceOfSpades = hasAceOfSpades,
         hasAceOfHearts = hasAceOfHearts,
+        hasBountySeal = hasBountySeal,
         bribeDollarsSpent = bribeDollarsSpent,
         martyrStacksConsumed = martyrStacks,
         steps = steps

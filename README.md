@@ -60,7 +60,7 @@
   # Chạy game trực tiếp qua Love2D v11.5:
   ..\love-11.5-win64\love.exe .
 
-  # Chạy bộ kiểm thử tự động (86 test cases):
+  # Chạy bộ kiểm thử tự động (91 test cases):
   ..\love-11.5-win64\lovec.exe . --test
   ```
 
@@ -129,9 +129,22 @@ Boss ở cuối mỗi Ante sở hữu những hiệu ứng nguyền rủa làm �
 - 🐟 **The Fish (Cá Biển Sâu)**: Mù lòa — Mọi lá bài rút lên sau khi đánh bài sẽ bị **Úp mặt (Face Down)**, che giấu Rank và Chất!
 - 💪 **The Arm (Cánh Tay Khổng Lồ)**: Thoái hóa — Giảm vĩnh viễn **-1 Cấp độ (Level)** của thế bài bạn vừa đánh ra!
 
-### Phần Thưởng Bỏ Qua Blind (Skip Tags)
-Người chơi có thể chủ động **Bỏ Qua (Skip)** Small Blind hoặc Big Blind để nhận ngay các Huy Hiệu Đặc Quyền (Tags) như: *Túi Vàng Cực Lớn, Gói Thần Ơn Miễn Phí, Vé Làm Mới Cửa Hàng Miễn Phí, Thẻ Âm Bản Negative Cực Hiếm...*
+### Sáu Khế Ước Bỏ Qua Blind & Mức Độ Truy Nã (6 Pacts & Wanted Level)
+Bỏ qua Blind không còn miễn phí mà phải ký kết các **Khế Ước Nguy Hiểm (Pacts)** kèm gia tăng **Wanted Level** (+8% stats Quái mỗi điểm; kích hoạt skill Boss tại mốc 3 và 5 Wanted):
+- 🩸 **Khoản Vay Máu (pact_blood_loan)**: Nhận ngay **+ Vàng**, nhưng giảm vĩnh viễn **-15 Max HP**!
+- 🏹 **Cuộc Săn Lớn (pact_great_hunt)**: Quái trận sau x1.5 HP & +30% ATK; chiến thắng thưởng hậu hĩnh + & 1 Hòm Đồ.
+- ⚒️ **Lò Rèn Cấm (pact_forbidden_forge)**: Khảm ngay trang bị Huyền Thoại Xúc Tác Hư Không, nhưng tăng **+2 Wanted Level**!
+- 🌫️ **Đường Tắt Mù Sương (pact_fog_shortcut)**: Đi tắt qua Blind; trận kế tiếp người chơi khởi đầu với 0 Giáp và Quái có sẵn 2 tầng Cuồng Nộ.
+- ☥ **Thỏa Ước Phục Sinh (pact_resurrection)**: Ban 1 cơ hội hồi sinh khi tử trận (30% HP), nhưng quái Ante tăng +20% HP.
+- 🗡️ **Phục Kích (pact_ambush)**: Khởi đầu trận với 5 lá trên tay thay vì 3, nhưng mất hoàn toàn quyền Đổi bài (0 Discards).
 
+### 5 Boss Mới, Cơ Chế Intent & Chuyển Giai Đoạn (Phase 2 at <= 50% HP)
+- ⚔️ **Hiệp Sĩ Vọng Âm (Echo Knight)**: Copy thế bài gần nhất của người chơi để tăng công.
+- 💰 **Kẻ Thu Thuế (Taxman)**: Cướp  mỗi lượt; Phase 2 tịch thu  nếu người chơi không hạ gục trong 2 lượt.
+- 💎 **Kẻ Ăn Ngọc (Gem Devourer)**: Vô hiệu hóa ngọc khảm của lá bài cao nhất mỗi lượt.
+- 🪓 **Đao Phủ (Executioner)**: Gây gấp đôi sát thương chuẩn nếu người chơi không có giáp.
+- 🎭 **Người Không Mặt (Faceless)**: Biến toàn bộ lá bài trên tay thành bài rác úp mặt (Face Down).
+- ⚡ **Boss Phase 2**: Khi HP tụt xuống $\le 50%$, Boss tiến hóa thanh máu, mở khóa skill tối thượng và tăng sát thương!
 ---
 
 ## ⚔️ 4. Cơ Chế Chiến Đấu Theo Lượt & Quái Vật (Combat & Intent)
@@ -210,12 +223,24 @@ Kho tàng thẻ tiêu hao phong phú mang lại chiều sâu tùy biến vô t�
 - **Ankh (Tái Sinh Thần Linh)**: Nhân bản 1 Thần Hộ Mệnh ngẫu nhiên và hiến tế các Thần Hộ Mệnh khác.
 - **Hex (Nguyền Rủa)**: Ban Polychrome (x1.5 XMult) cho 1 Thần Hộ Mệnh.
 
-### 2. Dấu Ấn Thẻ Bài (Card Seals)
-Đóng dấu ấn thần bí trực tiếp lên mặt lá bài:
-- 🟡 **Gold Seal**: Tặng ngay **+$3 Vàng** mỗi khi lá bài này được đánh ra và tính điểm.
-- 🔴 **Red Seal**: Cho phép lá bài này **Kích hoạt tính điểm lại thêm một lần nữa (Retrigger)**!
-- 🔵 **Blue Seal**: Tạo ra 1 thẻ Tinh Cầu Hành Tinh ngẫu nhiên nếu lá bài này còn nằm trên tay khi kết thúc trận.
-- 🟣 **Purple Seal**: Tạo ra 1 thẻ Tiêu Hao ngẫu nhiên khi lá bài này bị Đổi bài (Discard).
+### 2. Sáu Ấn Chiến Độc Bản (6 Battle Seals)
+Thay thế hoàn toàn ấn Balatro thông thường bằng 6 Ấn Chiến gắn liền sinh tử trong combat:
+- 🩸 **Ấn Huyết (Blood Seal)**: Tăng vọt **+50% tổng sát thương** nếu đánh ra khi HP người chơi dưới 50%.
+- 🔮 **Ấn Tiên Tri (Prophecy Seal)**: Khai mở **Thấu Thị Ý Định (Show Intent)** kế tiếp của Boss ngay lập tức.
+- 🔥 **Ấn Tro Tàn (Ashen Seal)**: Gây **40 Sát thương Chuẩn** trực tiếp vào máu quái, sau đó **Tự Thiêu Hủy** vĩnh viễn khỏi bộ bài (thanh lọc bài).
+- 💰 **Ấn Truy Nã (Bounty Seal)**: Thưởng nóng **+ Vàng** vào kho bạc nếu tay bài chứa ấn này kết liễu quái vật.
+- ⚓ **Ấn Neo (Anchor Seal)**: Lá bài này bị ghim chặt, **không thể bị buộc vứt bỏ (Discard)** bởi Boss hoặc hiệu ứng bất lợi.
+- ✨ **Ấn Thanh Tẩy (Purifying Seal)**: Giải trừ tức thì **1 hiệu ứng Debuff nguyền rủa** đang bám trên người chơi khi ghi điểm.
+
+### 2b. Tám Thuật Rèn Cường Hóa Bài (8 Card Enhancements with Tradeoffs)
+- 🛡️ **Giáp Hóa (enh_armor)**: +8 Giáp khi ghi điểm, nhưng giảm -15 Chips của lá bài.
+- 🩸 **Huyết Hóa (enh_blood)**: +12 Mult cực mạnh, nhưng tiêu hao -3 HP người chơi khi đánh ra.
+- ⚡ **Tích Điện (enh_overcharge)**: Mỗi lượt nằm trên tay chưa đánh tăng +10 Chips (tích lũy tối đa +50 Chips).
+- 💀 **Nguyền Rủa (enh_cursed)**: Ban tặng **+0.3 XMult**, nhưng làm tăng vĩnh viễn +5% ATK của quái vật.
+- 💥 **Nứt Vỡ (enh_brittle)**: +60 Chips khổng lồ, nhưng có 25% tỷ lệ lá bài vỡ vụn vĩnh viễn sau khi ghi điểm.
+- 🛡️ **Hộ Tống (enh_escort)**: Khi nằm trên tay chưa đánh, cung cấp thụ động +4 Giáp bảo vệ người chơi.
+- 🔮 **Cộng Hưởng (enh_resonance)**: +6 Mult cho mỗi lá bài khác trong tay có cùng Thuật Rèn.
+- 🏹 **Săn Boss (enh_boss_hunter)**: Tăng đột biến **+25 Chips & +8 Mult** khi giao chiến trực tiếp với Boss Blind!
 
 ### 3. Biến Đổi Ma Thuật Cổ Xưa (Spectral Cards)
 - **Cryptid (Nhân Bản Vô Tính)**: Chọn 1 lá bài trong tay, tạo ra thêm 2 bản sao hoàn hảo của lá bài đó vào bộ bài.
@@ -234,26 +259,31 @@ Nâng cấp vĩnh viễn chỉ số sát thương nền (Base Chips & Base Mult)
 
 ---
 
-## 💎 8. Hệ Thống Khảm 5 Hốc Đá Quý (Gemstone Socketing)
+## 💎 8. Hệ Thống Khảm 3 Hốc Trang Bị & Cân Bằng Sinh Tồn (Equipment & Survival)
 
-Mỗi lá bài trong bộ bài sở hữu cấu trúc vật lý gồm **5 Hốc Khảm Đá Quý Giác Cạnh (Faceted Sockets)** với 3 trạng thái đồ họa chi tiết (Hốc Rỗng, Đã Khảm, Hiệu Ứng Phát Sáng):
+Mỗi lá bài sở hữu tối đa **3 Hốc Khảm Trang Bị** (chế tác hình kim cương giác cạnh). Cấm gắn 2 trang bị trùng loại trên cùng một lá. Trang bị Huyền Thoại chiếm **2 ô**.
 
-| Biểu Tượng | Tên Bảo Thạch Khảm | Hiệu Ứng Khi Lá Bài Ghi Điểm Xuất Trận |
-| :---: | :--- | :--- |
-| 💎 | **Đá Lửa** | Tặng trực tiếp **+35 Chips** cho lá bài này. |
-| 🔥 | **Đá Bùng Nổ** | Tăng thêm **+10 Mult** cho toàn bộ tay bài xuất kích. |
-| 🪞 | **Gương Lan Tỏa** | Lan tỏa sức mạnh, buff thêm **+25 Chips** cho 2 lá bài nằm kế bên. |
-| 🌪️ | **Mắt Bão** | Cung cấp **+3 Mult** cho tất cả các lá bài CÙNG CHẤT trong tay bài. |
-| 💰 | **Đồng Tiền May Mắn** | Thưởng ngay **+$3 Vàng** vào túi tiền người chơi khi ghi điểm. |
-| 🪶 | **Lông Vũ Tự Do** | Khi Đổi bài (Discard) lá này, **KHÔNG bị trừ lượt đổi bài**. |
-| 🩸 | **Nhẫn Huyết Thần** | Gây thêm sát thương chuẩn tương đương **15% sát thương** trừ thẳng vào máu quái. |
-| 👑 | **Ngọc Bội Thánh Tích** | Nhân bộc phát **x1.3 XMult** vào tổng sát thương tay bài! |
-| 🛡️ | **Đá Hộ Mệnh** | Cộng **+5 Giáp** khi lá bài ghi điểm. |
-| 🛡️ | **Ngọc Hộ Thân** | Cộng **+8 Giáp** khi lá bài ghi điểm. |
-| 💚 | **Ngọc Hồi Máu** | Hồi **+2 HP** khi lá bài ghi điểm. |
+Cơ chế XMult chuyển sang **cộng dồn thặng dư** có trần cứng: $\text{XMult}_{\text{total}} = \min(5.0, 1.0 + \sum(x_i - 1.0))$.
 
-> 💡 **Chuyển Đồ Trong Cửa Hàng (Shop Transfer)**: Bạn có thể tự do tháo gỡ bảo ngọc từ lá bài cũ và khảm sang lá bài mới chỉ với vài thao tác kéo chọn trực quan trong Cửa Hàng!
+| Biểu Tượng | Tên Trang Bị / Ngọc Khảm | Rarity / Số Ô | Hiệu Ứng Chiến Thuật Khi Ghi Điểm |
+| :---: | :--- | :---: | :--- |
+| 💎 | **Đá Lửa (gem_fire)** | Phổ thông (1 ô) | +18 Chips; tăng vọt thành **+30 Chips** nếu ở vị trí mép ngoài cùng. |
+| 🔥 | **Đá Bùng Nổ (gem_blast)** | Phổ thông (1 ô) | +4 Mult; nhân đôi thành **+8 Mult** nếu đánh ra đúng 3 lá bài. |
+| 🪞 | **Gương Lan Tỏa (mirror_adjacent)** | Hiếm (1 ô) | +12 Chips cho 2 lá kế bên (chỉ tác dụng nếu lá kế bên **khác chất**). |
+| 🌪️ | **Mắt Bão (storm_eye)** | Hiếm (1 ô) | +2 Mult cho mỗi lá cùng chất trong tay (tối đa +8 Mult). |
+| 💰 | **Đồng Tiền May Mắn (lucky_coin)** | Phổ thông (1 ô) | Nhận ngay **+ Vàng** (giới hạn kích hoạt 1 lần mỗi trận). |
+| 🪶 | **Lông Vũ Tự Do (free_feather)** | Phổ thông (1 ô) | Đổi bài miễn phí 1 lần duy nhất mỗi trận đấu. |
+| 🩸 | **Nhẫn Huyết Thần (blood_ring)** | Hiếm (1 ô) | +10% sát thương chuẩn xuyên thấu, nhưng người chơi **mất 2 HP**. |
+| 👑 | **Ngọc Bội Thánh Tích (holy_relic)** | Huyền Thoại (2 ô) | +0.2 XMult một lần duy nhất mỗi tay bài, không lặp lại. |
+| 🌌 | **Xúc Tác Hư Không (void_catalyst)** | Huyền Thoại (2 ô) | +30 Chips và +10 Mult cực đại khi xuất trận. |
+| 🛡️ | **Đá Hộ Mệnh (ward_stone)** | Phổ thông (1 ô) | +6 Giáp; tăng gấp đôi thành **+12 Giáp** nếu đánh thế bài nhỏ (1-2 lá). |
+| 🛡️ | **Ngọc Hộ Thân (shield_gem)** | Hiếm (1 ô) | +15 Giáp vững chắc, nhưng lá bài rơi vào trạng thái **Kiệt Sức (Exhausted)** 1 lượt. |
+| 💚 | **Ngọc Hồi Máu (vitality_gem)** | Hiếm (1 ô) | Hồi phục khẩn cấp **+5 HP** (chỉ kích hoạt 1 lần khi HP dưới 50%). |
 
+> ⚔️ **Quy Tắc Sinh Tồn Khắc Nghiệt**:
+> - Giáp người chơi tối đa **30**. Khi bị quái đánh trúng, **giảm 50% lượng giáp còn lại**.
+> - Sát thương 1 đòn đánh của quái bị giới hạn tối đa **60% Max HP**. Xóa bỏ hoàn toàn cơ chế bất tử khi trên 50 HP.
+> - **Cuồng Nộ Tăng Tiến (Enrage)**: Mỗi lượt đấu kéo dài, quái tăng +8% ATK và +5% Armor vĩnh viễn!
 ---
 
 ## 🏪 9. Cửa Hàng Lữ Khách, Phí Reroll Tăng Dần & Vouchers
@@ -361,7 +391,7 @@ poker-roguelike/
 
 ## 🧪 14. Bộ Kiểm Thử Tự Động Toàn Diện (86/86 Unit Tests)
 
-Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **86 Unit Tests độc lập**, kiểm soát chặt chẽ từ logic toán học, tính điểm, cơ chế bài đến khả năng chịu tải runtime:
+Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **91 Unit Tests độc lập**, kiểm soát chặt chẽ từ logic toán học, tính điểm, cơ chế bài đến khả năng chịu tải runtime:
 
 ```text
 === RUNNING ROGUELIKE POKER SYSTEM TESTS ===
@@ -428,12 +458,14 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **86 Unit 
 [PASS] 58. Bộ Sưu Tập Toàn Thư hiển thị duy nhất Bộ Bài Đỏ và toàn bộ nội dung hỗ trợ
 [PASS] 59. Hệ Thống Nút Bấm Balatro 3D (Extrusion, Depress, 3D Tilt, In Hoa UTF-8 & Keycap Badges) verified 100%
 [PASS] 60. Đại Tu Grimdark & Cổ Điển (Hốc Khảm Đá Quý 3 Trạng Thái, Chân Dung Gothic K-Q-J-A, Hộ Linh Tarot & Sigil Cổ Vật) verified 100%
-[PASS] 61. 3-Turn Turn-Based Combat Benchmark (Armor absorption, HP healing & Zero Counter-attack on fatal hit) verified 100%
+[PASS] 61a. Turn 1: Pair 8♠ (+12 Armor, 28 DMG) -> Monster 48/76 HP. Quái attacks 12 -> 12 Armor blocks 12 -> 40/100 HP
+[PASS] 61b. Turn 2: Single K♠ (+15 Armor, +5 HP, 25 DMG) -> Player heals to 45 HP, Monster 23/76 HP. Quái attacks 12 -> blocked -> 45/100 HP
+[PASS] 61c. Turn 3: Single J♠ (32 DMG) -> Monster HP <= 0! Quái CHẾT NGAY! Immediate victory with 45 HP, NO counter-attack!
 [PASS] 62. Dual Loss Condition & 3-Card Straight (TRƯỜNG LONG) verified 100%
 [PASS] 63. Monster Attack Scaling verified across all 8 Antes (No One-Shot, Boss capped at 50 DMG)
-[PASS] 64. Anti-OneShot Protection verified (Single hit capped to 45% max HP and death defiance above 50 HP)
+[PASS] 64. 1-Hit Damage Cap verified (Single hit capped to 60% max HP, death defiance above 50 HP removed)
 [PASS] 65. 4 Fixed Financial Sources & Cash Out Formula verified 100%
-[PASS] 66. Voucher Seed Money raises interest cap to $10 verified 100%
+[PASS] 66. Voucher Seed Money raises interest cap to  verified 100%
 [PASS] 67. Delayed Gratification (Kiên Nhẫn Thần Thụ) Joker verified 100%
 [PASS] 68. RewardSystem.draw rendering runtime safety & button layout verified 100%
 [PASS] 69. Button Subtitle vertical stacking (zero text collision) verified 100%
@@ -441,11 +473,11 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **86 Unit 
 [PASS] 71. Endless Mode scaling and progression beyond Ante 8 verified 100%
 [PASS] 72. Ante 8 Victory trigger and 2-button choice state verified 100%
 [PASS] 73. Starter hand size = 3 and selectable cards limit = 1 verified 100%
-[PASS] 74. Mở Rộng Tay Bài shop item ($8 -> +1 permanent Hand Size) verified 100%
+[PASS] 74. Mở Rộng Tay Bài shop item ( -> +1 Hand Size, capped at 5) verified 100%
 [PASS] 75. Joker Editions (Foil +50c, Holo +10m, Poly x1.5m, Negative +1 Slot) verified 100%
 [PASS] 76. Joker Spells (Aura, Ectoplasm, Ankh, Hex) mechanics verified 100%
-[PASS] 77. Card Seals (Gold +$3, Red re-trigger, Blue, Purple) verified 100%
-[PASS] 78. Spectral Transformations (Cryptid, Immolate +$20, Ouija, Black Hole) verified 100%
+[PASS] 77. 6 Battle Seals (Ấn Huyết, Ấn Tiên Tri, Ấn Tro Tàn, Ấn Truy Nã, Ấn Neo, Ấn Thanh Tẩy) verified 100%
+[PASS] 78. Spectral Transformations (Cryptid, Immolate +, Ouija, Black Hole) verified 100%
 [PASS] 79. Hand Leveling & Planet Cards (Base scaling & Supernova +3 Lv) verified 100%
 [PASS] 80. Consumables Inventory (Slots capacity = 2) verified 100%
 [PASS] 81. Shop.keepPackCard (Keep Pack Cards into Consumables & Cap 2/2) verified 100%
@@ -454,6 +486,11 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **86 Unit 
 [PASS] 84. Versioned save/load round-trip restores run, cards, equipment and deity behavior
 [PASS] 85. Fresh-run schema prevents state leaks and gameplay RNG is reproducible
 [PASS] 86. Red Deck has 52 cards, draws 3 random cards and grants +20 Mult only on the first hand
+[PASS] 87. Phase 1: Equipment Constraints (3 Slots, No Dupes, Legendary 2 Slots, Additive XMult) verified 100%
+[PASS] 88. Phase 2: Deities Base 3 Slots & Rarity Distribution verified 100%
+[PASS] 89. Phase 3 & 4: 8 Card Enhancements with Tactical Tradeoffs verified 100%
+[PASS] 90. Phase 5: 6 Pacts & Wanted Level mechanics verified 100%
+[PASS] 91. Phase 6: 5 New Bosses, Intent System & Phase 2 Transition verified 100%
 === ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===
 ```
 

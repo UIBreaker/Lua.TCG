@@ -1,6 +1,103 @@
 local Rng = require("src.rng")
 local Deck = {}
 
+-- 6 Combat Battle Seals (Ấn Chiến)
+Deck.SEALS = {
+    seal_blood = {
+        id = "seal_blood",
+        name = "Ấn Huyết",
+        color = { 0.90, 0.15, 0.15, 1 },
+        desc = "+50% Sát thương khi máu người chơi < 50%",
+    },
+    seal_prophecy = {
+        id = "seal_prophecy",
+        name = "Ấn Tiên Tri",
+        color = { 0.30, 0.60, 0.95, 1 },
+        desc = "Khi ghi điểm, nhìn thấy Intent tiếp theo của Boss",
+    },
+    seal_ashen = {
+        id = "seal_ashen",
+        name = "Ấn Tro Tàn",
+        color = { 0.60, 0.55, 0.50, 1 },
+        desc = "Tự thiêu hủy lá này sau khi đánh, gây 40 Sát thương Chuẩn vào Quái",
+    },
+    seal_bounty = {
+        id = "seal_bounty",
+        name = "Ấn Truy Nã",
+        color = { 0.95, 0.80, 0.25, 1 },
+        desc = "Nếu lá này kết liễu Quái, thưởng ngay +$2 Vàng",
+    },
+    seal_anchor = {
+        id = "seal_anchor",
+        name = "Ấn Neo",
+        color = { 0.20, 0.70, 0.60, 1 },
+        desc = "Lá này luôn nằm trên tay khi bắt đầu lượt (không bị xáo vào cọc)",
+    },
+    seal_purifying = {
+        id = "seal_purifying",
+        name = "Ấn Thanh Tẩy",
+        color = { 0.85, 0.85, 0.95, 1 },
+        desc = "Xóa bỏ 1 trạng thái bất lợi (debuff) trên bản thân khi kích hoạt",
+    },
+}
+-- Backward compatibility aliases
+Deck.SEALS.gold = Deck.SEALS.seal_bounty
+Deck.SEALS.red = Deck.SEALS.seal_blood
+Deck.SEALS.blue = Deck.SEALS.seal_prophecy
+Deck.SEALS.purple = Deck.SEALS.seal_ashen
+
+-- 8 Card Enhancements (Thuật Rèn Bài)
+Deck.ENHANCEMENTS = {
+    enh_armor = {
+        id = "enh_armor",
+        name = "Giáp Hóa",
+        color = { 0.40, 0.70, 0.90, 1 },
+        desc = "+8 Giáp khi ghi điểm, nhưng lá này bị -10 Chips vĩnh viễn",
+    },
+    enh_blood = {
+        id = "enh_blood",
+        name = "Huyết Hóa",
+        color = { 0.85, 0.15, 0.20, 1 },
+        desc = "Tiêu hao 4 HP người chơi, đổi lại +15 Mult cho tay bài này",
+    },
+    enh_overcharged = {
+        id = "enh_overcharged",
+        name = "Tích Điện",
+        color = { 0.20, 0.90, 0.80, 1 },
+        desc = "Mỗi lượt nằm trên tay không đánh: tích +5 Chips (tối đa +25). Khi đánh: xả toàn bộ",
+    },
+    enh_cursed = {
+        id = "enh_cursed",
+        name = "Nguyền Rủa",
+        color = { 0.65, 0.20, 0.85, 1 },
+        desc = "+20 Mult, nhưng sau khi đánh tăng Cuồng Nộ của Quái thêm +1 tầng (+8% ATK)",
+    },
+    enh_brittle = {
+        id = "enh_brittle",
+        name = "Nứt Vỡ",
+        color = { 0.90, 0.60, 0.30, 1 },
+        desc = "x1.4 XMult cực mạnh, nhưng 25% tỉ lệ vỡ vụn biến mất vĩnh viễn sau khi ghi điểm",
+    },
+    enh_escort = {
+        id = "enh_escort",
+        name = "Hộ Tống",
+        color = { 0.30, 0.80, 0.40, 1 },
+        desc = "Không cần đánh ra — khi nằm trên tay lúc kết thúc lượt: +5 Giáp cho người chơi",
+    },
+    enh_harmonic = {
+        id = "enh_harmonic",
+        name = "Cộng Hưởng",
+        color = { 0.95, 0.45, 0.75, 1 },
+        desc = "+3 Mult cho mỗi lá bài khác trên tay có cùng chất với lá này",
+    },
+    enh_boss_hunter = {
+        id = "enh_boss_hunter",
+        name = "Săn Boss",
+        color = { 0.95, 0.75, 0.20, 1 },
+        desc = "+25 Chips & +8 Mult khi đối đầu Boss; vô hiệu hóa trước quái thường",
+    },
+}
+
 Deck.FACTIONS = {
     aurelia = {
         id = "aurelia",
@@ -85,7 +182,7 @@ Deck.STARTER_DECKS = {
         id = "red_deck",
         name = "Bộ Bài Đỏ",
         color = { 0.88, 0.16, 0.20, 1 },
-        desc = "+20 Mult cho tay bài đầu tiên của mỗi trận. Bắt đầu combat với 3 lá ngẫu nhiên.",
+        desc = "+10 Mult cho tay bài đầu tiên của mỗi trận. Bắt đầu combat với 3 lá ngẫu nhiên.",
     },
 }
 
@@ -336,6 +433,9 @@ function Deck.cloneCard(card)
     newC.disableFactionPassives = card.disableFactionPassives or false
     newC.starterDeckId = card.starterDeckId
     newC.seal = card.seal
+    newC.enhancement = card.enhancement
+    newC.overchargeStacks = card.overchargeStacks or 0
+    newC.isAnchor = card.isAnchor or (card.seal == "seal_anchor" or card.seal == "anchor")
     newC.unlockedSockets = card.unlockedSockets or newC.unlockedSockets
     newC.maxSockets = card.maxSockets or 5
     newC.equipments = {}
