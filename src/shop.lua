@@ -892,15 +892,9 @@ function Shop.transferEquipment(sourceCard, eqIndex, targetCard)
         return false, "Trang bị không tồn tại!"
     end
     local eq = sourceCard.equipments[eqIndex]
-    -- Check duplicate on targetCard
-    for _, existing in ipairs(targetCard.equipments or {}) do
-        if existing.id == eq.id then
-            return false, "Lá bài đích đã có trang bị loại này rồi!"
-        end
-    end
-    local needed = eq.slotsNeeded or 1
-    if Equipment.getUsedSlots(targetCard) + needed > Equipment.MAX_SLOTS then
-        return false, "Lá bài đích không đủ ô trang bị (Tối đa " .. Equipment.MAX_SLOTS .. " ô)!"
+    local canOk, canErr = Equipment.canAttach(targetCard, eq)
+    if not canOk then
+        return false, canErr
     end
 
     table.remove(sourceCard.equipments, eqIndex)

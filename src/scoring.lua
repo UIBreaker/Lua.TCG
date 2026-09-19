@@ -98,15 +98,15 @@ function Scoring.calculate(handInfo, deities, context)
         end
     end
 
-    -- Red Deck passive: a flat +20 Mult on the first played hand of each
+    -- Red Deck passive: a flat +10 Mult on the first played hand of each
     -- combat. Preview and actual scoring share this condition without
     -- mutating the combat counter here.
     if context and context.starterDeckId == "red_deck" and (context.handsPlayedThisCombat or 0) == 0 then
-        bonusMult = bonusMult + 20
+        bonusMult = bonusMult + 10
         table.insert(steps, {
             type = "starter_deck_bonus",
-            addedMult = 20,
-            message = "🔴 BỘ BÀI ĐỎ: Tay đầu tiên +20 Mult!",
+            addedMult = 10,
+            message = "🔴 BỘ BÀI ĐỎ: Tay đầu tiên +10 Mult!",
         })
     end
 
@@ -181,7 +181,16 @@ function Scoring.calculate(handInfo, deities, context)
             card.faceDown = false
         end
 
-        if isPillarLocked then
+        if card.exhausted then
+            table.insert(steps, {
+                type = "card_scored",
+                card = card,
+                cardIndex = idx,
+                addedChips = 0,
+                addedMult = 0,
+                message = "💤 KIỆT SỨC: " .. (card.rankName or "") .. (card.suitSymbol or "") .. " nghỉ ngơi (0 điểm)"
+            })
+        elseif isPillarLocked then
             table.insert(steps, {
                 type = "card_scored",
                 card = card,
@@ -192,10 +201,12 @@ function Scoring.calculate(handInfo, deities, context)
             })
         else
             -- Battle Seal: Blood Seal (Ấn Huyết) retriggers card base stats once, costs 3 HP, max 1/combat
+            local flags = (context and context.combatFlags) or context or {}
             local cardTriggers = 1
             local isBloodSeal = (card.seal == "seal_blood" or card.seal == "blood" or card.seal == "red")
-            if isBloodSeal and not (context and context.bloodSealUsedThisCombat) then
+            if isBloodSeal and not flags.bloodSealUsedThisCombat then
                 cardTriggers = 2
+                flags.bloodSealUsedThisCombat = true
                 if context then context.bloodSealUsedThisCombat = true end
             end
 
@@ -557,20 +568,31 @@ function Scoring.calculate(handInfo, deities, context)
                             cardEvent.addedMult = cardEvent.addedMult + 8
                             cardEvent.message = cardEvent.message .. " | 🏹 Săn Boss (+25 Chips, +8 Mult)"
                         end
+                    elseif enh == "enh_vanguard" or enh == "vanguard" then
+                        if idx == 1 then
+                            bonusChips = bonusChips + 15
+                            bonusMult = bonusMult + 4
+                            cardEvent.addedChips = cardEvent.addedChips + 15
+                            cardEvent.addedMult = cardEvent.addedMult + 4
+                            cardEvent.message = cardEvent.message .. " | ⚔️ Tiên Phong (+15 Chips, +4 Mult)"
+                        end
+                    elseif enh == "enh_rearguard" or enh == "rearguard" then
+                        if idx == #handInfo.scoringCards then
+                            totalArmorGain = math.min(30, totalArmorGain + 8)
+                            bonusMult = bonusMult + 3
+                            cardEvent.addedMult = cardEvent.addedMult + 3
+                            cardEvent.message = cardEvent.message .. " | 🛡️ Hậu Vệ (+8 Giáp, +3 Mult)"
+                        end
                     end
                 end
 
                 -- 6 Battle Seals (Ấn Chiến)
                 if card.seal == "seal_blood" or card.seal == "blood" or card.seal == "red" then
-                    local curHp = (context and context.playerHp) or 100
-                    local maxHp = (context and context.maxPlayerHp) or 100
-                    if curHp < maxHp * 0.5 then
-                        totalExtraDamagePct = totalExtraDamagePct + 0.50
-                        cardEvent.message = cardEvent.message .. " | 🩸 Ấn Huyết (+50% Sát thương)"
-                    end
+                    -- Ấn Huyết đã kích hoạt tái kích hoạt (retrigger) ở trên, không cộng dồn sát thương thừa
                 elseif card.seal == "seal_prophecy" or card.seal == "prophecy" or card.seal == "blue" then
                     if context and context.monster then
                         context.monster.showNextIntent = true
+                        context.monster.revealedIntents = 2
                         cardEvent.message = cardEvent.message .. " | 🔮 Ấn Tiên Tri (Thấu Thị Intent)"
                     end
                 elseif card.seal == "seal_ashen" or card.seal == "ashen" or card.seal == "purple" then
@@ -608,7 +630,7 @@ function Scoring.calculate(handInfo, deities, context)
                 if deity then
                     local effectiveDeity = Deities.resolveDeity and Deities.resolveDeity(deities, di) or deity
                     if effectiveDeity and effectiveDeity.onCardScored then
-                        local res = effectiveDeity.onCardScored(card, context, effectiveDeity)
+                        local res = effectiveDeity.onCardScored(card, context, effectiveDeity, idx, handInfo.scoringCards)
                         if res then
                             if res.addChips then
                                 bonusChips = bonusChips + res.addChips

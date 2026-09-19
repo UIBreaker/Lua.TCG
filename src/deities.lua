@@ -554,6 +554,19 @@ Deities.CATALOG = {
             end
         end,
     },
+    deity_vanguard_marshal = {
+        id = "deity_vanguard_marshal",
+        name = "Nguyên Soái Tiền Tuyến",
+        rarity = "uncommon",
+        cost = 6,
+        desc = "Lá bài đầu tiên ghi điểm nhận +10 Mult; lá bài cuối cùng ghi điểm tạo +6 Giáp",
+        lore = "Kỷ luật thép điều binh khiển tướng: tiền quân công phá, hậu quân vững thành.",
+        onHandScored = function(handInfo, ctx, self)
+            if handInfo and handInfo.scoringCards and #handInfo.scoringCards > 0 then
+                return { addMult = 10, addArmor = 6, message = "Nguyên Soái Tiền Tuyến (+10 Mult Tiền Quân, +6 Giáp Hậu Quân)" }
+            end
+        end,
+    },
 }
 
 function Deities.getCount(deities)
@@ -699,10 +712,12 @@ function Deities.getRandomShopPool(ownedDeities, count, gameState)
 
         local bucket = categorized[targetRarity]
         if not bucket or #bucket == 0 then
-            bucket = categorized["common"]
-        end
-        if not bucket or #bucket == 0 then
-            bucket = categorized["uncommon"]
+            for _, rName in ipairs({ "common", "uncommon", "rare", "legendary" }) do
+                if categorized[rName] and #categorized[rName] > 0 then
+                    bucket = categorized[rName]
+                    break
+                end
+            end
         end
 
         if bucket and #bucket > 0 then
@@ -764,7 +779,7 @@ function Deities.getMaxSlots(gameState)
     end
     if deitiesList then
         for _, d in pairs(deitiesList) do
-            if d and d.edition == "negative" then
+            if type(d) == "table" and d.edition == "negative" then
                 maxSlots = maxSlots + 1
             end
         end

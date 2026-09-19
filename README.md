@@ -7,7 +7,7 @@
 [![GitHub Repository](https://img.shields.io/badge/GitHub-UIBreaker%2FLua.TCG-blue?logo=github)](https://github.com/UIBreaker/Lua.TCG.git)
 [![Engine](https://img.shields.io/badge/Engine-LÖVE%2011.5-pink?logo=lua)](https://love2d.org/)
 [![Lua](https://img.shields.io/badge/Language-Lua%205.1%20%2F%20LuaJIT-000080?logo=lua)](https://www.lua.org/)
-[![Tests](https://img.shields.io/badge/Tests-86%2F86%20Passing-brightgreen?logo=checkmarx)](test_system.lua)
+[![Tests](https://img.shields.io/badge/Tests-98%2F98%20Passing-brightgreen?logo=checkmarx)](test_system.lua)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
@@ -47,7 +47,7 @@
 12. [Đồ Họa Shaders, Hiệu Ứng Juice & Âm Thanh Procedural](#-11-đồ-họa-shaders-hiệu-ứng-juice--âm-thanh-procedural)
 13. [Bảng Phím Tắt Điều Khiển Toàn Tập](#-12-bảng-phím-tắt-điều-khiển-toàn-tập)
 14. [Cấu Trúc Thư Mục Dự Án](#-13-cấu-trúc-thư-mục-dự-án)
-15. [Bộ Kiểm Thử Tự Động Toàn Diện (86/86 Unit Tests)](#-14-bộ-kiểm-thử-tự-động-toàn-diện-8686-unit-tests)
+15. [Bộ Kiểm Thử Tự Động Toàn Diện (98/98 Unit Tests)](#-14-bộ-kiểm-thử-tự-động-toàn-diện-9898-unit-tests)
 
 ---
 
@@ -60,7 +60,7 @@
   # Chạy game trực tiếp qua Love2D v11.5:
   ..\love-11.5-win64\love.exe .
 
-  # Chạy bộ kiểm thử tự động (92 test cases):
+  # Chạy bộ kiểm thử tự động (98 test cases):
   ..\love-11.5-win64\lovec.exe . --test
   ```
 
@@ -363,7 +363,7 @@ poker-roguelike/
 ├── conf.lua                 # Cấu hình cửa sổ Love2D (1280x720, VSync, Tiêu đề)
 ├── main.lua                 # Game State Machine, vòng lặp chính, Input & Renderer
 ├── run.bat                  # Script khởi chạy game nhanh 1-click cho Windows
-├── test_system.lua          # Bộ kiểm thử hệ thống tự động 86 bài test
+├── test_system.lua          # Bộ kiểm thử hệ thống tự động 98 bài test
 ├── .github/workflows/       # CI chạy test tự động trên Linux
 ├── LICENSE                  # Giấy phép MIT
 ├── fonts/                   # Phông chữ Unicode hiển thị tiếng Việt hoàn mỹ
@@ -389,13 +389,13 @@ poker-roguelike/
 
 ---
 
-## 🧪 14. Bộ Kiểm Thử Tự Động Toàn Diện (92/92 Unit Tests)
+## 🧪 14. Bộ Kiểm Thử Tự Động Toàn Diện (98/98 Unit Tests)
 
-Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **92 Unit Tests độc lập**, kiểm soát chặt chẽ từ logic toán học, tính điểm, cơ chế bài đến khả năng chịu tải runtime:
+Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **98 Unit Tests độc lập**, kiểm soát chặt chẽ từ logic toán học, tính điểm, cơ chế bài đến khả năng chịu tải runtime:
 
 ```text
 === RUNNING ROGUELIKE POKER SYSTEM TESTS ===
-[PASS] 1. Encounter 1 Monster HP is 76 HP: Yêu Tinh Rừng Xanh (76 HP)
+[PASS] 1. Encounter 1 Monster HP is 76 HP with 12 DMG intent: Yêu Tinh Rừng Xanh (76 HP)
 [PASS] 2. Monster HP scaling (+50% each encounter) verified: 76 -> 114 -> 171 -> 257 -> 385 HP
 [PASS] 2b. Boss created with scaled HP: CHÚA QUỶ GAI GÓC (770 HP)
 [PASS] 3. Starter 1-card evaluation is High Card: ĐƠN THỦ
@@ -403,13 +403,13 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **92 Unit 
 [PASS] 5. Unlocking Song Đao allows Pair evaluation: SONG ĐAO
 [PASS] 6. Act 1 Map generated with 20 floors, starter nodes available, boss on Floor 20
 [PASS] 7. Map node completion unlocks connecting nodes properly
-[PASS] 8. Boss Deity draft offers 2 distinct deities: Tối Thượng Thần and Thần Bùng Nổ
-[PASS] 9. Shop sells Skill Books and successfully unlocks hand: pair
+[PASS] 8. Boss Deity draft offers 2 distinct deities
+[PASS] 9. Shop sells Skill Books and successfully unlocks hand
 [PASS] 10. Selling deity refunds gold properly
-[PASS] 11. Starter deck has exactly 3 random cards for all 4 Factions
+[PASS] 11. Starter deck has exactly 3 cards (Soldier 3, Soldier 8, Knight J) for all 4 Factions
 [PASS] 12. Card Hierarchy verified: Chiến Binh (2-10), Hiệp Sĩ (J), Hoàng Hậu (Q), Quốc Vương (K), Thần Khí (A)
 [PASS] 13. Equipment transfer between cards verified successfully
-[PASS] 14. Deities.addDeity successfully adds chosen deity: Bất Diệt Cổ Thụ
+[PASS] 14. Deities.addDeity successfully adds chosen deity
 [PASS] 15. Encounter deck restoration verified: cards restore to initial rank in new encounter
 [PASS] 16. Card addition adds strictly to deck and not hand (prevents duplicate selection bug)
 [PASS] 17. Unlocked Straight correctly plays as Straight despite sharing same suit: TRƯỜNG LONG
@@ -426,28 +426,28 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **92 Unit 
 [PASS] 26. UI.drawCard renders faceted gemstone sockets and gilded frame without error
 [PASS] 27. Faction Discard Buffs rebalanced cleanly: Aurelia (+6/12c, +1m), Elaris (Heal), Vharos (3/6 True Dmg), Valoria (+5/8c, +$1)
 [PASS] 28. Player HP & Monster Counter-Attack verified: monster counter-attacks for 12 HP
-[PASS] 29. Tiền Lãi (Interest) verified: +$1 per $5 stored, capped at +$5 per combat
+[PASS] 29. Tiền Lãi (Interest) verified: +$1 per $5 stored, capped at +$3 per combat
 [PASS] 30. Skip Blind & Tag Rewards verified: node completed with tag reward: Túi Vàng Cực Lớn
 [PASS] 31. 5 Disruptive Boss Abilities verified: The Needle, The Water, The Hook, The Fish, The Arm
 [PASS] 32. UI.formatNumber verified: 15 -> 15, 1250 -> 1,250, 1234567 -> 1,234,567, 1.234e12 -> 1.234e12
 [PASS] 33. Hand Drag Reordering verified: cards swap indices cleanly without data loss
 [PASS] 34. Text Sanitization (variation selector stripping) & Audio Volume Clamping verified
-[PASS] 35. Balatro Shop Structure (Upper/Voucher/Packs), Incremental Reroll ($5 -> $6 -> $7 -> reset $5), & Pack Opening verified
+[PASS] 35. Balatro Shop Structure (Upper/Voucher/Packs), Steep Reroll ($5 -> $7 -> $10 -> reset $5), & Pack Opening verified
 [PASS] 36. Graphics Overhaul (CRT & Psychedelic Background Shaders, 3D Card Tilt, Deity Reordering) verified
 [PASS] 37. Thần Khởi Nguyên verified: +4 Mult unconditional
 [PASS] 38. Tứ Đại Thần Tộc verified: +4 Mult per faction card scored
 [PASS] 39. Thần Trận Pháp verified: +50 Chips for tactical formations (Pair / Trips)
-[PASS] 40. Thần Tinh Binh verified: +20 Mult strictly for hands <= 3 cards
-[PASS] 41. Thần Chiến Kỷ verified: +30 Chips per remaining Discard (4 discards = +120 Chips)
+[PASS] 40. Thần Tinh Binh verified: +7 Mult strictly for 3 cards of 3 distinct suits
+[PASS] 41. Thần Chiến Kỷ verified: +12 Chips per remaining Discard (4 discards = +48 Chips)
 [PASS] 42. Thần Bách Hoa verified: decaying Mult (+20 -> +16 -> ... -> extinct)
 [PASS] 43. Thần Kim Tài verified: +$4 Gold on round win
-[PASS] 44. Thần Quả Thần Bí & Thần Thụ Bất Diệt verified: extinction triggers Cavendish unlock & x3.0 XMult
-[PASS] 45. Thần Điệp Kích verified: x3.0 XMult on repeated hand in same combat
-[PASS] 46. Thần Phản Chiếu (Blueprint) verified: dynamically copies deity to right across hand and card triggers
-[PASS] 47. Ante & Blind HP Progression verified: 8 Antes mathematically validated (Small 76->2040, Big 114->3060, Boss 152->4080)
+[PASS] 44. Thần Quả Thần Bí & Thần Thụ Bất Diệt verified: extinction triggers Cavendish unlock & x1.5 XMult
+[PASS] 45. Thần Điệp Kích verified: x1.6 XMult when hand differs from previous played hand
+[PASS] 46. Thần Phản Chiếu (Blueprint) verified: dynamically copies deity to right at 60% potency
+[PASS] 47. Ante & Blind HP Progression verified: 8 Antes mathematically validated (Small 76->3252, Big 114->4878, Boss 152->6504)
 [PASS] 48. RunManager.newRun & 3-Blind Ante structure verified (Small/Big canSkip, Boss debuff active)
 [PASS] 49. Cash Out Calculator verified: 5 Sources (Base, Hands, Interest, Deities, Valoria +25%) and Skip mechanics
-[PASS] 50. Skip Blind Tags, Free Reroll Tag, and Shop Reroll mechanics ($5 -> $6 -> reset $5) verified
+[PASS] 50. Skip Blind Tags, Free Reroll Tag, and Shop Reroll mechanics ($5 -> $7 -> reset $5) verified
 [PASS] 51. Full 8-Ante Progression (3 Blinds & 3 Shops per Ante) and Ante 8 VICTORY verified
 [PASS] 52. ♠️ Thiết Quân Thứ (The Iron Axiom): Chỉ Số Thép, Boss Debuff Immunity, Phalanx Progression (+100c), J♠ (+40c/soldier), Q♠ (x1.4), K♠ (+15c/unplayed), A♠ Sát Khí verified
 [PASS] 53. ♥️ Giáo Hội Huyết ƯỚc (The Sanguine Covenant): +5 Mult/card, Dấu Ấn Tử Đạo (+24m, x1.45), K♥ (+100c/+25m on last hand), Q♥ (-1 rank, x1.35), A♥ Blood Gold verified
@@ -458,6 +458,7 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **92 Unit 
 [PASS] 58. Bộ Sưu Tập Toàn Thư hiển thị duy nhất Bộ Bài Đỏ và toàn bộ nội dung hỗ trợ
 [PASS] 59. Hệ Thống Nút Bấm Balatro 3D (Extrusion, Depress, 3D Tilt, In Hoa UTF-8 & Keycap Badges) verified 100%
 [PASS] 60. Đại Tu Grimdark & Cổ Điển (Hốc Khảm Đá Quý 3 Trạng Thái, Chân Dung Gothic K-Q-J-A, Hộ Linh Tarot & Sigil Cổ Vật) verified 100%
+--- Testing 3-Turn Turn-Based Combat Benchmark ---
 [PASS] 61a. Turn 1: Pair 8♠ (+12 Armor, 28 DMG) -> Monster 48/76 HP. Quái attacks 12 -> 12 Armor blocks 12 -> 40/100 HP
 [PASS] 61b. Turn 2: Single K♠ (+15 Armor, +5 HP, 25 DMG) -> Player heals to 45 HP, Monster 23/76 HP. Quái attacks 12 -> blocked -> 45/100 HP
 [PASS] 61c. Turn 3: Single J♠ (32 DMG) -> Monster HP <= 0! Quái CHẾT NGAY! Immediate victory with 45 HP, NO counter-attack!
@@ -465,7 +466,7 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **92 Unit 
 [PASS] 63. Monster Attack Scaling verified across all 8 Antes (No One-Shot, Boss capped at 50 DMG)
 [PASS] 64. 1-Hit Damage Cap verified (Single hit capped to 60% max HP, death defiance above 50 HP removed)
 [PASS] 65. 4 Fixed Financial Sources & Cash Out Formula verified 100%
-[PASS] 66. Voucher Seed Money raises interest cap to  verified 100%
+[PASS] 66. Voucher Seed Money raises interest cap to $10 verified 100%
 [PASS] 67. Delayed Gratification (Kiên Nhẫn Thần Thụ) Joker verified 100%
 [PASS] 68. RewardSystem.draw rendering runtime safety & button layout verified 100%
 [PASS] 69. Button Subtitle vertical stacking (zero text collision) verified 100%
@@ -473,11 +474,11 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **92 Unit 
 [PASS] 71. Endless Mode scaling and progression beyond Ante 8 verified 100%
 [PASS] 72. Ante 8 Victory trigger and 2-button choice state verified 100%
 [PASS] 73. Starter hand size = 3 and selectable cards limit = 1 verified 100%
-[PASS] 74. Mở Rộng Tay Bài shop item ( -> +1 Hand Size, capped at 5) verified 100%
+[PASS] 74. Mở Rộng Tay Bài shop item ($12 -> +1 Hand Size, capped at 5) verified 100%
 [PASS] 75. Joker Editions (Foil +50c, Holo +10m, Poly x1.5m, Negative +1 Slot) verified 100%
 [PASS] 76. Joker Spells (Aura, Ectoplasm, Ankh, Hex) mechanics verified 100%
 [PASS] 77. 6 Battle Seals (Ấn Huyết, Ấn Tiên Tri, Ấn Tro Tàn, Ấn Truy Nã, Ấn Neo, Ấn Thanh Tẩy) verified 100%
-[PASS] 78. Spectral Transformations (Cryptid, Immolate +, Ouija, Black Hole) verified 100%
+[PASS] 78. Spectral Transformations (Cryptid, Immolate +$20, Ouija, Black Hole) verified 100%
 [PASS] 79. Hand Leveling & Planet Cards (Base scaling & Supernova +3 Lv) verified 100%
 [PASS] 80. Consumables Inventory (Slots capacity = 2) verified 100%
 [PASS] 81. Shop.keepPackCard (Keep Pack Cards into Consumables & Cap 2/2) verified 100%
@@ -485,13 +486,19 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **92 Unit 
 [PASS] 83. Boss combat modifiers are transient and The Needle no longer leaks maxHands
 [PASS] 84. Versioned save/load round-trip restores run, cards, equipment and deity behavior
 [PASS] 85. Fresh-run schema prevents state leaks and gameplay RNG is reproducible
-[PASS] 86. Red Deck has 52 cards, draws 3 random cards and grants +20 Mult only on the first hand
+[PASS] 86. Red Deck has 52 cards, draws 3 random cards and grants +10 Mult only on the first hand
 [PASS] 87. Phase 1: Equipment Constraints (3 Slots, No Dupes, Legendary 2 Slots, Additive XMult) verified 100%
 [PASS] 88. Phase 2: Deities Base 3 Slots & Rarity Distribution verified 100%
 [PASS] 89. Phase 3 & 4: 8 Card Enhancements with Tactical Tradeoffs verified 100%
 [PASS] 90. Phase 5: 6 Pacts & Wanted Level mechanics verified 100%
 [PASS] 91. Phase 6: 5 New Bosses, Intent System & Phase 2 Transition verified 100%
 [PASS] 92. RunManager.advanceBlind & Blind Progression Contract verified 100%
+[PASS] 93. Equipment Socket Synchronization (unlockedSockets & MAX_SLOTS = 3) verified 100%
+[PASS] 94. Permanent Card Destruction (Permadeath) verified 100%
+[PASS] 95. Card Exhaustion (Kiệt Sức) Lifecycle verified 100%
+[PASS] 96. Battle Seals Combat Lifecycle (Blood, Anchor, Prophecy, Purification) verified 100%
+[PASS] 97. Formation Archetype (Đội Hình): Equipment, Enhancements & Vanguard Marshal verified 100%
+[PASS] 98. Khế Ước Bỏ Ải (3-Part Unified Schema & Skip Execution) verified 100%
 === ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===
 ```
 

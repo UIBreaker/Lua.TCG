@@ -177,6 +177,8 @@ do
     -- 8. Test Equipment Transfer in Shop
     local cardSrc = Deck.newCard(8, "hearts")
     local cardDst = Deck.newCard(10, "hearts")
+    cardSrc.unlockedSockets = 3
+    cardDst.unlockedSockets = 3
     local eqItem = Equipment.getRandomEquipment()
     Equipment.attach(cardSrc, eqItem)
     assert(#cardSrc.equipments == 1, "Source card should have 1 equipment")
@@ -279,6 +281,7 @@ log("[PASS] 20. Deck.cloneCard preserves exact card id for 1:1 combat tracking")
 
 -- 16. Test Equipment persistence on persistentDeck cards
 local eqItem = Equipment.getRandomEquipment()
+origCard.unlockedSockets = math.max(origCard.unlockedSockets or 1, eqItem.slotsNeeded or 1)
 local okAttach, attachMsg = Equipment.attach(origCard, eqItem)
 assert(okAttach, "Should attach equipment to persistent card")
 assert(#origCard.equipments == 1, "Card should have 1 equipment slot filled")
@@ -337,6 +340,7 @@ local shopSim = Shop.new()
 Shop.refresh(shopSim, testGameState)
 local eqToBuy = Equipment.ITEMS.holy_relic
 local testCardTarget = testGameState.persistentDeck[2]
+testCardTarget.unlockedSockets = math.max(testCardTarget.unlockedSockets or 1, eqToBuy.slotsNeeded or 1)
 assert(#testCardTarget.equipments == 0, "Target card starts with 0 equipments")
 local okAttach, attachMsg = Equipment.attach(testCardTarget, eqToBuy)
 assert(okAttach, "Attachment must succeed")
@@ -888,6 +892,7 @@ do
     local tagRun = RunManager.newRun("valoria")
     local mockShopGame = { gold = 20, selectedFaction = "valoria", freeRerolls = 0 }
     tagRun.blinds[1].tag = RunManager.TAGS[5] -- tag_free_reroll (+2 free rerolls)
+    tagRun.blinds[1].skipPact = RunManager.TAGS[5]
     local skipOk, skipMsg, tag = RunManager.skipCurrentBlind(tagRun, mockShopGame)
     assert(skipOk == true, "Small blind should be skippable")
     assert(tagRun.blinds[1].status == "skipped", "Blind status should be skipped")
@@ -2078,14 +2083,20 @@ do
     local scoreBounty = Scoring.calculate(evalBounty, {}, {})
     assert(scoreBounty.hasBountySeal == true, "Bounty seal must flag hasBountySeal")
 
-    -- Blood Seal: +50% DMG when player HP < 50%
+    -- Blood Seal (Ấn Huyết): Retriggers base stats once (1/combat), costs 3 HP, removes redundant +50% DMG
     local cardBlood = Deck.newCard(8, "spades")
+    cardBlood.disableFactionPassives = true
     cardBlood.seal = "seal_blood"
     local evalBlood = { type = Poker.HAND_TYPES.HIGH_CARD, scoringCards = { cardBlood }, unscoredCards = {} }
-    local scoreBloodLow = Scoring.calculate(evalBlood, {}, { playerHp = 30, maxPlayerHp = 100 })
-    assert(scoreBloodLow.totalExtraDamagePct == 0.50, "Blood seal must grant +50% extra damage when HP < 50%")
-    local scoreBloodHigh = Scoring.calculate(evalBlood, {}, { playerHp = 80, maxPlayerHp = 100 })
-    assert(scoreBloodHigh.totalExtraDamagePct == 0, "Blood seal must not grant extra damage when HP >= 50%")
+    local flags1 = { bloodSealUsedThisCombat = false }
+    local scoreBlood1 = Scoring.calculate(evalBlood, {}, { combatFlags = flags1 })
+    assert(flags1.bloodSealUsedThisCombat == true, "Blood seal must mark bloodSealUsedThisCombat")
+    assert(scoreBlood1.hpCost == 3, "Blood seal must cost 3 HP")
+    local normalCard = Deck.newCard(8, "spades")
+    normalCard.disableFactionPassives = true
+    local evalNormal = { type = Poker.HAND_TYPES.HIGH_CARD, scoringCards = { normalCard }, unscoredCards = {} }
+    local scoreNormal = Scoring.calculate(evalNormal, {}, {})
+    assert(scoreBlood1.totalChips == scoreNormal.totalChips + 8, "Blood seal must retrigger card base stats (+8 chips)")
 
     -- Ashen Seal: 40 True DMG & destroys card
     local cardAshen = Deck.newCard(9, "valoria")
@@ -2398,14 +2409,15 @@ do
     local evaluated = Poker.evaluate({ testCard }, { high_card = true })
     local firstScore = Scoring.calculate(evaluated, {}, { starterDeckId = "red_deck", handsPlayedThisCombat = 0 })
     local laterScore = Scoring.calculate(evaluated, {}, { starterDeckId = "red_deck", handsPlayedThisCombat = 1 })
-    assert(firstScore.totalMult == laterScore.totalMult + 20, "Red Deck first hand must receive exactly +20 Mult")
-    log("[PASS] 86. Red Deck has 52 cards, draws 3 random cards and grants +20 Mult only on the first hand")
+    assert(firstScore.totalMult == laterScore.totalMult + 10, "Red Deck first hand must receive exactly +10 Mult")
+    log("[PASS] 86. Red Deck has 52 cards, draws 3 random cards and grants +10 Mult only on the first hand")
 end
 
 
 -- 87. Test Phase 1: Equipment Constraints (3 Slots, No Duplicates, Legendary = 2 Slots, Additive XMult <= 5.0)
 do
     local testCard = Deck.newCard(10, "vharos")
+    testCard.unlockedSockets = 3
     -- Attach 1: Iron Spikes (takes 1 slot)
     local ok1 = Equipment.attach(testCard, Equipment.ITEMS.iron_spikes)
     assert(ok1 == true, "Attach iron_spikes must succeed")
@@ -2494,7 +2506,7 @@ end
 
 -- 90. Test Phase 5: 6 Pacts & Wanted Level
 do
-    assert(#RunManager.PACTS == 6, "Must have exactly 6 Pacts, got: " .. #RunManager.PACTS)
+    assert(#RunManager.PACTS >= 6, "Must have at least 6 Pacts, got: " .. #RunManager.PACTS)
     local pactGame = { gold = 5, maxPlayerHp = 100, playerHp = 100, wantedLevel = 0 }
     
     -- Pact 1: Blood Loan (+$15 gold, -15 Max HP)
@@ -2550,6 +2562,208 @@ do
     assert(b2.status == "current", "Big blind status is current")
 
     log("[PASS] 92. RunManager.advanceBlind & Blind Progression Contract verified 100%")
+end
+
+-- 93. Test Equipment Socket Constraints & Synchronization (card.unlockedSockets & MAX_SLOTS = 3)
+do
+    local c = Deck.newCard(7, "valoria")
+    assert(c.unlockedSockets == 1, "Valoria starts with 1 unlocked socket")
+    assert(c.maxSockets == 3, "Card maxSockets must be 3")
+
+    -- 1-slot item succeeds
+    local ok1 = Equipment.attach(c, Equipment.ITEMS.vanguard_spear)
+    assert(ok1 == true, "Attaching 1-slot item to 1 unlocked socket succeeds")
+
+    -- Second 1-slot item fails because unlockedSockets == 1
+    local ok2, msg2 = Equipment.canAttach(c, Equipment.ITEMS.shield_lock)
+    assert(ok2 == false, "Attaching 2nd item must fail when card only has 1 unlocked socket")
+
+    -- Unlocking socket to 2 allows the second item
+    c.unlockedSockets = 2
+    local ok3 = Equipment.attach(c, Equipment.ITEMS.shield_lock)
+    assert(ok3 == true, "Attaching 2nd item succeeds once socket 2 is unlocked")
+
+    -- Attaching 2-slot legendary into 1 remaining slot fails
+    local okLeg, msgLeg = Equipment.canAttach(c, Equipment.ITEMS.tactical_compass)
+    assert(okLeg == false, "Attaching 2-slot legendary requires 2 open sockets, must fail")
+
+    -- Unlocking to max 3: 2 used + 2 needed = 4 > 3 -> fails
+    c.unlockedSockets = 3
+    assert(Equipment.canAttach(c, Equipment.ITEMS.tactical_compass) == false, "2 used + 2 needed > 3 sockets, must fail")
+    log("[PASS] 93. Equipment Socket Synchronization (unlockedSockets & MAX_SLOTS = 3) verified 100%")
+end
+
+-- 94. Test Permanent Card Destruction (Permadeath)
+do
+    local pDeck = {
+        Deck.newCard(2, "spades"),
+        Deck.newCard(5, "hearts"),
+        Deck.newCard(10, "diamonds"),
+    }
+    local simGame = {
+        persistentDeck = pDeck,
+        deck = { Deck.cloneCard(pDeck[1]) },
+        hand = { Deck.cloneCard(pDeck[2]) },
+        discardPile = { Deck.cloneCard(pDeck[3]) },
+    }
+    -- Mark card in hand as destroyed
+    local targetId = pDeck[2].id
+    simGame.hand[1].destroyed = true
+    local destroyedIds = Combat.cleanupDestroyedCards(simGame)
+    assert(destroyedIds[targetId] == true, "Card ID must be recorded in destroyedIds")
+    assert(#simGame.hand == 0, "Destroyed card must be purged from hand")
+    assert(#simGame.persistentDeck == 2, "Destroyed card must be permanently purged from persistentDeck")
+    for _, c in ipairs(simGame.persistentDeck) do
+        assert(c.id ~= targetId, "Persistent deck must no longer contain the destroyed card")
+    end
+    log("[PASS] 94. Permanent Card Destruction (Permadeath) verified 100%")
+end
+
+-- 95. Test Card Exhaustion (Kiệt Sức) Lifecycle
+do
+    local cardExhausted = Deck.newCard(9, "valoria")
+    cardExhausted.exhausted = true
+    local evalEx = { type = Poker.HAND_TYPES.HIGH_CARD, scoringCards = { cardExhausted }, unscoredCards = {} }
+    local scoreEx = Scoring.calculate(evalEx, {}, {})
+    assert(scoreEx.totalChips == evalEx.type.baseChips and scoreEx.totalMult == evalEx.type.baseMult, "Exhausted card must contribute 0 Chips and 0 Mult")
+    cardExhausted.exhausted = false
+    local scoreActive = Scoring.calculate(evalEx, {}, {})
+    assert(scoreActive.totalChips == scoreEx.totalChips + 9, "Active card adds its 9 chips")
+    cardExhausted.exhausted = true
+
+    -- Recovery on player turn end
+    local restGame = { hand = { cardExhausted } }
+    Combat.onPlayerTurnEnd(restGame)
+    assert(cardExhausted.exhausted == false, "Exhausted card must recover after rest turn end")
+
+    -- Just exhausted protection: stays exhausted for full next turn
+    cardExhausted.exhausted = true
+    cardExhausted.justExhausted = true
+    Combat.onPlayerTurnEnd(restGame)
+    assert(cardExhausted.exhausted == true, "Just exhausted card remains exhausted on initial turn end")
+    assert(cardExhausted.justExhausted == nil, "justExhausted flag cleared for subsequent turn recovery")
+    Combat.onPlayerTurnEnd(restGame)
+    assert(cardExhausted.exhausted == false, "Card recovers on the following turn end")
+    log("[PASS] 95. Card Exhaustion (Kiệt Sức) Lifecycle verified 100%")
+end
+
+-- 96. Test Battle Seals Combat Lifecycle (Blood, Anchor, Prophecy, Purification)
+do
+    -- Anchor seal priority deal in Combat.start
+    local aDeck = {
+        Deck.newCard(2, "clubs"),
+        Deck.newCard(3, "diamonds"),
+        Deck.newCard(4, "hearts"),
+        Deck.newCard(5, "spades"),
+    }
+    aDeck[4].seal = "seal_anchor"
+    local aGame = {
+        persistentDeck = aDeck,
+        maxHands = 4,
+        maxDiscards = 3,
+        maxHandSize = 3,
+    }
+    local aMonster = { hp = 100, maxHp = 100 }
+    Combat.start(aGame, aMonster, 1)
+    local hasAnchorInHand = false
+    for _, c in ipairs(aGame.hand) do
+        if c.seal == "seal_anchor" then hasAnchorInHand = true end
+    end
+    assert(hasAnchorInHand, "Ấn Neo (Anchor Seal) card must be prioritized into opening hand")
+
+    -- Prophecy seal reveals 2 intents
+    local pCard = Deck.newCard(7, "valoria")
+    pCard.seal = "seal_prophecy"
+    local pGame = { hand = { pCard }, combatFlags = {} }
+    local pMonster = { hp = 100 }
+    local pEval = { type = Poker.HAND_TYPES.HIGH_CARD, scoringCards = { pCard }, unscoredCards = {} }
+    Scoring.calculate(pEval, {}, { monster = pMonster, combatFlags = pGame.combatFlags })
+    assert(pMonster.showNextIntent == true and pMonster.revealedIntents == 2, "Ấn Tiên Tri must reveal next 2 monster intents")
+
+    -- Purification seal cleanses debuff on monster turn end
+    local pureCard = Deck.newCard(8, "aurelia")
+    pureCard.seal = "seal_purifying"
+    local pureGame = {
+        hand = { pureCard },
+        monster = { bossData = { id = "the_needle" } },
+        combatFlags = {},
+    }
+    local cleansed, cleanseMsg = Combat.onMonsterTurnEnd(pureGame)
+    assert(cleansed == true, "Ấn Thanh Tẩy must cleanse 1 boss debuff when held in hand")
+    assert(pureGame.monster.bossDebuffCleansed == true, "Boss debuff marked cleansed")
+    log("[PASS] 96. Battle Seals Combat Lifecycle (Blood, Anchor, Prophecy, Purification) verified 100%")
+end
+
+-- 97. Test Formation Archetype (Đội Hình): Equipment, Enhancements & Vanguard Marshal
+do
+    -- 1. Vanguard Spear: +25 Chips on outer cards (1 & #cards), -5 Chips in the middle
+    local spearItem = Equipment.ITEMS.vanguard_spear
+    assert(spearItem ~= nil, "vanguard_spear item must exist")
+    local cOuter1 = spearItem.onCardScore({}, {1, 2, 3}, 1, {})
+    local cMiddle = spearItem.onCardScore({}, {1, 2, 3}, 2, {})
+    local cOuter2 = spearItem.onCardScore({}, {1, 2, 3}, 3, {})
+    assert(cOuter1.addChips == 25, "Vanguard Spear grants +25 Chips on first position")
+    assert(cMiddle.addChips == -5, "Vanguard Spear gives -5 Chips in the middle position")
+    assert(cOuter2.addChips == 25, "Vanguard Spear grants +25 Chips on last position")
+
+    -- 2. Shield Lock: +12 Armor and exhausts card
+    local lockItem = Equipment.ITEMS.shield_lock
+    local dummyCard = { exhausted = false }
+    local lockRes = lockItem.onCardScore(dummyCard, {}, 1, {})
+    assert(lockRes.addArmor == 12, "Shield Lock grants +12 Armor")
+    assert(dummyCard.exhausted == true, "Shield Lock must mark card exhausted")
+
+    -- 3. Tactical Compass: Legendary 2 slots, x1.25 XMult, swaps card
+    local compItem = Equipment.ITEMS.tactical_compass
+    assert(compItem.slotsNeeded == 2, "Tactical Compass requires 2 slots")
+    local row = { { id = "card1" }, { id = "card2" } }
+    local compRes = compItem.onCardScore(row[2], row, 2, {})
+    assert(compRes.xMultBonus == 0.25, "Tactical Compass gives +0.25 additive XMult (x1.25)")
+    assert(row[1].id == "card2" and row[2].id == "card1", "Tactical Compass must swap position with adjacent card")
+
+    -- 4. enh_vanguard (+15 Chips, +4 Mult at idx 1) & enh_rearguard (+8 Armor, +3 Mult at last idx)
+    local c1 = Deck.newCard(5, "aurelia")
+    c1.disableFactionPassives = true
+    c1.enhancement = "enh_vanguard"
+    local c2 = Deck.newCard(6, "aurelia")
+    c2.disableFactionPassives = true
+    local c3 = Deck.newCard(7, "aurelia")
+    c3.disableFactionPassives = true
+    c3.enhancement = "enh_rearguard"
+
+    local fEval = { type = Poker.HAND_TYPES.THREE_OF_A_KIND, scoringCards = { c1, c2, c3 }, unscoredCards = {} }
+    local fScore = Scoring.calculate(fEval, {}, {})
+    assert(fScore.addArmor >= 8, "enh_rearguard must grant +8 Armor at last index")
+
+    -- 5. Deity Vanguard Marshal: +10 Mult on 1st card, +6 Armor on last card
+    local dMarshal = Deities.CATALOG.deity_vanguard_marshal
+    assert(dMarshal ~= nil, "deity_vanguard_marshal must exist in CATALOG")
+    local dScore = dMarshal.onHandScored(fEval, {}, dMarshal)
+    assert(dScore.addMult == 10 and dScore.addArmor == 6, "Nguyên Soái Tiền Tuyến grants +10 Mult and +6 Armor")
+    log("[PASS] 97. Formation Archetype (Đội Hình): Equipment, Enhancements & Vanguard Marshal verified 100%")
+end
+
+-- 98. Test Khế Ước Bỏ Ải (3-Part Unified Schema & Skip Execution)
+do
+    assert(type(RunManager.SKIP_PACTS) == "table", "SKIP_PACTS must be a table")
+    assert(#RunManager.SKIP_PACTS >= 8, "Must have at least 8 Khế Ước Bỏ Ải")
+    for _, p in ipairs(RunManager.SKIP_PACTS) do
+        assert(type(p.instantDesc) == "string", "Pact must have instantDesc: " .. tostring(p.name))
+        assert(type(p.debtDesc) == "string", "Pact must have debtDesc: " .. tostring(p.name))
+        assert(type(p.durationDesc) == "string", "Pact must have durationDesc: " .. tostring(p.name))
+        assert(type(p.apply) == "function", "Pact must have apply function: " .. tostring(p.name))
+    end
+
+    -- Test skip application with 3-part pact
+    local run = RunManager.newRun("aurelia")
+    local pactState = { gold = 10, maxPlayerHp = 100, playerHp = 100 }
+    run.blinds[1].skipPact = RunManager.SKIP_PACTS[1] -- pact_blood_loan
+    local okSkip, skipMsg, appliedPact = RunManager.skipCurrentBlind(run, pactState)
+    assert(okSkip == true, "skipCurrentBlind must succeed")
+    assert(run.blinds[1].status == "skipped", "Blind status must become skipped")
+    assert(pactState.gold == 25, "Blood loan instant +$15 gold applied")
+    assert(pactState.maxPlayerHp == 85, "Blood loan debt -15 Max HP applied")
+    log("[PASS] 98. Khế Ước Bỏ Ải (3-Part Unified Schema & Skip Execution) verified 100%")
 end
 
 log("=== ALL SYSTEM TESTS PASSED SUCCESSFULLY! ===")

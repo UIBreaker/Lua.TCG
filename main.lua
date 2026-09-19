@@ -2483,7 +2483,8 @@ function love.update(dt)
                     end
 
                     if anim.monsterDefeated then
-                        -- Combat Victory: restore persistent cards back to base ranks
+                        -- Combat Victory: purge destroyed cards from persistent deck & restore base ranks
+                        Combat.cleanupDestroyedCards(game)
                         if game.persistentDeck then
                             Deck.restoreDeck(game.persistentDeck)
                             game.masterDeck = game.persistentDeck
@@ -2525,6 +2526,14 @@ function love.update(dt)
                             Sound.play("round_win")
                         end
                     else
+                        -- End of turn lifecycle:
+                        Combat.cleanupDestroyedCards(game)
+                        Combat.onPlayerTurnEnd(game)
+                        local cleansed, cleanseMsg = Combat.onMonsterTurnEnd(game)
+                        if cleansed then
+                            table.insert(anim.floatingTexts, { text = "✨ " .. cleanseMsg, color = UI.COLORS.hpGreen, x = 640, y = 300, alpha = 3.0 })
+                        end
+
                         -- Refill hand to maxHandSize cards while deck/discard has cards
                         local maxHandSize = (game.selectedFaction == "elaris" or game.selectedSuit == "elaris") and ((game.maxHandSize or 3) + 1) or (game.maxHandSize or 3)
                         local dealOrder = 0
@@ -4596,16 +4605,26 @@ local function drawBlindSelectState()
 
                 love.graphics.setFont(UI.fonts.small)
                 love.graphics.setColor(UI.COLORS.goldYellow)
-                love.graphics.printf("BÙA THƯỞNG KHI BỎ QUA (SKIP)", bx + 24, detailY + 12, cardW - 48, "center")
+                love.graphics.printf("KHẾ ƯỚC BỎ ẢI", bx + 24, detailY + 6, cardW - 48, "center")
 
-                if blind.tag then
-                    love.graphics.setFont(UI.fonts.medium or UI.fonts.regular)
-                    love.graphics.setColor(blind.tag.color or UI.COLORS.textLight)
-                    love.graphics.printf((blind.tag.icon or "🏷️") .. " " .. blind.tag.name, bx + 24, detailY + 40, cardW - 48, "center")
+                local pact = blind.skipPact or blind.tag
+                if pact then
+                    love.graphics.setFont(UI.fonts.small)
+                    love.graphics.setColor(pact.color or UI.COLORS.textLight)
+                    love.graphics.printf((pact.icon or "📜") .. " " .. pact.name, bx + 24, detailY + 26, cardW - 48, "center")
 
                     love.graphics.setFont(UI.fonts.tiny)
-                    love.graphics.setColor(UI.COLORS.textLight)
-                    love.graphics.printf(blind.tag.desc or "", bx + 26, detailY + 74, cardW - 52, "center")
+                    if pact.instantDesc and pact.debtDesc then
+                        love.graphics.setColor(UI.COLORS.hpGreen)
+                        love.graphics.printf("🎁 Nhận ngay: " .. pact.instantDesc, bx + 24, detailY + 48, cardW - 48, "left")
+                        love.graphics.setColor(UI.COLORS.multRed)
+                        love.graphics.printf("⚠️ Món nợ: " .. pact.debtDesc, bx + 24, detailY + 68, cardW - 48, "left")
+                        love.graphics.setColor(UI.COLORS.textMuted)
+                        love.graphics.printf("⏳ Thời hạn: " .. (pact.durationDesc or "1 trận"), bx + 24, detailY + 88, cardW - 48, "left")
+                    else
+                        love.graphics.setColor(UI.COLORS.textLight)
+                        love.graphics.printf(pact.desc or "", bx + 26, detailY + 54, cardW - 52, "center")
+                    end
                 end
             end
 
@@ -6058,18 +6077,20 @@ local function drawCardInspectorModal(card)
     love.graphics.setColor(UI.COLORS.hpGreen)
     love.graphics.printf("Điểm: +" .. card.baseChips .. " Chips", cardArtX + 8, durY + durH - 24, cardArtW - 16, "center")
 
-    -- Right side: 5 Equipment Sockets
+    -- Right side: Equipment Sockets
     local rightX = modalX + 230
     local rightW = modalW - 260
     love.graphics.setFont(UI.fonts.medium)
     love.graphics.setColor(UI.COLORS.textLight)
     local currentEqCount = card.equipments and #card.equipments or 0
-    love.graphics.print("CÁC Ô KHẢM TRANG BỊ (" .. currentEqCount .. "/5 Ô):", rightX, modalY + 80)
+    local maxSockets = card.maxSockets or (Equipment and Equipment.MAX_SLOTS) or 3
+    love.graphics.print("CÁC Ô KHẢM TRANG BỊ (" .. currentEqCount .. "/" .. maxSockets .. " Ô):", rightX, modalY + 80)
 
     local slotH = 68
     local slotStartY = modalY + 115
-    for s = 1, 5 do
+    for s = 1, maxSockets do
         local sy = slotStartY + (s - 1) * (slotH + 12)
+        local isUnlocked = s <= (card.unlockedSockets or 1)
         local eq = card.equipments and card.equipments[s]
 
         if eq then
@@ -6082,11 +6103,25 @@ local function drawCardInspectorModal(card)
             -- Slot badge & name
             love.graphics.setFont(UI.fonts.regular)
             love.graphics.setColor(eq.color or UI.COLORS.goldYellow)
-            love.graphics.print("[Ô " .. s .. "/5] " .. eq.name, rightX + 16, sy + 10)
+            love.graphics.print("[Ô " .. s .. "/" .. maxSockets .. "] " .. eq.name, rightX + 16, sy + 10)
 
             love.graphics.setFont(UI.fonts.small)
             love.graphics.setColor(UI.COLORS.textLight)
             love.graphics.printf(eq.desc, rightX + 20, sy + 38, rightW - 40, "left")
+        elseif not isUnlocked then
+            love.graphics.setColor(0.10, 0.10, 0.12, 0.5)
+            UI.drawRoundedRect("fill", rightX, sy, rightW, slotH, 8)
+            love.graphics.setLineWidth(1)
+            love.graphics.setColor(0.22, 0.22, 0.26, 0.4)
+            UI.drawRoundedRect("line", rightX, sy, rightW, slotH, 8)
+
+            love.graphics.setFont(UI.fonts.small)
+            love.graphics.setColor(0.35, 0.38, 0.45, 0.6)
+            love.graphics.print("[Ô " .. s .. "/" .. maxSockets .. "] 🔒 Hốc Khảm Chưa Mở Khóa", rightX + 16, sy + 14)
+
+            love.graphics.setFont(UI.fonts.tiny)
+            love.graphics.setColor(UI.COLORS.textMuted)
+            love.graphics.print("Mở khóa thêm hốc khảm bài bằng Khế Ước hoặc sự kiện đặc biệt.", rightX + 20, sy + 40)
         else
             love.graphics.setColor(0.11, 0.13, 0.17, 0.6)
             UI.drawRoundedRect("fill", rightX, sy, rightW, slotH, 8)
@@ -6096,7 +6131,7 @@ local function drawCardInspectorModal(card)
 
             love.graphics.setFont(UI.fonts.small)
             love.graphics.setColor(0.4, 0.45, 0.52, 0.7)
-            love.graphics.print("[Ô " .. s .. "/5] Ô Khảm Trống", rightX + 16, sy + 14)
+            love.graphics.print("[Ô " .. s .. "/" .. maxSockets .. "] Ô Khảm Trống", rightX + 16, sy + 14)
 
             love.graphics.setFont(UI.fonts.tiny)
             love.graphics.setColor(UI.COLORS.textMuted)

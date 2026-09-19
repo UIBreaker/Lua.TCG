@@ -190,6 +190,53 @@ Equipment.ITEMS.iron_spikes = {
     end
 }
 
+Equipment.ITEMS.vanguard_spear = {
+    id = "vanguard_spear",
+    name = "Mũi Giáo Tiên Phong",
+    icon = "🔱",
+    rarity = "uncommon",
+    slotsNeeded = 1,
+    color = { 0.90, 0.45, 0.20, 1 },
+    desc = "Lá ngoài cùng nhận +25 Chips; ở giữa bị −5 Chips",
+    onCardScore = function(card, playedCards, cardIndex, context)
+        local isOuter = (cardIndex == 1 or cardIndex == #playedCards)
+        local c = isOuter and 25 or -5
+        return { addChips = c, message = (isOuter and "+25" or "-5") .. " Chips (Mũi Giáo Tiên Phong)" }
+    end,
+}
+
+Equipment.ITEMS.shield_lock = {
+    id = "shield_lock",
+    name = "Khóa Khiên",
+    icon = "🔒",
+    rarity = "uncommon",
+    slotsNeeded = 1,
+    color = { 0.35, 0.65, 0.85, 1 },
+    desc = "+12 Giáp, sau đó lá bị Kiệt Sức một lượt",
+    onCardScore = function(card, playedCards, cardIndex, context)
+        card.exhausted = true
+        return { addArmor = 12, message = "+12 Giáp, Bị Kiệt Sức 1 Lượt (Khóa Khiên)" }
+    end,
+}
+
+Equipment.ITEMS.tactical_compass = {
+    id = "tactical_compass",
+    name = "La Bàn Chiến Trận",
+    icon = "🧭",
+    rarity = "legendary",
+    slotsNeeded = 2,
+    color = { 0.85, 0.40, 0.95, 1 },
+    desc = "[Huyền Thoại - Tốn 2 Hốc Khảm Bài] x1.25 XMult, hoán đổi vị trí với lá bài liền kề",
+    onCardScore = function(card, playedCards, cardIndex, context)
+        if cardIndex > 1 and playedCards[cardIndex - 1] then
+            playedCards[cardIndex], playedCards[cardIndex - 1] = playedCards[cardIndex - 1], playedCards[cardIndex]
+        elseif cardIndex < #playedCards and playedCards[cardIndex + 1] then
+            playedCards[cardIndex], playedCards[cardIndex + 1] = playedCards[cardIndex + 1], playedCards[cardIndex]
+        end
+        return { xMultBonus = 0.25, message = "x1.25 XMult & Hoán Đổi Vị Trí (La Bàn Chiến Trận)" }
+    end,
+}
+
 Equipment.POOL = {
     "gem_fire",
     "gem_blast",
@@ -202,6 +249,11 @@ Equipment.POOL = {
     "ward_stone",
     "shield_gem",
     "vitality_gem",
+    "void_catalyst",
+    "iron_spikes",
+    "vanguard_spear",
+    "shield_lock",
+    "tactical_compass",
 }
 
 function Equipment.getUsedSlots(card)
@@ -228,8 +280,9 @@ function Equipment.canAttach(card, equipItem)
         end
     end
     local needed = equipItem.slotsNeeded or 1
-    if Equipment.getUsedSlots(card) + needed > Equipment.MAX_SLOTS then
-        return false, "Lá bài này không đủ ô trang bị (Tối đa " .. Equipment.MAX_SLOTS .. " ô)!"
+    local available = card.unlockedSockets or 1
+    if Equipment.getUsedSlots(card) + needed > available then
+        return false, "Lá bài này chỉ mới mở khóa " .. available .. "/" .. Equipment.MAX_SLOTS .. " hốc khảm!"
     end
     return true
 end

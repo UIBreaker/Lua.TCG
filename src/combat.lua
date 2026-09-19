@@ -52,6 +52,14 @@ function Combat.start(game, monster, round)
         game.storedSlaughterChips = 0
     end
 
+    game.combatFlags = {
+        bloodSealUsed = false,
+        bloodSealUsedThisCombat = false,
+        vitalityGemUsed = false,
+        holyRelicTriggered = false,
+        purifyingSealUsed = false,
+    }
+
     if not game.persistentDeck or #game.persistentDeck == 0 then
         game.persistentDeck = Deck.createStarterDeck(game.selectedFaction or game.selectedSuit or "aurelia")
     end
@@ -64,6 +72,22 @@ function Combat.start(game, monster, round)
     game.discardPile = {}
     game.hand = {}
     Deck.shuffle(game.deck)
+
+    -- Anchor Seal (Ấn Neo): Prioritize cards with Anchor Seal to be dealt in the opening hand
+    local anchors = {}
+    local nonAnchors = {}
+    for _, c in ipairs(game.deck) do
+        if c.isAnchor or c.seal == "seal_anchor" or c.seal == "anchor" then
+            table.insert(anchors, c)
+        else
+            table.insert(nonAnchors, c)
+        end
+    end
+    if #anchors > 0 then
+        game.deck = {}
+        for _, c in ipairs(nonAnchors) do table.insert(game.deck, c) end
+        for _, c in ipairs(anchors) do table.insert(game.deck, c) end -- popped first from the end
+    end
 
     local maxHandSize = isFaction(game, "elaris") and ((game.maxHandSize or 3) + 1) or (game.maxHandSize or 3)
     local dealOrder = 0
@@ -86,12 +110,87 @@ function Combat.start(game, monster, round)
         table.insert(game.hand, card)
     end
 
+    -- Prophecy Seal (Ấn Tiên Tri): If any card in opening hand has Prophecy Seal, reveal 2 next intents
+    for _, c in ipairs(game.hand) do
+        if c.seal == "seal_prophecy" or c.seal == "prophecy" or c.seal == "blue" then
+            monster.showNextIntent = true
+            monster.revealedIntents = 2
+        end
+    end
+
     if isFaction(game, "vharos") or isFaction(game, "spades") or isFaction(game, "iron_axiom") or game.sortMode == "rank" then
         Deck.sortByRank(game.hand)
     else
         Deck.sortBySuit(game.hand)
     end
     return { slaughterChips = slaughterChips }
+end
+
+-- Purification Seal (Ấn Thanh Tẩy): Cleanses 1 debuff when held in hand during monster action
+function Combat.onMonsterTurnEnd(game)
+    if not game or not game.hand then return false end
+    game.combatFlags = game.combatFlags or {}
+    if not game.combatFlags.purifyingSealUsed then
+        for _, c in ipairs(game.hand) do
+            if c.seal == "seal_purifying" or c.seal == "purifying" then
+                game.combatFlags.purifyingSealUsed = true
+                if game.monster and game.monster.bossData then
+                    game.monster.bossDebuffCleansed = true
+                end
+                return true, "Ấn Thanh Tẩy đã giải trừ 1 hiệu ứng áp chế!"
+            end
+        end
+    end
+    return false
+end
+
+-- End of turn lifecycle: recovers exhausted cards and checks persistent states
+function Combat.onPlayerTurnEnd(game)
+    if not game or not game.hand then return end
+    for _, c in ipairs(game.hand) do
+        if c.exhausted then
+            if c.justExhausted then
+                c.justExhausted = nil
+            else
+                c.exhausted = false
+            end
+        end
+    end
+end
+
+-- Permadeath: Cleanly and permanently destroys cards marked with card.destroyed from combat & persistent deck
+function Combat.cleanupDestroyedCards(game)
+    if not game then return {} end
+    local destroyedIds = {}
+    local function filterDestroyed(tbl)
+        if not tbl then return end
+        for i = #tbl, 1, -1 do
+            local c = tbl[i]
+            if c and c.destroyed then
+                if c.id then
+                    destroyedIds[c.id] = true
+                    if tonumber(c.id) then destroyedIds[tonumber(c.id)] = true end
+                    destroyedIds[tostring(c.id)] = true
+                end
+                table.remove(tbl, i)
+            end
+        end
+    end
+
+    filterDestroyed(game.hand)
+    filterDestroyed(game.deck)
+    filterDestroyed(game.discardPile)
+
+    if game.persistentDeck then
+        for i = #game.persistentDeck, 1, -1 do
+            local pc = game.persistentDeck[i]
+            local isDestroyed = pc and (pc.destroyed or (pc.id and (destroyedIds[pc.id] or (tonumber(pc.id) and destroyedIds[tonumber(pc.id)]) or destroyedIds[tostring(pc.id)])))
+            if isDestroyed then
+                table.remove(game.persistentDeck, i)
+            end
+        end
+    end
+    return destroyedIds
 end
 
 return Combat

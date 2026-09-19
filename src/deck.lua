@@ -96,6 +96,18 @@ Deck.ENHANCEMENTS = {
         color = { 0.95, 0.75, 0.20, 1 },
         desc = "+25 Chips & +8 Mult khi đối đầu Boss; vô hiệu hóa trước quái thường",
     },
+    enh_vanguard = {
+        id = "enh_vanguard",
+        name = "Tiên Phong",
+        color = { 0.95, 0.50, 0.20, 1 },
+        desc = "Mạnh nhất khi đi đầu — nếu đánh ở vị trí đầu tiên (lá 1): +15 Chips & +4 Mult",
+    },
+    enh_rearguard = {
+        id = "enh_rearguard",
+        name = "Hậu Vệ",
+        color = { 0.35, 0.70, 0.90, 1 },
+        desc = "Vững chắc chốt chặn — nếu là lá cuối cùng trong tay bài ghi điểm: +8 Giáp & +3 Mult",
+    },
 }
 
 Deck.FACTIONS = {
@@ -297,8 +309,8 @@ function Deck.newCard(rank, suit)
         roleTitle = role.title,
         roleIcon = role.icon,
         roleDesc = role.desc,
-        equipments = {}, -- Up to 5 equipment slots
-        maxSockets = 5,
+        equipments = {}, -- Up to 3 equipment slots
+        maxSockets = 3,
         unlockedSockets = isDiamond and 2 or 1, -- Gilded Conclave opens 2 sockets by default
         isWildSuit = requestedSuit ~= "red_deck" and isAceOfClubs,
         isDualRankAce = requestedSuit ~= "red_deck" and isAceOfSpades,
@@ -436,8 +448,9 @@ function Deck.cloneCard(card)
     newC.enhancement = card.enhancement
     newC.overchargeStacks = card.overchargeStacks or 0
     newC.isAnchor = card.isAnchor or (card.seal == "seal_anchor" or card.seal == "anchor")
-    newC.unlockedSockets = card.unlockedSockets or newC.unlockedSockets
-    newC.maxSockets = card.maxSockets or 5
+    newC.unlockedSockets = card.unlockedSockets or 1
+    newC.maxSockets = 3
+    newC.exhausted = card.exhausted or false
     newC.equipments = {}
     if card.equipments then
         for _, eq in ipairs(card.equipments) do
